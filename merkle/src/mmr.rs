@@ -2,13 +2,29 @@ use crate::common::MerkleError;
 use fr_codec::prelude::*;
 use fr_common::Hash32;
 use fr_crypto::hash::{hash, Hasher, Keccak256};
-use std::marker::PhantomData;
+use std::{
+    fmt::{Display, Formatter},
+    marker::PhantomData,
+};
 
 /// Merkle Mountain Range representation.
 #[derive(Debug, Clone)]
 pub struct MerkleMountainRange<H: Hasher> {
     pub peaks: Vec<Option<Hash32>>,
     _hasher: PhantomData<H>,
+}
+
+impl<H: Hasher> Display for MerkleMountainRange<H> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "\t[")?;
+        for peak in self.peaks.iter() {
+            match peak {
+                Some(hash) => writeln!(f, "\t  {hash},")?,
+                None => writeln!(f, "\t  None,")?,
+            }
+        }
+        write!(f, "\t]")
+    }
 }
 
 impl<H: Hasher> PartialEq for MerkleMountainRange<H> {

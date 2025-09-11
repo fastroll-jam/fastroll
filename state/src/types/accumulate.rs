@@ -6,7 +6,10 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{TimeslotIndex, WorkPackageHash, EPOCH_LENGTH};
 use fr_limited_vec::FixedVec;
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    fmt::{Display, Formatter},
+};
 
 /// Pair of a work report and its unaccumulated dependencies.
 pub type WorkReportDepsMap = (WorkReport, BTreeSet<WorkPackageHash>);
@@ -23,6 +26,28 @@ pub struct AccumulateQueue {
     pub items: AccumulateQueueEntries,
 }
 impl_simple_state_component!(AccumulateQueue, AccumulateQueue);
+
+impl Display for AccumulateQueue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.items.is_empty() {
+            writeln!(f, "AccumulateQueue {{}}")?;
+            return Ok(());
+        }
+
+        writeln!(f, "AccumulateQueue {{")?;
+        for entry in self.items.iter() {
+            for (report, deps) in entry.iter() {
+                writeln!(f, "  Report {{ {} }}", report)?;
+                writeln!(f, "  Deps {{")?;
+                for dep in deps.iter() {
+                    writeln!(f, "    {},", dep)?;
+                }
+                writeln!(f, "  }},")?;
+            }
+        }
+        write!(f, "}}")
+    }
+}
 
 impl AccumulateQueue {
     pub fn new() -> Self {
@@ -83,6 +108,28 @@ pub struct AccumulateHistory {
     pub items: AccumulateHistoryEntries,
 }
 impl_simple_state_component!(AccumulateHistory, AccumulateHistory);
+
+impl Display for AccumulateHistory {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.items.is_empty() {
+            writeln!(f, "AccumulateHistory {{}}")?;
+            return Ok(());
+        }
+        writeln!(f, "AccumulateHistory {{")?;
+        for entry in self.items.iter() {
+            if entry.is_empty() {
+                writeln!(f, "  {{}},")?;
+                continue;
+            }
+            writeln!(f, "  {{")?;
+            for hash in entry.iter() {
+                writeln!(f, "    {hash}")?;
+            }
+            writeln!(f, "  }},")?;
+        }
+        write!(f, "}}")
+    }
+}
 
 impl AccumulateHistory {
     /// Returns a union of all HashMaps in the one-epoch worth of history.

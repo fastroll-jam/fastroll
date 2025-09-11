@@ -11,6 +11,7 @@ use fr_crypto::Keccak256;
 use fr_limited_vec::LimitedVec;
 use fr_merkle::{mmr::MerkleMountainRange, well_balanced_tree::WellBalancedMerkleTree};
 use fr_pvm_types::invoke_results::{AccumulationOutputPair, AccumulationOutputPairs};
+use std::fmt::{Display, Formatter};
 
 pub type BlockHistoryEntries = LimitedVec<BlockHistoryEntry, BLOCK_HISTORY_LENGTH>;
 
@@ -25,6 +26,19 @@ pub struct BlockHistory {
     pub beefy_belt: MerkleMountainRange<Keccak256>,
 }
 impl_simple_state_component!(BlockHistory, BlockHistory);
+
+impl Display for BlockHistory {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "BlockHistory {{")?;
+        writeln!(f, "history: ")?;
+        for entry in self.history.iter() {
+            writeln!(f, "{entry},")?;
+        }
+        writeln!(f, "beefy_belt: ")?;
+        writeln!(f, "{}", self.beefy_belt)?;
+        write!(f, "}}")
+    }
+}
 
 impl BlockHistory {
     /// Appends a new block history entry.
@@ -84,6 +98,25 @@ pub struct BlockHistoryEntry {
     pub reported_packages: Vec<ReportedWorkPackage>, // Length up to CORE_COUNT.
 }
 
+impl Display for BlockHistoryEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "\t[")?;
+        writeln!(f, "\t  header_hash: {}", self.header_hash)?;
+        writeln!(f, "\t  mmr_root: {}", self.accumulation_result_mmr_root)?;
+        writeln!(f, "\t  state_root: {}", self.state_root)?;
+        if self.reported_packages.is_empty() {
+            writeln!(f, "\t  packages: []")?;
+        } else {
+            writeln!(f, "\t  packages: [")?;
+            for package in &self.reported_packages {
+                writeln!(f, "{}", package)?;
+            }
+            writeln!(f, "\t]")?;
+        }
+        write!(f, "\t]")
+    }
+}
+
 impl JamEncode for BlockHistoryEntry {
     fn size_hint(&self) -> usize {
         self.header_hash.size_hint()
@@ -124,6 +157,20 @@ impl BlockHistoryEntry {
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct LastAccumulateOutputs(pub Vec<AccumulationOutputPair>);
 impl_simple_state_component!(LastAccumulateOutputs, LastAccumulateOutputs);
+
+impl Display for LastAccumulateOutputs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.0.is_empty() {
+            writeln!(f, "LastAccumulateOutputs {{ }}")?;
+            return Ok(());
+        }
+        writeln!(f, "LastAccumulateOutputs [")?;
+        for entry in self.0.iter() {
+            writeln!(f, "  {},", entry)?;
+        }
+        write!(f, "]")
+    }
+}
 
 impl LastAccumulateOutputs {
     pub fn from_output_pairs(output_pairs: AccumulationOutputPairs) -> Self {
