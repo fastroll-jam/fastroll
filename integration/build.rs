@@ -126,19 +126,19 @@ fn generate_fuzz_block_import_tests() {
         // "1756832925",
         // ----- New reports batch
         "1757406079",
-        "1757406238", // fail [03, 10]
-        "1757406356", // fail [FALSE FAIL] -- Mem OutOfRange
+        "1757406238",
+        "1757406356",
         "1757406441", // fail [FALSE SUCCESS]
-        "1757406516", // fail (success-on-fuzz)
-        "1757406558", // fail [FALSE FAIL] -- Mem OutOfRange
-        "1757406598", // fail [03, 10]
-        "1757421101", // fail [FALSE FAIL] -- Mem OutOfRange
+        "1757406516",
+        "1757406558", // mismatch (OnChainStatistics, Storage, AccountMetadata)
+        "1757406598",
+        "1757421101", // mismatch (BlockHistory, OnChainStatistics, LastAccumulateOutputs, Storage, AccountMetadata)
         "1757421743",
-        "1757421824", // fail [FALSE FAIL] -- Mem OutOfRange
+        "1757421824",
         "1757421952",
         "1757422106", // fail [FALSE SUCCESS]
-        "1757422178", // fail [03, 10]
-        "1757422206", // fail [FALSE FAIL] -- InvalidHostCallType
+        "1757422178",
+        "1757422206",
         "1757422550",
         "1757422647",
         "1757422771", // fail-on-fuzz [FORKING]
