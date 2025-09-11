@@ -12,7 +12,7 @@ use fr_pvm_host::{
     },
     error::HostCallError::InvalidContext,
 };
-use fr_pvm_interface::invoke::{PVMInterface, PVMInvocationOutput};
+use fr_pvm_interface::invoke::{InvocationType, PVMInterface, PVMInvocationOutput};
 use fr_pvm_types::{
     constants::ACCUMULATE_INITIAL_PC,
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
@@ -129,6 +129,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
             state_manager,
             args.accumulate_host,
             account_code.code(),
+            &InvocationType::Accumulate,
             ACCUMULATE_INITIAL_PC,
             args.gas_limit,
             &vm_args.encode()?,
