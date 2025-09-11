@@ -5,7 +5,7 @@ use fr_common::{
     MAX_IS_AUTHORIZED_CODE_SIZE,
 };
 use fr_pvm_host::context::{InvocationContext, IsAuthorizedHostContext};
-use fr_pvm_interface::invoke::{PVMInterface, PVMInvocationResult};
+use fr_pvm_interface::invoke::{InvocationType, PVMInterface, PVMInvocationResult};
 use fr_pvm_types::{constants::IS_AUTHORIZED_INITIAL_PC, invoke_args::IsAuthorizedInvokeArgs};
 use fr_state::manager::StateManager;
 use std::sync::Arc;
@@ -99,6 +99,7 @@ impl IsAuthorizedInvocation {
             state_manager,
             args.package.authorizer_service_id,
             account_code.code(),
+            &InvocationType::IsAuthorized,
             IS_AUTHORIZED_INITIAL_PC,
             IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
             &vm_args.encode()?,

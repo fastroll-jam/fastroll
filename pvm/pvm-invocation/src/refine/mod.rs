@@ -13,7 +13,7 @@ use fr_pvm_host::{
     context::{InvocationContext, RefineHostContext},
     error::HostCallError::InvalidContext,
 };
-use fr_pvm_interface::invoke::{PVMInterface, PVMInvocationOutput};
+use fr_pvm_interface::invoke::{InvocationType, PVMInterface, PVMInvocationOutput};
 use fr_pvm_types::{
     common::ExportDataSegment, constants::REFINE_INITIAL_PC, invoke_args::RefineInvokeArgs,
 };
@@ -159,6 +159,7 @@ impl RefineInvocation {
             state_manager,
             work_item.service_id,
             account_code.code(),
+            &InvocationType::Refine,
             REFINE_INITIAL_PC,
             work_item.refine_gas_limit,
             &vm_args.encode()?,
