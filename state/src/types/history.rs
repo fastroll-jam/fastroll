@@ -158,6 +158,20 @@ impl BlockHistoryEntry {
 pub struct LastAccumulateOutputs(pub Vec<AccumulationOutputPair>);
 impl_simple_state_component!(LastAccumulateOutputs, LastAccumulateOutputs);
 
+impl Display for LastAccumulateOutputs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.0.is_empty() {
+            writeln!(f, "LastAccumulateOutputs {{ }}")?;
+            return Ok(());
+        }
+        writeln!(f, "LastAccumulateOutputs [")?;
+        for entry in self.0.iter() {
+            writeln!(f, "  {},", entry)?;
+        }
+        write!(f, "]")
+    }
+}
+
 impl LastAccumulateOutputs {
     pub fn from_output_pairs(output_pairs: AccumulationOutputPairs) -> Self {
         Self(output_pairs.0.into_iter().collect())

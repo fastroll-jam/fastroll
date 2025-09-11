@@ -27,7 +27,7 @@ pub(crate) fn display_state_entry(key_encoded: &[u8], mut val_encoded: &[u8]) {
         }
         5 => {
             let decoded = DisputesState::decode(&mut val_encoded).unwrap();
-            println!("{decoded:?}");
+            println!("{decoded}");
         }
         6 => {
             let decoded = EpochEntropy::decode(&mut val_encoded).unwrap();
@@ -63,15 +63,15 @@ pub(crate) fn display_state_entry(key_encoded: &[u8], mut val_encoded: &[u8]) {
         }
         14 => {
             let decoded = AccumulateQueue::decode(&mut val_encoded).unwrap();
-            println!("{decoded:?}");
+            println!("{decoded}");
         }
         15 => {
             let decoded = AccumulateHistory::decode(&mut val_encoded).unwrap();
-            println!("{decoded:?}");
+            println!("{decoded}");
         }
         16 => {
             let decoded = LastAccumulateOutputs::decode(&mut val_encoded).unwrap();
-            println!("{decoded:?}");
+            println!("{decoded}");
         }
         255 => {
             let mut service_id_buf = Vec::with_capacity(4);

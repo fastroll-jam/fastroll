@@ -286,11 +286,13 @@ pub struct RefineStats {
 
 impl Display for RefineStats {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "refine_gas_used: {}", self.refine_gas_used)?;
-        writeln!(f, "imports_count: {}", self.imports_count)?;
-        writeln!(f, "extrinsics_count: {}", self.extrinsics_count)?;
-        writeln!(f, "extrinsics_octets: {}", self.extrinsics_octets)?;
-        write!(f, "exports_count: {}", self.exports_count)
+        writeln!(f, "\t  {{")?;
+        writeln!(f, "\t\trefine_gas_used: {}", self.refine_gas_used)?;
+        writeln!(f, "\t\timports_count: {}", self.imports_count)?;
+        writeln!(f, "\t\textrinsics_count: {}", self.extrinsics_count)?;
+        writeln!(f, "\t\textrinsics_octets: {}", self.extrinsics_octets)?;
+        writeln!(f, "\t\texports_count: {}", self.exports_count)?;
+        write!(f, "\t  }}")
     }
 }
 
@@ -312,14 +314,18 @@ pub struct WorkDigest {
 
 impl Display for WorkDigest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "WorkDigest: {{")?;
-        writeln!(f, "service_idx: {}", self.service_id)?;
-        writeln!(f, "service_code_hash: {}", self.service_code_hash)?;
-        writeln!(f, "payload_hash: {}", self.payload_hash)?;
-        writeln!(f, "accumulate_gas_limit: {}", self.accumulate_gas_limit)?;
-        writeln!(f, "refine_result: {}", self.refine_result)?;
-        writeln!(f, "refine_stats: {}", self.refine_stats)?;
-        write!(f, "}}")
+        writeln!(f, "\t  WorkDigest {{")?;
+        writeln!(f, "\t    service_idx: {}", self.service_id)?;
+        writeln!(f, "\t    service_code_hash: {}", self.service_code_hash)?;
+        writeln!(f, "\t    payload_hash: {}", self.payload_hash)?;
+        writeln!(
+            f,
+            "\t    accumulate_gas_limit: {}",
+            self.accumulate_gas_limit
+        )?;
+        writeln!(f, "\t    refine_result: {}", self.refine_result)?;
+        writeln!(f, "\t    refine_stats: {}", self.refine_stats)?;
+        write!(f, "\t  }}")
     }
 }
 
@@ -392,6 +398,27 @@ pub struct WorkReport {
     pub segment_roots_lookup: SegmentRootLookupTable,
     /// **`d`**: Work digests
     pub digests: WorkDigests,
+}
+
+impl Display for WorkReport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "  specs: {}", self.specs)?;
+        writeln!(f, "  refine_ctx: {}", self.refinement_context)?;
+        writeln!(f, "  core_index: {}", self.core_index)?;
+        writeln!(f, "  auth_hash: {}", self.authorizer_hash)?;
+        writeln!(f, "  auth_gas_used: {}", self.auth_gas_used)?;
+        writeln!(f, "  auth_trace: {}", self.auth_trace)?;
+        writeln!(f, "  sr_lookup: {}", self.segment_roots_lookup)?;
+        if self.digests.is_empty() {
+            writeln!(f, "  digests: []")?;
+            return Ok(());
+        }
+        writeln!(f, "  digests: [")?;
+        for digest in self.digests.iter() {
+            writeln!(f, "{},", digest)?;
+        }
+        write!(f, "  ]")
+    }
 }
 
 impl JamEncode for WorkReport {
