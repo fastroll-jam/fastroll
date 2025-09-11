@@ -5,7 +5,10 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{ServiceId, UnsignedGas, CORE_COUNT};
 use fr_limited_vec::FixedVec;
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    fmt::{Display, Formatter},
+};
 
 pub type AssignServices = FixedVec<ServiceId, CORE_COUNT>;
 pub type AlwaysAccumulateServices = BTreeMap<ServiceId, UnsignedGas>;
@@ -28,6 +31,25 @@ pub struct PrivilegedServices {
     pub always_accumulate_services: AlwaysAccumulateServices,
 }
 impl_simple_state_component!(PrivilegedServices, PrivilegedServices);
+
+impl Display for PrivilegedServices {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        writeln!(f, "PrivilegedService {{")?;
+        writeln!(f, "  manager: {}", self.manager_service)?;
+        writeln!(f, "  assign: [")?;
+        for s in self.assign_services.iter() {
+            writeln!(f, "    {s},")?;
+        }
+        writeln!(f, "  ]")?;
+        writeln!(f, "  designate: {}", self.designate_service)?;
+        writeln!(f, "  always_accumulate: [")?;
+        for (s, g) in self.always_accumulate_services.iter() {
+            writeln!(f, "    (service={s}, gas={g}),")?;
+        }
+        writeln!(f, "  ]")?;
+        write!(f, "}}")
+    }
+}
 
 impl JamEncode for PrivilegedServices {
     fn size_hint(&self) -> usize {

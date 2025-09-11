@@ -55,11 +55,11 @@ pub(crate) fn display_state_entry(key_encoded: &[u8], mut val_encoded: &[u8]) {
         }
         12 => {
             let decoded = PrivilegedServices::decode(&mut val_encoded).unwrap();
-            println!("{decoded:?}");
+            println!("{decoded}");
         }
         13 => {
             let decoded = OnChainStatistics::decode(&mut val_encoded).unwrap();
-            println!("{decoded:?}");
+            println!("{decoded}");
         }
         14 => {
             let decoded = AccumulateQueue::decode(&mut val_encoded).unwrap();
