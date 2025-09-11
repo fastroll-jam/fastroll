@@ -320,8 +320,6 @@ impl Display for ServiceStatsEntry {
             "\t    accumulate_gas_used: {}",
             &self.accumulate_gas_used
         )?;
-        writeln!(f, "\t    xfer_count: {}", &self.on_transfer_transfers_count)?;
-        writeln!(f, "\t    xfer_gas_used: {}", &self.on_transfer_gas_used)?;
         write!(f, "\t  }}")
     }
 }

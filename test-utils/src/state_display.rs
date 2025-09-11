@@ -74,18 +74,19 @@ pub(crate) fn display_state_entry(key_encoded: &[u8], mut val_encoded: &[u8]) {
             println!("{decoded}");
         }
         255 => {
-            let mut service_id_buf = Vec::with_capacity(4);
-            service_id_buf.push(key_encoded[1]);
-            service_id_buf.push(key_encoded[3]);
-            service_id_buf.push(key_encoded[5]);
-            service_id_buf.push(key_encoded[7]);
+            let service_id_buf = vec![
+                key_encoded[1],
+                key_encoded[3],
+                key_encoded[5],
+                key_encoded[7],
+            ];
             let service_id = ServiceId::decode_fixed(&mut service_id_buf.as_slice(), 4).unwrap();
             println!("Service Id: {service_id}");
             let decoded = AccountMetadata::decode(&mut val_encoded).unwrap();
             println!("{decoded}");
         }
         _ => {
-            println!("Storage entry (encoded): 0x{}", hex::encode(&val_encoded));
+            println!("Storage entry (encoded): 0x{}", hex::encode(val_encoded));
         }
     }
 }

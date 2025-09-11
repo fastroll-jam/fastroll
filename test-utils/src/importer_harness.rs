@@ -195,7 +195,7 @@ impl BlockImportHarness {
         let expected_timeslot = expected_post_state
             .keyvals
             .iter()
-            .find(|&kv| &kv.key == &timeslot_state_key)
+            .find(|&kv| kv.key == timeslot_state_key)
             .unwrap()
             .value
             .clone()
@@ -215,12 +215,12 @@ impl BlockImportHarness {
             for kv in expected_post_state.keyvals {
                 if let Some(actual_val) = state_manager.get_raw_state_entry(&kv.key).await.unwrap()
                 {
-                    if actual_val.as_slice() != &*kv.value {
+                    if actual_val.as_slice() != *kv.value {
                         tracing::error!("State mismatch. Key: {}", kv.key);
                         println!("Actual:");
                         display_state_entry(kv.key.as_slice(), &actual_val);
                         println!("\nExpected:");
-                        display_state_entry(kv.key.as_slice(), &*kv.value);
+                        display_state_entry(kv.key.as_slice(), &kv.value);
                         println!("\n");
                     }
                 } else {

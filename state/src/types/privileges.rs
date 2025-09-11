@@ -42,6 +42,7 @@ impl Display for PrivilegedServices {
         }
         writeln!(f, "  ]")?;
         writeln!(f, "  designate: {}", self.designate_service)?;
+        writeln!(f, "  registrar: {}", self.registrar_service)?;
         writeln!(f, "  always_accumulate: [")?;
         for (s, g) in self.always_accumulate_services.iter() {
             writeln!(f, "    (service={s}, gas={g}),")?;
