@@ -15,11 +15,11 @@ pub(crate) fn display_state_entry(key_encoded: &[u8], mut val_encoded: &[u8]) {
         }
         2 => {
             let decoded = AuthQueue::decode(&mut val_encoded).unwrap();
-            println!("{decoded:?}");
+            println!("{decoded}");
         }
         3 => {
             let decoded = BlockHistory::decode(&mut val_encoded).unwrap();
-            println!("{decoded:?}");
+            println!("{decoded}");
         }
         4 => {
             let decoded = SafroleState::decode(&mut val_encoded).unwrap();

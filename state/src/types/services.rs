@@ -141,16 +141,16 @@ impl_account_state_component!(AccountMetadata, AccountMetadata);
 impl Display for AccountMetadata {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         writeln!(f, "{{")?;
-        writeln!(f, "\tcode_hash: {}", self.code_hash)?;
-        writeln!(f, "\tbalance: {}", self.balance)?;
-        writeln!(f, "\tgas_limit_acc: {}", self.gas_limit_accumulate)?;
-        writeln!(f, "\tgas_limit_xfer: {}", self.gas_limit_on_transfer)?;
-        writeln!(f, "\toctets_footprint: {}", self.octets_footprint)?;
-        writeln!(f, "\tgratis_storage_offset: {}", self.gratis_storage_offset)?;
-        writeln!(f, "\titems_footprint: {}", self.items_footprint)?;
-        writeln!(f, "\tcreated_at: {}", self.created_at)?;
-        writeln!(f, "\tlast_acc_at: {}", self.last_accumulate_at)?;
-        writeln!(f, "\tparent_service: {}", self.parent_service_id)?;
+        writeln!(f, "  code_hash: {}", self.code_hash)?;
+        writeln!(f, "  balance: {}", self.balance)?;
+        writeln!(f, "  gas_limit_acc: {}", self.gas_limit_accumulate)?;
+        writeln!(f, "  gas_limit_xfer: {}", self.gas_limit_on_transfer)?;
+        writeln!(f, "  octets_footprint: {}", self.octets_footprint)?;
+        writeln!(f, "  gratis_storage_offset: {}", self.gratis_storage_offset)?;
+        writeln!(f, "  items_footprint: {}", self.items_footprint)?;
+        writeln!(f, "  created_at: {}", self.created_at)?;
+        writeln!(f, "  last_acc_at: {}", self.last_accumulate_at)?;
+        writeln!(f, "  parent_service: {}", self.parent_service_id)?;
         write!(f, "}}")
     }
 }

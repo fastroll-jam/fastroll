@@ -115,8 +115,8 @@ pub struct ReportedWorkPackage {
 
 impl Display for ReportedWorkPackage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "package_hash: {}", self.work_package_hash)?;
-        write!(f, "segment_root: {}", self.segment_root)
+        writeln!(f, "\t\tpackage_hash: {}", self.work_package_hash)?;
+        write!(f, "\t\tsegment_root: {}", self.segment_root)
     }
 }
 
