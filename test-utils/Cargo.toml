@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 fr-asn-types = { workspace = true }
 fr-block = { workspace = true }
+fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-config = { workspace = true }
 fr-extrinsics = { workspace = true }

@@ -2,7 +2,10 @@ use fr_codec::prelude::*;
 use fr_common::{AccumulateRoot, Hash32, ServiceId, UnsignedGas};
 use fr_crypto::Keccak256;
 use fr_merkle::well_balanced_tree::WellBalancedMerkleTree;
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    fmt::{Display, Formatter},
+};
 
 pub type AccumulationOutputHash = Hash32;
 
@@ -39,6 +42,12 @@ impl AccumulationOutputPairs {
 pub struct AccumulationOutputPair {
     pub service: ServiceId,
     pub output_hash: AccumulationOutputHash,
+}
+
+impl Display for AccumulationOutputPair {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "service={}, hash={}", self.service, self.output_hash)
+    }
 }
 
 impl JamEncode for AccumulationOutputPair {

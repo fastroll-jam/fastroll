@@ -1296,6 +1296,7 @@ dependencies = [
  "async-trait",
  "fr-asn-types",
  "fr-block",
+ "fr-codec",
  "fr-common",
  "fr-config",
  "fr-extrinsics",

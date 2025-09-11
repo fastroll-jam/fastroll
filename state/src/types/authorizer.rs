@@ -56,3 +56,17 @@ pub type CoreAuthQueueEntries = FixedVec<CoreAuthQueue, CORE_COUNT>;
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AuthQueue(pub CoreAuthQueueEntries);
 impl_simple_state_component!(AuthQueue, AuthQueue);
+
+impl Display for AuthQueue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "AuthQueue {{")?;
+        for (core_idx, queue) in self.0.iter().enumerate() {
+            writeln!(f, "  core #{core_idx}: [")?;
+            for auth_hash in queue {
+                writeln!(f, "    {}", &auth_hash)?;
+            }
+            writeln!(f, "  ]")?;
+        }
+        write!(f, "}}")
+    }
+}
