@@ -11,6 +11,7 @@ use fr_common::{
 use fr_limited_vec::FixedVec;
 use std::{
     collections::BTreeMap,
+    fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
 };
 
@@ -29,6 +30,16 @@ pub struct OnChainStatistics {
 }
 impl_simple_state_component!(OnChainStatistics, OnChainStatistics);
 
+impl Display for OnChainStatistics {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "OnChainStatistics {{")?;
+        writeln!(f, "validator_stats: {}", &self.validator_stats)?;
+        writeln!(f, "core_stats: {}", &self.core_stats)?;
+        writeln!(f, "service_stats: {}", &self.service_stats)?;
+        write!(f, "}}")
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ValidatorStatsEntry {
     /// `b`: The number of blocks produced by the validator.
@@ -43,6 +54,23 @@ pub struct ValidatorStatsEntry {
     pub guarantees_count: u32,
     /// `a`: The number of availability assurances made by the validator.
     pub assurances_count: u32,
+}
+
+impl Display for ValidatorStatsEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "\t{{")?;
+        writeln!(f, "\t  blocks_count: {}", self.blocks_produced_count)?;
+        writeln!(f, "\t  tickets_count: {}", self.tickets_count)?;
+        writeln!(f, "\t  preimages_count: {}", self.preimages_count)?;
+        writeln!(
+            f,
+            "\t  preimage_octets: {}",
+            self.preimage_data_octets_count
+        )?;
+        writeln!(f, "\t  guarantees_count: {}", self.guarantees_count)?;
+        writeln!(f, "\t  assurances_count: {}", self.assurances_count)?;
+        write!(f, "\t}}")
+    }
 }
 
 impl JamEncode for ValidatorStatsEntry {
@@ -89,6 +117,16 @@ pub struct EpochValidatorStats {
     items: ValidatorStatsEntries,
 }
 
+impl Display for EpochValidatorStats {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "[")?;
+        for entry in self.items.iter() {
+            writeln!(f, "{},", entry)?;
+        }
+        write!(f, "]")
+    }
+}
+
 impl Deref for EpochValidatorStats {
     type Target = [ValidatorStatsEntry];
 
@@ -129,6 +167,15 @@ impl EpochValidatorStats {
 pub struct ValidatorStats {
     pub curr: EpochValidatorStats,
     pub prev: EpochValidatorStats,
+}
+
+impl Display for ValidatorStats {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        writeln!(f, "curr: {}", &self.curr)?;
+        writeln!(f, "prev: {}", &self.prev)?;
+        write!(f, "}}")
+    }
 }
 
 impl ValidatorStats {
@@ -181,6 +228,21 @@ pub struct CoreStatsEntry {
     pub refine_gas_used: UnsignedGas,
 }
 
+impl Display for CoreStatsEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "\t{{")?;
+        writeln!(f, "\t  data_items_size: {}", &self.da_items_size)?;
+        writeln!(f, "\t  assurers: {}", &self.assurers_count)?;
+        writeln!(f, "\t  imports: {}", &self.imports_count)?;
+        writeln!(f, "\t  xt_count: {}", &self.extrinsics_count)?;
+        writeln!(f, "\t  xt_octets: {}", &self.extrinsics_octets)?;
+        writeln!(f, "\t  exports: {}", &self.exports_count)?;
+        writeln!(f, "\t  bundle_length: {}", &self.work_bundle_length)?;
+        writeln!(f, "\t  refine_gas_used: {}", &self.refine_gas_used)?;
+        write!(f, "\t}}")
+    }
+}
+
 impl CoreStatsEntry {
     pub fn accumulate_refine_stats(&mut self, refine_stats: &RefineStats) {
         self.imports_count += refine_stats.imports_count;
@@ -196,6 +258,16 @@ pub type CoreStatsEntries = FixedVec<CoreStatsEntry, CORE_COUNT>;
 /// The core activities statistics recorded on-chain, on a per-block basis.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct CoreStats(pub CoreStatsEntries);
+
+impl Display for CoreStats {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "[")?;
+        for entry in self.0.iter() {
+            writeln!(f, "{}", entry)?;
+        }
+        write!(f, "]")
+    }
+}
 
 impl CoreStats {
     pub fn core_stats_entry_mut(&mut self, core_index: CoreIndex) -> &mut CoreStatsEntry {
@@ -227,6 +299,31 @@ pub struct ServiceStatsEntry {
     pub accumulate_gas_used: UnsignedGas,
 }
 
+impl Display for ServiceStatsEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        writeln!(f, "\t    preimage_xts_count: {}", &self.preimage_xts_count)?;
+        writeln!(f, "\t    preimage_blob_size: {}", &self.preimage_blob_size)?;
+        writeln!(f, "\t    digests: {}", &self.work_digests_count)?;
+        writeln!(f, "\t    refine_gas_used: {}", &self.refine_gas_used)?;
+        writeln!(f, "\t    imports: {}", &self.imports_count)?;
+        writeln!(f, "\t    xt_count: {}", &self.extrinsics_count)?;
+        writeln!(f, "\t    xt_octets: {}", &self.extrinsics_octets)?;
+        writeln!(f, "\t    exports: {}", &self.exports_count)?;
+        writeln!(
+            f,
+            "\t    accumulate_digests_count: {}",
+            &self.accumulate_digests_count
+        )?;
+        writeln!(
+            f,
+            "\t    accumulate_gas_used: {}",
+            &self.accumulate_gas_used
+        )?;
+        write!(f, "\t  }}")
+    }
+}
+
 impl ServiceStatsEntry {
     pub fn accumulate_refine_stats(&mut self, refine_stats: &RefineStats) {
         self.work_digests_count += 1;
@@ -246,6 +343,17 @@ impl ServiceStatsEntry {
 /// The service activities statistics recorded on-chain, on a per-block basis.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ServiceStats(pub BTreeMap<ServiceId, ServiceStatsEntry>);
+
+impl Display for ServiceStats {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "\t[")?;
+        self.0.iter().for_each(|(s, e)| {
+            writeln!(f, "\t  Service: {s}").unwrap();
+            writeln!(f, "\t  Entry: {e}").unwrap();
+        });
+        write!(f, "\t]")
+    }
+}
 
 // FIXME: Workaround fixed-codec for service ids. This isn't aligned with GP but needed to pass traces test vectors.
 impl JamEncode for ServiceStats {

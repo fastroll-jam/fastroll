@@ -5,6 +5,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::WorkReportHash;
 use fr_crypto::types::*;
+use std::fmt::{Display, Formatter};
 
 /// A record of historical dispute verdicts and their associated offenders set.
 ///
@@ -21,6 +22,33 @@ pub struct DisputesState {
     pub punish_set: Vec<Ed25519PubKey>,
 }
 impl_simple_state_component!(DisputesState, DisputesState);
+
+impl Display for DisputesState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "DisputesState {{")?;
+        writeln!(f, "  good_set: [")?;
+        for entry in self.good_set.iter() {
+            writeln!(f, "    {entry},")?;
+        }
+        writeln!(f, "  ]")?;
+        writeln!(f, "  bad_set: [")?;
+        for entry in self.bad_set.iter() {
+            writeln!(f, "    {entry},")?;
+        }
+        writeln!(f, "  ]")?;
+        writeln!(f, "  wonky_set: [")?;
+        for entry in self.wonky_set.iter() {
+            writeln!(f, "    {entry},")?;
+        }
+        writeln!(f, "  ]")?;
+        writeln!(f, "  punish_set: [")?;
+        for entry in self.punish_set.iter() {
+            writeln!(f, "    {},", entry.0)?;
+        }
+        writeln!(f, "  ]")?;
+        write!(f, "}}")
+    }
+}
 
 // Note: No duplication check is conducted here.
 impl DisputesState {
