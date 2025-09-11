@@ -1,13 +1,18 @@
 use crate::state_display::display_state_entry;
 use fr_asn_types::common::{AsnBlock, AsnHeader, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
+use fr_codec::prelude::*;
 use fr_common::{
     utils::tracing::setup_timed_tracing_with_flamegraph, ByteArray, ByteSequence, StateKey,
     StateRoot,
 };
 use fr_config::StorageConfig;
 use fr_node::roles::importer::BlockImporter;
-use fr_state::{manager::StateManager, state_utils::add_all_simple_state_entries};
+use fr_state::{
+    manager::StateManager,
+    state_utils::{add_all_simple_state_entries, get_simple_state_key, StateKeyConstant},
+    types::Timeslot,
+};
 use fr_storage::node_storage::NodeStorage;
 use fr_transition::state::services::AccountStateChanges;
 use regex::Regex;
@@ -181,19 +186,47 @@ impl BlockImportHarness {
         actual_post_state_root: StateRoot,
         expected_post_state: RawState,
     ) {
-        for kv in expected_post_state.keyvals {
-            if let Some(actual_val) = state_manager.get_raw_state_entry(&kv.key).await.unwrap() {
-                if actual_val.as_slice() != &*kv.value {
-                    tracing::error!("State mismatch. Key: {}", kv.key);
-                    println!("Actual:");
-                    display_state_entry(kv.key.as_slice(), &actual_val);
-                    println!("\nExpected:");
-                    display_state_entry(kv.key.as_slice(), &*kv.value);
-                    println!("\n");
-                }
-            } else {
-                tracing::warn!("Raw state entry not found. Key: {}", kv.key.encode_hex());
-            };
+        let timeslot_state_key = get_simple_state_key(StateKeyConstant::Timeslot);
+        let actual_timeslot = state_manager
+            .get_raw_state_entry(&timeslot_state_key)
+            .await
+            .unwrap()
+            .unwrap();
+        let expected_timeslot = expected_post_state
+            .keyvals
+            .iter()
+            .find(|&kv| &kv.key == &timeslot_state_key)
+            .unwrap()
+            .value
+            .clone()
+            .into_vec();
+        // Skip printing all state diffs on timeslot mismatch
+        if actual_timeslot != expected_timeslot {
+            tracing::error!("Timeslot mismatch.");
+            println!(
+                "Actual: {:?}",
+                Timeslot::decode(&mut actual_timeslot.as_slice()).unwrap()
+            );
+            println!(
+                "Expected: {:?}",
+                Timeslot::decode(&mut expected_timeslot.as_slice()).unwrap()
+            );
+        } else {
+            for kv in expected_post_state.keyvals {
+                if let Some(actual_val) = state_manager.get_raw_state_entry(&kv.key).await.unwrap()
+                {
+                    if actual_val.as_slice() != &*kv.value {
+                        tracing::error!("State mismatch. Key: {}", kv.key);
+                        println!("Actual:");
+                        display_state_entry(kv.key.as_slice(), &actual_val);
+                        println!("\nExpected:");
+                        display_state_entry(kv.key.as_slice(), &*kv.value);
+                        println!("\n");
+                    }
+                } else {
+                    tracing::warn!("Raw state entry not found. Key: {}", kv.key.encode_hex());
+                };
+            }
         }
         assert_eq!(
             hex::encode(&actual_post_state_root),
