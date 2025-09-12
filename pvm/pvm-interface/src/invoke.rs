@@ -9,7 +9,7 @@ use fr_pvm_host::{
     error::HostCallError::InvalidExitReason,
     host_functions::{
         accumulate::AccumulateHostFunction, general::GeneralHostFunction,
-        refine::RefineHostFunction, HostCallResult,
+        refine::RefineHostFunction, HostCallResult, HostCallReturnCode,
     },
 };
 use fr_pvm_types::{common::RegValue, exit_reason::ExitReason, hostcall::HostCallType};
@@ -78,6 +78,79 @@ impl From<PVMInvocationOutput> for WorkExecutionResult {
     }
 }
 
+pub enum InvocationType {
+    IsAuthorized,
+    Accumulate,
+    Refine,
+    OnTransfer, // TODO: Remove (GP v0.7.1)
+}
+
+impl InvocationType {
+    pub fn is_valid_host_call_type(&self, h: &HostCallType) -> bool {
+        match self {
+            InvocationType::IsAuthorized => {
+                matches!(
+                    h,
+                    HostCallType::GAS | HostCallType::FETCH | HostCallType::LOG
+                )
+            }
+            InvocationType::Accumulate => {
+                matches!(
+                    h,
+                    HostCallType::GAS
+                        | HostCallType::FETCH
+                        | HostCallType::READ
+                        | HostCallType::WRITE
+                        | HostCallType::LOOKUP
+                        | HostCallType::INFO
+                        | HostCallType::BLESS
+                        | HostCallType::ASSIGN
+                        | HostCallType::DESIGNATE
+                        | HostCallType::CHECKPOINT
+                        | HostCallType::NEW
+                        | HostCallType::UPGRADE
+                        | HostCallType::TRANSFER
+                        | HostCallType::EJECT
+                        | HostCallType::QUERY
+                        | HostCallType::SOLICIT
+                        | HostCallType::FORGET
+                        | HostCallType::YIELD
+                        | HostCallType::PROVIDE
+                        | HostCallType::LOG
+                )
+            }
+            InvocationType::Refine => {
+                matches!(
+                    h,
+                    HostCallType::GAS
+                        | HostCallType::FETCH
+                        | HostCallType::HISTORICAL_LOOKUP
+                        | HostCallType::EXPORT
+                        | HostCallType::MACHINE
+                        | HostCallType::PEEK
+                        | HostCallType::POKE
+                        | HostCallType::PAGES
+                        | HostCallType::INVOKE
+                        | HostCallType::EXPUNGE
+                        | HostCallType::LOG
+                )
+            }
+            InvocationType::OnTransfer => {
+                matches!(
+                    h,
+                    HostCallType::GAS
+                        | HostCallType::FETCH
+                        | HostCallType::LOOKUP
+                        | HostCallType::READ
+                        | HostCallType::WRITE
+                        | HostCallType::INFO
+                        | HostCallType::LOG
+                )
+            }
+        }
+    }
+}
+
 pub struct PVMInterface;
 impl PVMInterface {
     /// Initializes a PVM instance and executes it with a standard program blob and some arguments.
@@ -96,13 +169,14 @@ impl PVMInterface {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         standard_program: &[u8],
+        invocation_type: &InvocationType,
         pc: RegValue,
         gas_limit: UnsignedGas,
         args: &[u8],
         context: &mut InvocationContext<StateManager>,
         curr_timeslot_index: Option<TimeslotIndex>,
     ) -> Result<PVMInvocationResult, PVMError> {
-        tracing::info!("Ψ_M invoked.");
+        tracing::info!("Ψ_M invoked. s={service_id}");
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
         let Ok(mut pvm) = PVM::new_with_standard_program(standard_program, args) else {
             tracing::error!("Failed to initialize PVM instance");
@@ -115,13 +189,14 @@ impl PVMInterface {
             &mut pvm,
             state_manager,
             service_id,
+            invocation_type,
             context,
             curr_timeslot_index,
         )
         .await?;
         let gas_used = gas_limit - 0.max(pvm.state.gas_counter) as UnsignedGas;
 
-        tracing::info!("Ψ_M Exit Reason: {:?}", result.exit_reason);
+        tracing::info!("Ψ_M Exit Reason: {:?}, s={service_id}", result.exit_reason);
         match result.exit_reason {
             ExitReason::OutOfGas => Ok(PVMInvocationResult::out_of_gas(gas_used)),
             ExitReason::RegularHalt => {
@@ -153,10 +228,11 @@ impl PVMInterface {
         pvm: &mut PVM,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
+        invocation_type: &InvocationType,
         context: &mut InvocationContext<StateManager>,
         curr_timeslot_index: Option<TimeslotIndex>,
     ) -> Result<ExtendedInvocationResult, PVMError> {
-        tracing::info!("Ψ_H invoked.");
+        tracing::info!("Ψ_H invoked. s={service_id}");
         loop {
             let exit_reason = Interpreter::invoke_general(
                 &mut pvm.state,
@@ -170,6 +246,7 @@ impl PVMInterface {
                         pvm,
                         state_manager.clone(),
                         service_id,
+                        invocation_type,
                         context,
                         curr_timeslot_index,
                         &h,
@@ -221,11 +298,19 @@ impl PVMInterface {
         pvm: &PVM,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
+        invocation_type: &InvocationType,
         context: &mut InvocationContext<StateManager>,
         curr_timeslot_index: Option<TimeslotIndex>,
         h: &HostCallType,
     ) -> Result<HostCallResult, PVMError> {
-        let result = match h {
+        // Mark HostCallType with `INVALID` variant if it is not allowed for the given invocation type
+        let h_validated = if !invocation_type.is_valid_host_call_type(h) {
+            &HostCallType::INVALID
+        } else {
+            h
+        };
+
+        let result = match h_validated {
             // --- General Functions
             HostCallType::GAS => GeneralHostFunction::<StateManager>::host_gas(&pvm.state)?,
             HostCallType::FETCH => {
@@ -396,6 +481,9 @@ impl PVMInterface {
                     ..Default::default()
                 },
             },
+            HostCallType::INVALID => {
+                HostCallResult::continue_with_return_code(HostCallReturnCode::WHAT)
+            }
         };
 
         Ok(result)

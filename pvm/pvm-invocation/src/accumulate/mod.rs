@@ -3,8 +3,9 @@ pub mod utils;
 
 use crate::error::PVMInvokeError;
 use fr_codec::prelude::*;
-use fr_common::{Octets, ServiceId, TimeslotIndex, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
-use fr_crypto::octets_to_hash32;
+use fr_common::{
+    Hash32, Octets, ServiceId, TimeslotIndex, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE,
+};
 use fr_pvm_host::{
     context::{
         partial_state::AccumulatePartialState, AccumulateHostContext, AccumulateHostContextPair,
@@ -12,7 +13,7 @@ use fr_pvm_host::{
     },
     error::HostCallError::InvalidContext,
 };
-use fr_pvm_interface::invoke::{PVMInterface, PVMInvocationOutput};
+use fr_pvm_interface::invoke::{InvocationType, PVMInterface, PVMInvocationOutput};
 use fr_pvm_types::{
     constants::ACCUMULATE_INITIAL_PC,
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
@@ -79,7 +80,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         partial_state: AccumulatePartialState<StateManager>,
         args: &AccumulateInvokeArgs,
     ) -> Result<AccumulateResult<StateManager>, PVMInvokeError> {
-        tracing::info!("Ψ_A (accumulate) invoked.");
+        tracing::info!("Ψ_A (accumulate) invoked. s={}", args.accumulate_host);
 
         let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
             tracing::warn!("Accumulate service code not found.");
@@ -129,6 +130,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
             state_manager,
             args.accumulate_host,
             account_code.code(),
+            &InvocationType::Accumulate,
             ACCUMULATE_INITIAL_PC,
             args.gas_limit,
             &vm_args.encode()?,
@@ -145,7 +147,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         match result.output {
             PVMInvocationOutput::Output(output) => {
                 let accumulate_result_hash = if output.len() == HASH_SIZE {
-                    octets_to_hash32(&output)
+                    Some(Hash32::decode(&mut output.as_slice())?)
                 } else {
                     x.yielded_accumulate_hash
                 };

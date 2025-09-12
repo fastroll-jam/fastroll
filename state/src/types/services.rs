@@ -9,7 +9,10 @@ use fr_common::{
     MIN_BALANCE_PER_ITEM, MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
 };
 use fr_limited_vec::LimitedVec;
-use std::ops::{Deref, DerefMut};
+use std::{
+    fmt::{Display, Formatter},
+    ops::{Deref, DerefMut},
+};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct StorageUsageDelta {
@@ -134,6 +137,24 @@ pub struct AccountMetadata {
     pub parent_service_id: ServiceId,
 }
 impl_account_state_component!(AccountMetadata, AccountMetadata);
+
+impl Display for AccountMetadata {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        writeln!(f, "  code_hash: {}", self.code_hash)?;
+        writeln!(f, "  balance: {}", self.balance)?;
+        writeln!(f, "  gas_limit_acc: {}", self.gas_limit_accumulate)?;
+        writeln!(f, "  gas_limit_xfer: {}", self.gas_limit_on_transfer)?;
+        writeln!(f, "  octets_footprint: {}", self.octets_footprint)?;
+        writeln!(f, "  gratis_storage_offset: {}", self.gratis_storage_offset)?;
+        writeln!(f, "  items_footprint: {}", self.items_footprint)?;
+        writeln!(f, "  created_at: {}", self.created_at)?;
+        writeln!(f, "  last_acc_at: {}", self.last_accumulate_at)?;
+        writeln!(f, "  parent_service: {}", self.parent_service_id)?;
+        writeln!(f, "  threshold_balance: {}", self.threshold_balance())?;
+        write!(f, "}}")
+    }
+}
 
 impl JamEncode for AccountMetadata {
     fn size_hint(&self) -> usize {

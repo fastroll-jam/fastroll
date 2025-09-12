@@ -34,6 +34,8 @@ pub enum HostCallType {
     PROVIDE = 26,
     // Debugging (JIP-1)
     LOG = 100,
+    // Reserved for invalid host call type
+    INVALID = u8::MAX,
 }
 
 impl TryFrom<u8> for HostCallType {
@@ -69,7 +71,7 @@ impl TryFrom<u8> for HostCallType {
             25 => Ok(HostCallType::YIELD),
             26 => Ok(HostCallType::PROVIDE),
             100 => Ok(HostCallType::LOG),
-            _ => Err(()),
+            _ => Ok(HostCallType::INVALID),
         }
     }
 }

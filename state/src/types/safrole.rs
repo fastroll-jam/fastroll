@@ -8,7 +8,7 @@ use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket, ByteEncodable, EntropyHash, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
-use fr_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
+use fr_crypto::{error::CryptoError, hash, types::*, Blake2b256};
 use fr_limited_vec::FixedVec;
 use std::{
     collections::BinaryHeap,
@@ -248,8 +248,8 @@ pub fn generate_fallback_keys(
     let mut fallback_keys = EpochFallbackKeys::default();
     for (i, key) in fallback_keys.iter_mut().enumerate() {
         let hash_input = [entropy.as_slice(), (i as u32).encode_fixed(4)?.as_slice()].concat();
-        let hash = hash_prefix_4::<Blake2b256>(hash_input.as_slice())?;
-        let key_index = u32::decode_fixed(&mut hash.as_slice(), 4)? % (VALIDATOR_COUNT as u32);
+        let hash = hash::<Blake2b256>(&hash_input)?;
+        let key_index = u32::decode_fixed(&mut &hash[..4], 4)? % (VALIDATOR_COUNT as u32);
 
         *key = validator_set
             .get_validator_bandersnatch_key(key_index as ValidatorIndex)

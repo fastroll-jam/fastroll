@@ -5,7 +5,7 @@ use fr_pvm_host::{
     context::{partial_state::AccountSandbox, InvocationContext, OnTransferHostContext},
     error::HostCallError::InvalidContext,
 };
-use fr_pvm_interface::invoke::PVMInterface;
+use fr_pvm_interface::invoke::{InvocationType, PVMInterface};
 use fr_pvm_types::{constants::ON_TRANSFER_INITIAL_PC, invoke_args::OnTransferInvokeArgs};
 use fr_state::{manager::StateManager, provider::HostStateProvider};
 use std::sync::Arc;
@@ -138,6 +138,7 @@ impl OnTransferInvocation {
             state_manager.clone(),
             args.destination,
             account_code.code(),
+            &InvocationType::OnTransfer,
             ON_TRANSFER_INITIAL_PC,
             total_gas_limit,
             &vm_args.encode()?,
