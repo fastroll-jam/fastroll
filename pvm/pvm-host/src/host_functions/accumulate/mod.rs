@@ -4,6 +4,7 @@ mod tests;
 use crate::{
     context::{InvocationContext, NewAccountFields},
     error::HostCallError,
+    get_accumulate_x, get_mut_accumulate_y,
     host_functions::HostCallResult,
     macros::*,
 };
@@ -243,19 +244,15 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: CHECKPOINT");
         check_out_of_gas!(vm.gas_counter);
-        let (x_cloned, y_mut) = match (
-            context.get_accumulate_x().cloned(),
-            context.get_mut_accumulate_y(),
-        ) {
-            (Some(x_cloned), Some(y_mut)) => (x_cloned, y_mut),
-            _ => continue_what!(),
-        };
+        let x_cloned = get_accumulate_x!(context).clone();
+        let y_mut = get_mut_accumulate_y!(context);
 
         *y_mut = x_cloned; // assign the cloned `x` context to the `y` context
 
-        // If execution of this function results in `ExitReason::OutOfGas`,
-        // returns zero value for the remaining gas limit.
-        let post_gas = (vm.gas_counter as UnsignedGas).saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
+        let post_gas = vm
+            .gas_counter
+            .checked_sub(HOSTCALL_BASE_GAS_CHARGE as SignedGas)
+            .expect("OOG condition already checked") as UnsignedGas;
         continue_with_vm_change!(r7: post_gas)
     }
 
