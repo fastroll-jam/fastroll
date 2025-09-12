@@ -47,6 +47,9 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: FETCH");
+
+        // --- Fetch Data (Err: NONE)
+
         let Ok(data_id) = vm.read_reg_as_usize(10) else {
             continue_none!()
         };
@@ -102,6 +105,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             }
         };
 
+        // --- Check Memory Write Access (Err: Panic)
+
         let Ok(buf_offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
@@ -121,6 +126,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         {
             host_call_panic!()
         }
+
+        // --- OK
 
         tracing::debug!("FETCH id={data_id} len={data_read_size}");
         continue_with_vm_change!(
@@ -244,24 +251,15 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let service_id_reg = vm.read_reg(7);
+        // --- Read from Memory (Err: Panic)
+
         let Ok(hash_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
-        };
-        let Ok(buf_offset) = vm.read_reg_as_mem_address(9) else {
-            host_call_panic!()
-        };
-
-        let service_id = if service_id_reg == u64::MAX || service_id_reg == service_id as u64 {
-            service_id
-        } else {
-            service_id_reg as ServiceId
         };
 
         if !vm.memory.is_address_range_readable(hash_offset, 32) {
             host_call_panic!()
         }
-
         // Read preimage storage key (hash) from the memory
         let Ok(hash_octets) = vm.memory.read_bytes(hash_offset, 32) else {
             host_call_panic!()
@@ -269,12 +267,22 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         let hash = octets_to_hash32(&hash_octets)
             .expect("Should not fail to convert 32-byte octets to Hash32 type");
 
+        // --- Check Preimage (Err: NONE)
+
+        let service_id_reg = vm.read_reg(7);
+        let service_id = if service_id_reg == u64::MAX || service_id_reg == service_id as u64 {
+            service_id
+        } else {
+            service_id_reg as ServiceId
+        };
         let Ok(Some(entry)) = accounts_sandbox
             .get_account_preimages_entry(state_provider, service_id, &hash)
             .await
         else {
             continue_none!()
         };
+
+        // --- Check Memory Write Access (Err: Panic)
 
         let preimage_size = entry.value.len();
         let preimage_offset = vm
@@ -287,9 +295,14 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .unwrap_or(min_lookup_size)
             .min(min_lookup_size);
 
+        let Ok(buf_offset) = vm.read_reg_as_mem_address(9) else {
+            host_call_panic!()
+        };
         if !vm.memory.is_address_range_writable(buf_offset, lookup_size) {
             host_call_panic!()
         }
+
+        // --- OK
 
         tracing::debug!("LOOKUP key={hash} len={lookup_size}");
         continue_with_vm_change!(
@@ -311,6 +324,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
+        // --- Read from Memory (Err: Panic)
+
         let service_id_reg = vm.read_reg(7);
         let Ok(key_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
@@ -318,25 +333,22 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         let Ok(key_size) = vm.read_reg_as_usize(9) else {
             host_call_panic!()
         };
-        let Ok(buf_offset) = vm.read_reg_as_mem_address(10) else {
+
+        if !vm.memory.is_address_range_readable(key_offset, key_size) {
+            host_call_panic!()
+        }
+        let Ok(storage_key) = vm.memory.read_bytes(key_offset, key_size) else {
             host_call_panic!()
         };
+        let storage_key = Octets::from_vec(storage_key);
+
+        // --- Check Storage Entry (Err: NONE)
 
         let service_id = if service_id_reg == u64::MAX {
             service_id
         } else {
             service_id_reg as ServiceId
         };
-
-        if !vm.memory.is_address_range_readable(key_offset, key_size) {
-            host_call_panic!()
-        }
-
-        let Ok(storage_key) = vm.memory.read_bytes(key_offset, key_size) else {
-            host_call_panic!()
-        };
-        let storage_key = Octets::from_vec(storage_key);
-
         let Ok(Some(entry)) = accounts_sandbox
             .get_account_storage_entry(state_provider, service_id, &storage_key)
             .await
@@ -355,9 +367,16 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .unwrap_or(min_read_len)
             .min(min_read_len);
 
+        // --- Additionally Check Memory Write Access (Err: Panic)
+
+        let Ok(buf_offset) = vm.read_reg_as_mem_address(10) else {
+            host_call_panic!()
+        };
         if !vm.memory.is_address_range_writable(buf_offset, read_len) {
             host_call_panic!()
         }
+
+        // --- OK
 
         tracing::debug!("READ key={storage_key} len={read_len}");
         continue_with_vm_change!(
@@ -515,29 +534,25 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let service_id_reg = vm.read_reg(7);
-        let Ok(buf_offset) = vm.read_reg_as_mem_address(8) else {
-            host_call_panic!()
-        };
+        // --- Get Service Info (Err: NONE)
 
+        let service_id_reg = vm.read_reg(7);
         let service_id = if service_id_reg == u64::MAX {
             service_id
         } else {
             service_id_reg as ServiceId
         };
-
         let Ok(Some(metadata)) = accounts_sandbox
             .get_account_metadata(state_provider, service_id)
             .await
         else {
             continue_none!()
         };
-
         // Encode account metadata with JAM Codec
         let info = metadata.encode_for_info_hostcall()?;
 
-        // TODO: check - GP using reg indices 11 & 12 for f & l
-        // f
+        // --- Check Memory Write Access (Err: Panic)
+
         let info_read_offset = match vm.read_reg_as_usize(9) {
             Ok(info_read_offset_reg) => info_read_offset_reg.min(info.len()),
             Err(_) => info.len(),
@@ -547,12 +562,14 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .checked_sub(info_read_offset)
             .expect("info_read_offset is less than info blob length");
 
-        // l
         let info_write_len = match vm.read_reg_as_usize(10) {
             Ok(info_write_len_reg) => info_write_len_reg.min(info_blob_len_minus_offset),
             Err(_) => info_blob_len_minus_offset,
         };
 
+        let Ok(buf_offset) = vm.read_reg_as_mem_address(8) else {
+            host_call_panic!()
+        };
         if !vm
             .memory
             .is_address_range_writable(buf_offset, info_write_len)
@@ -560,12 +577,13 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             host_call_panic!()
         }
 
-        let info_write = info[info_read_offset..info_read_offset + info_write_len].to_vec();
+        // --- OK
+
         tracing::debug!("INFO service_id={service_id} len={info_write_len}");
         continue_with_vm_change!(
             r7: info.len() as RegValue,
             mem_offset: buf_offset,
-            mem_data: info_write
+            mem_data: info[info_read_offset..info_read_offset + info_write_len].to_vec()
         )
     }
 }
