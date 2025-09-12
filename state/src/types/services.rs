@@ -151,6 +151,7 @@ impl Display for AccountMetadata {
         writeln!(f, "  created_at: {}", self.created_at)?;
         writeln!(f, "  last_acc_at: {}", self.last_accumulate_at)?;
         writeln!(f, "  parent_service: {}", self.parent_service_id)?;
+        writeln!(f, "  threshold_balance: {}", self.threshold_balance())?;
         write!(f, "}}")
     }
 }

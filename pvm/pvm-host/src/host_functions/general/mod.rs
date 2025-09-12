@@ -19,6 +19,7 @@ use fr_pvm_types::{
 };
 use fr_state::{
     provider::HostStateProvider,
+    state_utils::get_account_storage_state_key,
     types::{
         AccountMetadata, AccountStorageEntry, AccountStorageEntryExt, AccountStorageUsageDelta,
     },
@@ -491,7 +492,10 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             )
             .await?;
 
-        tracing::debug!("WRITE key={storage_key} len={value_size}");
+        tracing::debug!(
+            "WRITE s={service_id} key={storage_key} state_key={} len={value_size}",
+            get_account_storage_state_key(service_id, &storage_key),
+        );
         continue_with_vm_change!(r7: prev_storage_val_size_or_return_code)
     }
 

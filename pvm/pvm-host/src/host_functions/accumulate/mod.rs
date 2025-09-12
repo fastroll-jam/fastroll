@@ -23,6 +23,7 @@ use fr_pvm_types::{
 };
 use fr_state::{
     provider::HostStateProvider,
+    state_utils::get_account_lookups_state_key,
     types::{
         privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
         AccountStorageUsageDelta, CoreAuthQueue, StagingSet, Timeslot,
@@ -381,7 +382,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         x.update_accumulator_metadata(state_provider, code_hash.clone(), gas_limit_g, gas_limit_m)
             .await?;
         tracing::debug!(
-            "UPGRADE service_id={} code_hash={code_hash} g={gas_limit_g} m={gas_limit_m}",
+            "UPGRADE s={} code_hash={code_hash} g={gas_limit_g} m={gas_limit_m}",
             x.accumulate_host
         );
         continue_ok!()
@@ -540,7 +541,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             .accounts_sandbox
             .eject_account(state_provider, eject_service_id, lookups_key)
             .await?;
-        tracing::debug!("EJECT service_id={eject_service_id}");
+        tracing::debug!(
+            "EJECT eject_s={eject_service_id} accumulate_s={}",
+            x.accumulate_host
+        );
         continue_ok!()
     }
 
@@ -610,9 +614,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             _ => panic!("Should not have more than 3 timeslot values"),
         };
         tracing::debug!(
-            "QUERY key=({}, {}) slots={slots:?}",
+            "QUERY key=({}, {}) state_key={} slots={slots:?}",
             lookups_key.0,
-            lookups_key.1
+            lookups_key.1,
+            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
         );
         continue_with_vm_change!(r7: r7, r8: r8)
     }
@@ -731,9 +736,11 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         }
 
         tracing::debug!(
-            "SOLICIT key=({}, {}) post_slots={:?}",
+            "SOLICIT s={} key=({}, {}) state_key={} post_slots={:?}",
+            x.accumulate_host,
             lookups_key.0,
             lookups_key.1,
+            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
             new_lookups_entry.entry.value.as_slice()
         );
         continue_ok!()
@@ -819,9 +826,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                             .await?;
 
                         tracing::debug!(
-                            "FORGET key=({}, {}) prev=[], curr=None",
+                            "FORGET key=({}, {}) state_key={} prev=[], curr=None",
                             lookups_key.0,
-                            lookups_key.1
+                            lookups_key.1,
+                            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
                         );
                         continue_ok!()
                     }
@@ -844,9 +852,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                             .map(Timeslot::slot)
                             .collect::<Vec<_>>();
                         tracing::debug!(
-                            "FORGET key=({}, {}) prev={:?}, curr={:?}",
+                            "FORGET key=({}, {}) state_key={} prev={:?}, curr={:?}",
                             lookups_key.0,
                             lookups_key.1,
+                            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
                             lookups_timeslots
                                 .as_slice()
                                 .iter()
@@ -900,9 +909,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                     .await?;
 
                                 tracing::debug!(
-                                    "FORGET key=({}, {}) prev={:?}, curr=None",
+                                    "FORGET key=({}, {}) state_key={} prev={:?}, curr=None",
                                     lookups_key.0,
                                     lookups_key.1,
+                                    get_account_lookups_state_key(x.accumulate_host, &lookups_key),
                                     lookups_timeslots
                                         .as_slice()
                                         .iter()
@@ -943,9 +953,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                     .collect::<Vec<_>>();
 
                                 tracing::debug!(
-                                    "FORGET key=({}, {}) prev={:?}, curr={:?}",
+                                    "FORGET key=({}, {}) state_key={} prev={:?}, curr={:?}",
                                     lookups_key.0,
                                     lookups_key.1,
+                                    get_account_lookups_state_key(x.accumulate_host, &lookups_key),
                                     lookups_timeslots
                                         .as_slice()
                                         .iter()
@@ -1063,9 +1074,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // Insert the preimage entry
         x.provided_preimages.insert(provided_preimage_entry);
         tracing::debug!(
-            "PROVIDE service_id={service_id} key=({}, {}), len={data_len}",
+            "PROVIDE s={service_id} key=({}, {}) state_key={} len={data_len}",
             lookups_key.0,
-            lookups_key.1
+            lookups_key.1,
+            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
         );
         continue_ok!()
     }
