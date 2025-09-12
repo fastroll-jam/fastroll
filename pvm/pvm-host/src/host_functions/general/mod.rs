@@ -381,6 +381,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
+        // --- Read from Memory (Err: Panic)
+
         let Ok(key_offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
@@ -402,7 +404,6 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         {
             host_call_panic!()
         }
-
         let Ok(storage_key) = vm.memory.read_bytes(key_offset, key_size) else {
             host_call_panic!()
         };
@@ -414,13 +415,6 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .await
             .ok()
             .flatten();
-
-        let prev_storage_val_size_or_return_code = if let Some(ref entry) = maybe_prev_storage_entry
-        {
-            entry.value.len() as u64
-        } else {
-            HostCallReturnCode::NONE as u64
-        };
 
         let new_storage_entry = if value_size == 0 {
             None
@@ -443,6 +437,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         )
         .unwrap_or_default(); // Attempting to delete a storage entry that doesn't exist is basically a no-op
 
+        // --- Check Balance (Err: FULL)
+
         if !storage_usage_delta.is_zero() {
             let metadata = accounts_sandbox
                 .get_account_metadata(state_provider.clone(), service_id)
@@ -456,6 +452,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 continue_full!()
             }
         }
+
+        // --- OK
 
         // Apply the state change
         if let Some(new_entry) = new_storage_entry {
@@ -496,6 +494,13 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             "WRITE s={service_id} key={storage_key} state_key={} len={value_size}",
             get_account_storage_state_key(service_id, &storage_key),
         );
+
+        let prev_storage_val_size_or_return_code = if let Some(ref entry) = maybe_prev_storage_entry
+        {
+            entry.value.len() as u64
+        } else {
+            HostCallReturnCode::NONE as u64
+        };
         continue_with_vm_change!(r7: prev_storage_val_size_or_return_code)
     }
 
