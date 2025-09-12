@@ -46,14 +46,23 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_refine_x!(context);
 
-        let service_id_reg = vm.read_reg(7);
+        // --- Read from Memory (Err: Panic)
+
         let Ok(hash_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(buf_offset) = vm.read_reg_as_mem_address(9) else {
+
+        if !vm.memory.is_address_range_readable(hash_offset, HASH_SIZE) {
+            host_call_panic!()
+        }
+        let Ok(lookup_hash_octets) = vm.memory.read_bytes(hash_offset, HASH_SIZE) else {
             host_call_panic!()
         };
+        let lookup_hash = Hash32::decode(&mut lookup_hash_octets.as_slice())?;
 
+        // --- Historical Lookup (Err: NONE)
+
+        let service_id_reg = vm.read_reg(7);
         let service_id = if service_id_reg == u64::MAX
             || state_provider.account_exists(refine_service_id).await?
         {
@@ -69,15 +78,6 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             }
         };
 
-        if !vm.memory.is_address_range_readable(hash_offset, HASH_SIZE) {
-            host_call_panic!()
-        }
-
-        let Ok(lookup_hash_octets) = vm.memory.read_bytes(hash_offset, HASH_SIZE) else {
-            host_call_panic!()
-        };
-        let lookup_hash = Hash32::decode(&mut lookup_hash_octets.as_slice())?;
-
         let Some(preimage) = state_provider
             .lookup_historical_preimage(
                 service_id,
@@ -89,6 +89,8 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             continue_none!()
         };
 
+        // --- Check Memory Write Access (Err: Panic)
+
         let preimage_offset = vm
             .read_reg_as_usize(10)
             .unwrap_or(preimage.len())
@@ -99,9 +101,14 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             .unwrap_or(min_preimage_len)
             .min(min_preimage_len);
 
+        let Ok(buf_offset) = vm.read_reg_as_mem_address(9) else {
+            host_call_panic!()
+        };
         if !vm.memory.is_address_range_writable(buf_offset, lookup_size) {
             host_call_panic!()
         }
+
+        // --- OK
 
         tracing::debug!("HISTORICAL_LOOKUP key={lookup_hash} len={lookup_size}");
         continue_with_vm_change!(
