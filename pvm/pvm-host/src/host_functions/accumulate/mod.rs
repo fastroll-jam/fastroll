@@ -102,6 +102,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_who!()
         };
 
+        // --- OK
+
         let mut always_accumulate_services = BTreeMap::new();
         for i in 0..always_accumulates_count {
             let address = ServiceId::decode_fixed(
@@ -186,6 +188,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_who!()
         };
 
+        // --- OK
+
         x.assign_core_auth_queue(core_index as CoreIndex, new_core_auth_queue);
         x.assign_new_core_assign_service(core_index, core_assign_service);
         tracing::debug!("ASSIGN core={core_index} new_assigner={core_assign_service}",);
@@ -232,6 +236,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_huh!()
         }
 
+        // --- OK
+
         x.assign_new_staging_set(new_staging_set);
         continue_ok!()
     }
@@ -273,34 +279,36 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
+        // --- Read from Memory (Err: Panic)
+
         let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
         let Ok(code_lookup_len) = vm.read_reg_as_u32(8) else {
             host_call_panic!()
         };
-        let gas_limit_g = vm.read_reg(9);
-        let gas_limit_m = vm.read_reg(10);
+
+        if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
+            host_call_panic!()
+        }
+        let Ok(code_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
+            host_call_panic!()
+        };
+
+        // --- Check Privilege (Err: HUH)
+
         let Ok(gratis_storage_offset) = vm.read_reg_as_balance(11) else {
             unreachable!(
                 "as_balance() conversion should not fail: both RegValue and Balance are u64"
             )
         };
-        let new_small_service_id = vm.read_reg_as_service_id(12).unwrap_or(ServiceId::MAX); // Not used if this value is larger than `MIN_PUBLIC_SERVICE_ID`
-
-        if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
-            host_call_panic!()
-        }
-
         // Only the privileged manager service can create new accounts with gratis storage
         if gratis_storage_offset != 0 && x.accumulate_host != x.partial_state.manager_service {
             continue_huh!()
         }
 
-        let Ok(code_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
-            host_call_panic!()
-        };
-        let code_hash = Hash32::decode(&mut code_hash_octets.as_slice())?;
+        // --- Check Balance (Err: CASH)
+
         let new_account_threshold_balance =
             AccountMetadata::get_initial_threshold_balance(code_lookup_len, gratis_storage_offset);
 
@@ -316,6 +324,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_cash!()
         }
 
+        // --- Check Small Service ID Validity (Err: FULL)
+
+        // Not used if this value is larger than `MIN_PUBLIC_SERVICE_ID`
+        let new_small_service_id = vm.read_reg_as_service_id(12).unwrap_or(ServiceId::MAX);
         let has_small_service_id = new_small_service_id < MIN_PUBLIC_SERVICE_ID
             && x.accumulate_host == x.partial_state.registrar_service;
         let new_small_service_id_already_taken = x
@@ -328,9 +340,14 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_full!()
         }
 
+        // --- OK
+
         x.subtract_accumulator_balance(state_provider.clone(), new_account_threshold_balance)
             .await?;
 
+        let code_hash = Hash32::decode(&mut code_hash_octets.as_slice())?;
+        let gas_limit_g = vm.read_reg(9);
+        let gas_limit_m = vm.read_reg(10);
         let new_account_fields = NewAccountFields {
             code_hash: code_hash.clone(),
             balance: new_account_threshold_balance,
@@ -380,19 +397,22 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
+        // --- Read from Memory (Err: Panic)
+
         let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
-        let gas_limit_g = vm.read_reg(8);
-        let gas_limit_m = vm.read_reg(9);
-
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
-
         let Ok(code_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
             host_call_panic!()
         };
+
+        // --- OK
+
+        let gas_limit_g = vm.read_reg(8);
+        let gas_limit_m = vm.read_reg(9);
         let code_hash = Hash32::decode(&mut code_hash_octets.as_slice())?;
 
         x.update_accumulator_metadata(state_provider, code_hash.clone(), gas_limit_g, gas_limit_m)
@@ -413,28 +433,65 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         tracing::debug!("Hostcall invoked: TRANSFER");
         let x = get_mut_accumulate_x!(context);
 
+        // --- Check Gas Charge (Err: OOG)
+
         let transfer_gas_limit = vm.read_reg(9);
         let gas_charge = HOSTCALL_BASE_GAS_CHARGE + transfer_gas_limit;
         check_out_of_gas!(vm.gas_counter, gas_charge);
 
-        let Ok(dest) = vm.read_reg_as_service_id(7) else {
-            continue_who!()
-        };
-        let amount = vm.read_reg(8);
+        // --- Read from Memory (Err: Panic)
+
         let Ok(offset) = vm.read_reg_as_mem_address(10) else {
             host_call_panic!()
         };
-
         if !vm
             .memory
             .is_address_range_readable(offset, TRANSFER_MEMO_SIZE)
         {
             host_call_panic!()
         }
-
         let memo = ByteArray::<TRANSFER_MEMO_SIZE>::decode(
             &mut vm.memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?.as_slice(),
         )?;
+
+        // --- Check Destination Service (Err: WHO)
+
+        let Ok(dest) = vm.read_reg_as_service_id(7) else {
+            continue_who!()
+        };
+        // Check the global state and the accumulate context partial state to confirm that the
+        // destination account exists.
+        let Some(dest_account_metadata) = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_provider.clone(), dest)
+            .await?
+            .cloned()
+        else {
+            continue_who!()
+        };
+
+        // --- Check Transfer Gas Limit (Err: LOW)
+
+        let accumulator_metadata = x.get_accumulator_metadata(state_provider.clone()).await?;
+        let accumulator_balance = accumulator_metadata.balance();
+        let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
+
+        if transfer_gas_limit < dest_account_metadata.gas_limit_on_transfer {
+            continue_low!()
+        }
+
+        // --- Check Sender Balance (Err: CASH)
+
+        let amount = vm.read_reg(8);
+        if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
+            continue_cash!()
+        }
+
+        // --- OK
+
+        x.subtract_accumulator_balance(state_provider, amount)
+            .await?;
 
         let transfer = DeferredTransfer {
             from: x.accumulate_host,
@@ -444,31 +501,6 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             gas_limit: transfer_gas_limit,
         };
 
-        let accumulator_metadata = x.get_accumulator_metadata(state_provider.clone()).await?;
-        let accumulator_balance = accumulator_metadata.balance();
-        let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
-
-        // Check the global state and the accumulate context partial state to confirm that the
-        // destination account exists.
-        let Some(dest_account_metadata) = x
-            .partial_state
-            .accounts_sandbox
-            .get_account_metadata(state_provider.clone(), dest)
-            .await?
-        else {
-            continue_who!()
-        };
-
-        if transfer_gas_limit < dest_account_metadata.gas_limit_on_transfer {
-            continue_low!()
-        }
-
-        if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
-            continue_cash!()
-        }
-
-        x.subtract_accumulator_balance(state_provider, amount)
-            .await?;
         x.add_to_deferred_transfers(transfer);
         tracing::debug!(
             "TRANSFER from={} to={dest} amount={amount}",
@@ -488,13 +520,11 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(eject_service_id) = vm.read_reg_as_service_id(7) else {
-            continue_who!()
-        };
+        // --- Read from Memory (Err: Panic)
+
         let Ok(offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
@@ -503,6 +533,11 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         };
         let preimage_hash = Hash32::decode(&mut preimage_hash_octets.as_slice())?;
 
+        // --- Check Eject Privilege (Err: WHO)
+
+        let Ok(eject_service_id) = vm.read_reg_as_service_id(7) else {
+            continue_who!()
+        };
         if eject_service_id == x.accumulate_host {
             continue_who!()
         }
@@ -524,6 +559,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         if eject_account_metadata.code_hash != accumulate_host_as_hash {
             continue_who!()
         }
+
+        // --- Check Eject Account Storage (Err: HUH)
 
         // Note: This error handling assumes that preimage size (`l` component of lookups key)
         // exceeding `u32::MAX` implies incorrect lookups key, therefore returning `HUH`.
@@ -550,6 +587,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         {
             continue_huh!()
         }
+
+        // --- OK
 
         x.add_accumulator_balance(state_provider.clone(), eject_account_metadata.balance())
             .await?;
