@@ -176,7 +176,7 @@ impl PVMInterface {
         context: &mut InvocationContext<StateManager>,
         curr_timeslot_index: Option<TimeslotIndex>,
     ) -> Result<PVMInvocationResult, PVMError> {
-        tracing::info!("Ψ_M invoked.");
+        tracing::info!("Ψ_M invoked. s={service_id}");
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
         let Ok(mut pvm) = PVM::new_with_standard_program(standard_program, args) else {
             tracing::error!("Failed to initialize PVM instance");
@@ -196,7 +196,7 @@ impl PVMInterface {
         .await?;
         let gas_used = gas_limit - 0.max(pvm.state.gas_counter) as UnsignedGas;
 
-        tracing::info!("Ψ_M Exit Reason: {:?}", result.exit_reason);
+        tracing::info!("Ψ_M Exit Reason: {:?}, s={service_id}", result.exit_reason);
         match result.exit_reason {
             ExitReason::OutOfGas => Ok(PVMInvocationResult::out_of_gas(gas_used)),
             ExitReason::RegularHalt => {
@@ -232,7 +232,7 @@ impl PVMInterface {
         context: &mut InvocationContext<StateManager>,
         curr_timeslot_index: Option<TimeslotIndex>,
     ) -> Result<ExtendedInvocationResult, PVMError> {
-        tracing::info!("Ψ_H invoked.");
+        tracing::info!("Ψ_H invoked. s={service_id}");
         loop {
             let exit_reason = Interpreter::invoke_general(
                 &mut pvm.state,

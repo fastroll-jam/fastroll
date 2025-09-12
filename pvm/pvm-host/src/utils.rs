@@ -22,40 +22,48 @@ pub(crate) fn zero_pad_single_block<const BLOCK_SIZE: usize>(
 #[macro_export]
 macro_rules! get_mut_accounts_sandbox {
     ($ctx:expr) => {
-        match $ctx.get_mut_accounts_sandbox() {
-            Some(sandbox) => sandbox,
-            None => continue_what!(),
-        }
+        $ctx.get_mut_accounts_sandbox()
+            .expect("Accounts sandbox should be initialized")
+    };
+}
+
+#[macro_export]
+macro_rules! get_accumulate_x {
+    ($ctx:expr) => {
+        $ctx.get_accumulate_x()
+            .expect("Accumulate context should be initialized")
     };
 }
 
 #[macro_export]
 macro_rules! get_mut_accumulate_x {
     ($ctx:expr) => {
-        match $ctx.get_mut_accumulate_x() {
-            Some(x) => x,
-            None => continue_what!(),
-        }
+        $ctx.get_mut_accumulate_x()
+            .expect("Accumulate context should be initialized")
+    };
+}
+
+#[macro_export]
+macro_rules! get_mut_accumulate_y {
+    ($ctx:expr) => {
+        $ctx.get_mut_accumulate_y()
+            .expect("Accumulate context should be initialized")
     };
 }
 
 #[macro_export]
 macro_rules! get_refine_x {
     ($ctx:expr) => {
-        match $ctx.get_refine_x() {
-            Some(x) => x,
-            None => continue_what!(),
-        }
+        $ctx.get_refine_x()
+            .expect("Refine context should be initialized")
     };
 }
 
 #[macro_export]
 macro_rules! get_mut_refine_x {
     ($ctx:expr) => {
-        match $ctx.get_mut_refine_x() {
-            Some(x) => x,
-            None => continue_what!(),
-        }
+        $ctx.get_mut_refine_x()
+            .expect("Refine context should be initialized")
     };
 }
 
