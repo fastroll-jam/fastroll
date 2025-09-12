@@ -122,6 +122,8 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
+        // --- Read from Memory (Err: Panic)
+
         let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
@@ -133,6 +135,11 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         if !vm.memory.is_address_range_readable(offset, export_size) {
             host_call_panic!()
         }
+        let Ok(data_segment_octets) = vm.memory.read_bytes(offset, export_size) else {
+            host_call_panic!()
+        };
+
+        // --- Check Exports Count (Err: FULL)
 
         let next_export_segments_offset =
             x.export_segments.len() + x.invoke_args.export_segments_offset;
@@ -140,9 +147,8 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             continue_full!()
         }
 
-        let Ok(data_segment_octets) = vm.memory.read_bytes(offset, export_size) else {
-            host_call_panic!()
-        };
+        // --- OK
+
         let data_segment: ExportDataSegment =
             zero_pad_single_block::<SEGMENT_SIZE>(data_segment_octets)
                 .ok_or(HostCallError::DataSegmentTooLarge)?; // unreachable; export size bounded to `SEGMENT_SIZE`
@@ -164,13 +170,14 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
+        // --- Read from Memory (Err: Panic)
+
         let Ok(program_offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
         let Ok(program_size) = vm.read_reg_as_usize(8) else {
             host_call_panic!()
         };
-        let initial_pc = vm.read_reg(9);
 
         if !vm
             .memory
@@ -178,15 +185,20 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         {
             host_call_panic!()
         }
-
         let Ok(program) = vm.memory.read_bytes(program_offset, program_size) else {
             host_call_panic!()
         };
+
+        // --- Check Program Format (Err: HUH)
+
         // Validate the program blob can be `deblob`ed properly
         if ProgramLoader::deblob_program_code(&program).is_err() {
             continue_huh!()
         }
 
+        // --- OK
+
+        let initial_pc = vm.read_reg(9);
         let inner_vm = InnerPVM::new(program, initial_pc);
         let inner_vm_id = x.add_pvm_instance(inner_vm); // n
 
@@ -205,17 +217,13 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_refine_x!(context);
 
-        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
-            continue_who!()
-        };
+        // --- Check HostVM Memory Write Access (Err: Panic)
+
         let Ok(memory_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(inner_memory_offset) = vm.read_reg_as_mem_address(9) else {
-            continue_oob!()
-        };
         let Ok(data_size) = vm.read_reg_as_usize(10) else {
-            continue_oob!()
+            host_call_panic!()
         };
 
         if !vm
@@ -225,16 +233,28 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             host_call_panic!()
         }
 
+        // --- Check InnerVM Id (Err: WHO)
+
+        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
+            continue_who!()
+        };
         let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
             continue_who!()
         };
 
+        // --- Check InnerVM Memory Read Access (Err: OOB)
+
+        let Ok(inner_memory_offset) = vm.read_reg_as_mem_address(9) else {
+            continue_oob!()
+        };
         if !inner_memory.is_address_range_readable(inner_memory_offset, data_size) {
             continue_oob!()
         }
         let Ok(data) = inner_memory.read_bytes(inner_memory_offset, data_size) else {
             continue_oob!()
         };
+
+        // --- OK
 
         continue_with_vm_change!(r7: HostCallReturnCode::OK, mem_offset: memory_offset, mem_data: data)
     }
@@ -250,41 +270,47 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
-            continue_who!()
-        };
+        // --- Check HostVM Memory Read Access (Err: Panic)
+
         let Ok(memory_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(inner_memory_offset) = vm.read_reg_as_mem_address(9) else {
-            continue_oob!()
-        };
         let Ok(data_size) = vm.read_reg_as_usize(10) else {
-            continue_oob!()
+            host_call_panic!()
         };
-
         if !vm
             .memory
             .is_address_range_readable(memory_offset, data_size)
         {
             host_call_panic!()
         }
-
-        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            continue_who!()
-        };
-
-        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size) {
-            continue_oob!()
-        }
         let Ok(data) = vm.memory.read_bytes(memory_offset, data_size) else {
             host_call_panic!()
         };
 
+        // --- Check InnerVM Id (Err: WHO)
+
+        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
+            continue_who!()
+        };
+        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
+            continue_who!()
+        };
+
+        // --- Check InnerVM Memory Write Access (Err: OOB)
+
+        let Ok(inner_memory_offset) = vm.read_reg_as_mem_address(9) else {
+            continue_oob!()
+        };
+        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size) {
+            continue_oob!()
+        }
+
+        // --- OK (with OOB check)
+
         let Ok(_) = inner_memory_mut.write_bytes(inner_memory_offset as MemAddress, &data) else {
             continue_oob!()
         };
-
         continue_ok!()
     }
 
@@ -298,9 +324,17 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
+        // --- Check InnerVM Id (Err: WHO)
+
         let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
             continue_who!()
         };
+        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
+            continue_who!()
+        };
+
+        // --- Check InnerVM Memory State (Err: HUH)
+
         let Ok(inner_memory_page_offset) = vm.read_reg_as_usize(8) else {
             continue_huh!()
         };
@@ -318,16 +352,14 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             continue_huh!()
         }
 
-        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            continue_who!()
-        };
-
         // cannot allocate new pages without clearing values
         let page_start = inner_memory_page_offset;
         let page_end = inner_memory_page_offset + pages_count;
         if mode > 2 && !inner_memory_mut.is_page_range_readable(page_start..page_end) {
             continue_huh!()
         }
+
+        // --- OK (with HUH checks)
 
         // conditionally clear values
         if mode < 3 {
@@ -368,26 +400,19 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
-            continue_who!()
-        };
+        // --- Check HostVM Memory Write Access and Read Gas Limit & Registers (Err: Panic)
+
         let Ok(memory_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-
         if !vm.memory.is_address_range_writable(memory_offset, 112) {
             host_call_panic!()
         }
-
-        let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
-            continue_who!()
-        };
-
         let Ok(gas_limit_octets) = vm.memory.read_bytes(memory_offset, 8) else {
             host_call_panic!()
         };
-        let gas_limit = UnsignedGas::decode_fixed(&mut gas_limit_octets.as_slice(), 8)?;
 
+        let gas_limit = UnsignedGas::decode_fixed(&mut gas_limit_octets.as_slice(), 8)?;
         let mut regs = Registers::default();
         for (i, reg) in regs.iter_mut().enumerate() {
             let Ok(read_val) = vm
@@ -398,6 +423,17 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             };
             *reg = RegValue::decode_fixed(&mut read_val.as_slice(), 8)?;
         }
+
+        // --- Check InnerVM Id (Err: WHO)
+
+        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
+            continue_who!()
+        };
+        let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
+            continue_who!()
+        };
+
+        // --- PVM Invocation
 
         // Construct a new `VMState` and `ProgramState` for the general invocation function.
         let mut inner_vm_state_copy = VMState {
@@ -427,6 +463,8 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         for reg in inner_vm_state_copy.regs {
             reg.encode_to_fixed(&mut host_buf, 8)?;
         }
+
+        // --- OK (Handle PVM Exit Reasons: HOST, FAULT, OOG, PANIC, HALT)
 
         tracing::debug!("INVOKE instance_id={inner_vm_id} exit_reason={inner_vm_exit_reason:?}");
         match inner_vm_exit_reason {
@@ -482,15 +520,18 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
+        // --- Check InnerVM Id (Err: WHO)
+
         let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
             continue_who!()
         };
-
         let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) else {
             continue_who!()
         };
-        let final_pc = inner_vm.pc;
 
+        // --- OK
+
+        let final_pc = inner_vm.pc;
         x.remove_pvm_instance(inner_vm_id);
 
         tracing::debug!("EXPUNGE instance_id={inner_vm_id}");
