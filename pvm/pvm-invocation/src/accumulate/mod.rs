@@ -3,8 +3,9 @@ pub mod utils;
 
 use crate::error::PVMInvokeError;
 use fr_codec::prelude::*;
-use fr_common::{Octets, ServiceId, TimeslotIndex, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
-use fr_crypto::octets_to_hash32;
+use fr_common::{
+    Hash32, Octets, ServiceId, TimeslotIndex, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE,
+};
 use fr_pvm_host::{
     context::{
         partial_state::AccumulatePartialState, AccumulateHostContext, AccumulateHostContextPair,
@@ -81,7 +82,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         partial_state: AccumulatePartialState<StateManager>,
         args: &AccumulateInvokeArgs,
     ) -> Result<AccumulateResult<StateManager>, PVMInvokeError> {
-        tracing::info!("Ψ_A (accumulate) invoked.");
+        tracing::info!("Ψ_A (accumulate) invoked. s={}", args.accumulate_host);
 
         // Update accumulate host account's balance to apply deferred transfers
         let recv_amount = args.inputs.deferred_transfers_amount();
@@ -161,7 +162,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         match result.output {
             PVMInvocationOutput::Output(output) => {
                 let accumulate_result_hash = if output.len() == HASH_SIZE {
-                    octets_to_hash32(&output)
+                    Some(Hash32::decode(&mut output.as_slice())?)
                 } else {
                     x.yielded_accumulate_hash
                 };

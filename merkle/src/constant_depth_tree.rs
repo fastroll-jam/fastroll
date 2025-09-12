@@ -1,6 +1,7 @@
 use crate::common::{node, trace, MerkleError};
+use fr_codec::prelude::*;
 use fr_common::{Hash32, MerkleRoot};
-use fr_crypto::{error::CryptoError, hash, octets_to_hash32, Hasher};
+use fr_crypto::{hash, Hasher};
 use std::marker::PhantomData;
 
 /// Constant-depth binary Merkle Tree.
@@ -39,8 +40,8 @@ impl<H: Hasher> ConstantDepthMerkleTree<H> {
             .into_iter()
             .map(|hash| hash.to_vec())
             .collect::<Vec<_>>();
-        octets_to_hash32(&node::<H, Vec<u8>>(&data_with_constancy)?)
-            .ok_or(MerkleError::CryptoError(CryptoError::HashError))
+        let root_data = node::<H, Vec<u8>>(&data_with_constancy)?;
+        Ok(Hash32::decode(&mut root_data.as_slice())?)
     }
 
     /// Returns Merkle path (path nodes and all relevant sibling nodes) from root to a single page of
