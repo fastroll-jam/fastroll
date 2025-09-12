@@ -45,17 +45,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(manager) = vm.read_reg_as_service_id(7) else {
-            continue_who!()
-        };
+        // --- Read from Memory (Err: Panic)
+
         let Ok(assign_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
-        };
-        let Ok(designate) = vm.read_reg_as_service_id(9) else {
-            continue_who!()
-        };
-        let Ok(registrar) = vm.read_reg_as_service_id(10) else {
-            continue_who!()
         };
         let Ok(always_accumulate_offset) = vm.read_reg_as_mem_address(11) else {
             host_call_panic!()
@@ -95,6 +88,19 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         else {
             host_call_panic!()
         };
+
+        // --- Check New Privileges (Err: WHO)
+
+        let Ok(manager) = vm.read_reg_as_service_id(7) else {
+            continue_who!()
+        };
+        let Ok(designate) = vm.read_reg_as_service_id(9) else {
+            continue_who!()
+        };
+        let Ok(registrar) = vm.read_reg_as_service_id(10) else {
+            continue_who!()
+        };
+
         let mut always_accumulate_services = BTreeMap::new();
         for i in 0..always_accumulates_count {
             let address = ServiceId::decode_fixed(
@@ -133,14 +139,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(core_index) = vm.read_reg_as_usize(7) else {
-            continue_core!()
-        };
+        // --- Read from Memory (Err: Panic)
+
         let Ok(queue_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
-        };
-        let Ok(core_assign_service) = vm.read_reg_as_service_id(9) else {
-            continue_who!()
         };
 
         if !vm
@@ -148,15 +150,6 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             .is_address_range_readable(queue_offset, HASH_SIZE * AUTH_QUEUE_SIZE)
         {
             host_call_panic!()
-        }
-
-        if core_index >= CORE_COUNT {
-            continue_core!()
-        }
-
-        // Only the privileged assign service of the core is allowed to invoke this host call
-        if x.accumulate_host != x.partial_state.assign_services[core_index] {
-            continue_huh!()
         }
 
         let mut new_core_auth_queue = CoreAuthQueue::default();
@@ -169,6 +162,28 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             };
             new_core_auth_queue[i] = AuthHash::decode(&mut authorizer.as_slice())?;
         }
+
+        // --- Check Core Index (Err: CORE)
+
+        let Ok(core_index) = vm.read_reg_as_usize(7) else {
+            continue_core!()
+        };
+        if core_index >= CORE_COUNT {
+            continue_core!()
+        }
+
+        // --- Check Privilege (Err: HUH)
+
+        // Only the privileged assign service of the core is allowed to invoke this host call
+        if x.accumulate_host != x.partial_state.assign_services[core_index] {
+            continue_huh!()
+        }
+
+        // --- Check New Privilege (Err: WHO)
+
+        let Ok(core_assign_service) = vm.read_reg_as_service_id(9) else {
+            continue_who!()
+        };
 
         x.assign_core_auth_queue(core_index as CoreIndex, new_core_auth_queue);
         x.assign_new_core_assign_service(core_index, core_assign_service);
@@ -184,6 +199,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         tracing::debug!("Hostcall invoked: DESIGNATE");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
+
+        // --- Read from Memory (Err: Panic)
 
         let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
@@ -206,6 +223,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             };
             new_staging_set[i] = ValidatorKey::decode(&mut validator_key.as_slice())?;
         }
+
+        // --- Check Privilege (Err: HUH)
 
         // Only the privileged designate service of the core is allowed to invoke this host call
         if x.accumulate_host != x.partial_state.designate_service {
