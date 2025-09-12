@@ -86,7 +86,11 @@ pub(crate) fn display_state_entry(key_encoded: &[u8], mut val_encoded: &[u8]) {
             println!("{decoded}");
         }
         _ => {
-            println!("Storage entry (encoded): 0x{}", hex::encode(val_encoded));
+            println!(
+                "Storage Entry: state_key=0x{}, val=0x{}",
+                hex::encode(key_encoded),
+                hex::encode(val_encoded)
+            );
         }
     }
 }

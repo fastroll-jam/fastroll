@@ -18,14 +18,13 @@ use crate::{
 use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
-    CodeHash, EpochIndex, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey,
-    StorageKey, TimeslotIndex,
+    CodeHash, EpochIndex, Hash32, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId,
+    StateKey, StorageKey, TimeslotIndex,
 };
 use fr_config::StorageConfig;
-use fr_crypto::{octets_to_hash32, vrf::bandersnatch_vrf::RingVrfVerifier};
+use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
 use fr_state_merkle::{
-    error::StateMerkleError,
     merkle_db::MerkleDB,
     types::nodes::LeafType,
     write_set::{DBWriteSet, MerkleDBWriteSet, StateDBWriteSet},
@@ -462,14 +461,9 @@ impl StateManager {
         let state_data = match leaf_type {
             LeafType::Embedded => state_data_or_hash,
             LeafType::Regular => {
+                let hash = Hash32::decode(&mut state_data_or_hash.as_slice())?;
                 // The state data hash is used as the key in the StateDB
-                let Some(entry) = self
-                    .state_db
-                    .get_entry(&octets_to_hash32(&state_data_or_hash).ok_or(
-                        StateManagerError::StateMerkleError(StateMerkleError::InvalidHash32Input),
-                    )?)
-                    .await?
-                else {
+                let Some(entry) = self.state_db.get_entry(&hash).await? else {
                     return Ok(None);
                 };
                 entry

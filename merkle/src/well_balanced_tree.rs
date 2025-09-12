@@ -1,9 +1,7 @@
 use crate::common::{node, MerkleError};
-use fr_common::MerkleRoot;
-use fr_crypto::{
-    error::CryptoError,
-    hash::{hash, octets_to_hash32, Hasher},
-};
+use fr_codec::prelude::*;
+use fr_common::{Hash32, MerkleRoot};
+use fr_crypto::hash::{hash, Hasher};
 use std::marker::PhantomData;
 
 /// Well-balanced binary Merkle Tree.
@@ -21,7 +19,7 @@ impl<H: Hasher> WellBalancedMerkleTree<H> {
         if data.len() == 1 {
             return Ok(hash::<H>(&data[0])?);
         }
-        octets_to_hash32(&node::<H, Vec<u8>>(data)?)
-            .ok_or(MerkleError::CryptoError(CryptoError::HashError))
+        let root_data = node::<H, Vec<u8>>(data)?;
+        Ok(Hash32::decode(&mut root_data.as_slice())?)
     }
 }
