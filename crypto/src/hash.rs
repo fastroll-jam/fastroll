@@ -49,7 +49,3 @@ pub fn hash<H: Hasher>(value: &[u8]) -> Result<Hash32, CryptoError> {
 pub fn hash_prefix_4<H: Hasher>(value: &[u8]) -> Result<[u8; 4], CryptoError> {
     H::hash_prefix_4(value)
 }
-
-pub fn octets_to_hash32(value: &[u8]) -> Option<Hash32> {
-    value.try_into().map(Hash32::new).ok()
-}

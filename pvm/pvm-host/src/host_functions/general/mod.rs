@@ -10,9 +10,8 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     constants::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
-    Octets, ServiceId, SignedGas, UnsignedGas,
+    Hash32, Octets, ServiceId, SignedGas, UnsignedGas,
 };
-use fr_crypto::octets_to_hash32;
 use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
 use fr_pvm_types::{
     common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, invoke_args::RefineInvokeArgs,
@@ -264,8 +263,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         let Ok(hash_octets) = vm.memory.read_bytes(hash_offset, 32) else {
             host_call_panic!()
         };
-        let hash = octets_to_hash32(&hash_octets)
-            .expect("Should not fail to convert 32-byte octets to Hash32 type");
+        let hash = Hash32::decode(&mut hash_octets.as_slice())?;
 
         // --- Check Preimage (Err: NONE)
 

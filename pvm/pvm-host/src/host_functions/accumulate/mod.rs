@@ -14,7 +14,7 @@ use fr_common::{
     UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MIN_PUBLIC_SERVICE_ID,
     PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
-use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
+use fr_crypto::{hash, types::ValidatorKey, Blake2b256};
 use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
@@ -555,8 +555,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         let mut accumulate_host_encoded_32 = x.accumulate_host.encode_fixed(4)?;
         accumulate_host_encoded_32.resize(32, 0);
-        let accumulate_host_as_hash = octets_to_hash32(accumulate_host_encoded_32.as_slice())
-            .expect("Should not fail convert 32-byte octets into Hash32");
+        let accumulate_host_as_hash = Hash32::decode(&mut accumulate_host_encoded_32.as_slice())?;
         if eject_account_metadata.code_hash != accumulate_host_as_hash {
             continue_who!()
         }
