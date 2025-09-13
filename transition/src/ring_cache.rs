@@ -1,7 +1,7 @@
 use fr_common::{EpochIndex, TimeslotIndex};
 use fr_crypto::{types::Ed25519PubKey, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_state::{
-    manager::StateManager,
+    manager::{RingContext, StateManager},
     types::{StagingSet, ValidatorSet},
 };
 use std::sync::Arc;
@@ -28,14 +28,17 @@ pub fn schedule_ring_cache_update(
                         return;
                     }
                 };
-                // Cache ring verifier and ring root for the next epoch
-                state_manager.update_ring_cache(
-                    next_epoch_index,
-                    curr_timeslot_index,
-                    (*new_staging_set).clone(),
+
+                let ring_context = RingContext {
+                    inserted_at: curr_timeslot_index,
+                    epoch_index: next_epoch_index,
+                    validator_set: (*new_staging_set).clone(),
                     verifier,
                     ring_root,
-                );
+                };
+
+                // Cache ring verifier and ring root for the next epoch
+                state_manager.update_next_ring_cache_entry(ring_context);
                 tracing::info!(
                     "A new RingVrfVerifier constructed and cached on privileged transitions"
                 );

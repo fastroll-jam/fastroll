@@ -36,12 +36,15 @@ pub trait ValidatorSet {
             .collect()
     }
 
-    fn nullify_punished_validators(&mut self, punish_set: &[Ed25519PubKey]) {
+    fn nullify_punished_validators(&mut self, punish_set: &[Ed25519PubKey]) -> bool {
+        let mut has_punished = false;
         for validator in self.iter_mut() {
             if punish_set.contains(&validator.ed25519) {
                 *validator = ValidatorKey::default();
+                has_punished = true;
             }
         }
+        has_punished
     }
 }
 

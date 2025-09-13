@@ -66,7 +66,7 @@ async fn handle_new_epoch_transition(
     prior_staging_set.nullify_punished_validators(&current_punish_set);
 
     let (_verifier, curr_ring_root) = state_manager
-        .get_or_generate_ring_verifier_and_root(
+        .get_or_generate_next_ring_context(
             curr_timeslot.epoch(),
             curr_timeslot.slot(),
             &prior_staging_set,

@@ -134,13 +134,13 @@ impl TicketsXtValidator {
             }
         }
 
-        // Get or generate `RingVrfVerifier` from the state manager cache.
+        // Get or generate `RingVrfVerifier` from the state manager ring cache.
         // In general, this should be found from the cache since it is stored from the Safrole STF
         // on epoch progress.
         let curr_pending_set = self.state_manager.get_safrole().await?.pending_set; // Called after per-epoch Safrole STF
         let (verifier, _ring_root) = self
             .state_manager
-            .get_or_generate_ring_verifier_and_root(
+            .get_or_generate_curr_ring_context(
                 curr_timeslot.epoch(),
                 curr_timeslot.slot(),
                 &curr_pending_set,
