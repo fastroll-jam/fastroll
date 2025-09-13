@@ -24,8 +24,8 @@ use crate::{
 use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
-    CodeHash, EpochIndex, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey,
-    StorageKey, TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
+    CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey, StorageKey,
+    TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_config::StorageConfig;
 use fr_crypto::{
@@ -62,7 +62,6 @@ impl StateCommitArtifact {
 #[derive(Clone)]
 pub struct RingContext {
     pub inserted_at: TimeslotIndex,
-    pub epoch_index: EpochIndex,
     pub validator_set: ValidatorKeySet,
     pub verifier: RingVrfVerifier,
     pub ring_root: BandersnatchRingRoot,
@@ -244,13 +243,11 @@ impl StateManager {
     /// In general, this should be found from the cache.
     pub async fn get_or_generate_curr_ring_context(
         &self,
-        epoch_index: EpochIndex, // TODO: remove
         curr_timeslot_index: TimeslotIndex,
         validator_set: &ValidatorKeySet,
     ) -> Result<(RingVrfVerifier, BandersnatchRingRoot), StateManagerError> {
         // Check the cache
         if let Some(RingContext {
-            epoch_index: _epoch_index,
             inserted_at: _inserted_at,
             validator_set: _validator_set,
             verifier,
@@ -266,7 +263,6 @@ impl StateManager {
         let ring_root = verifier.compute_ring_root()?;
         let ring_context = RingContext {
             inserted_at: curr_timeslot_index,
-            epoch_index,
             validator_set: validator_set.clone(),
             verifier: verifier.clone(),
             ring_root: ring_root.clone(),
@@ -281,13 +277,11 @@ impl StateManager {
     /// for the next per-epoch Safrole transition.
     pub async fn get_or_generate_next_ring_context(
         &self,
-        epoch_index: EpochIndex, // TODO: check callsites
         curr_timeslot_index: TimeslotIndex,
         validator_set: &ValidatorKeySet,
     ) -> Result<(RingVrfVerifier, BandersnatchRingRoot), StateManagerError> {
         // Check the cache
         if let Some(RingContext {
-            epoch_index: _epoch_index,
             inserted_at,
             validator_set: _validator_set,
             verifier,
@@ -310,7 +304,6 @@ impl StateManager {
         let ring_root = verifier.compute_ring_root()?;
         self.update_next_ring_cache_entry(RingContext {
             inserted_at: curr_timeslot_index,
-            epoch_index,
             validator_set: validator_set.clone(),
             verifier: verifier.clone(),
             ring_root: ring_root.clone(),

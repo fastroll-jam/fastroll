@@ -1,4 +1,4 @@
-use fr_common::{EpochIndex, TimeslotIndex};
+use fr_common::TimeslotIndex;
 use fr_crypto::{types::Ed25519PubKey, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_state::{
     manager::{RingContext, StateManager},
@@ -10,7 +10,6 @@ use std::sync::Arc;
 /// Once created, stores them in the ring cache of the `StateManager`.
 pub fn schedule_ring_cache_update(
     state_manager: Arc<StateManager>,
-    next_epoch_index: EpochIndex,
     curr_timeslot_index: TimeslotIndex,
     mut new_staging_set: StagingSet,
     curr_punish_set: Vec<Ed25519PubKey>,
@@ -31,7 +30,6 @@ pub fn schedule_ring_cache_update(
 
                 let ring_context = RingContext {
                     inserted_at: curr_timeslot_index,
-                    epoch_index: next_epoch_index,
                     validator_set: (*new_staging_set).clone(),
                     verifier,
                     ring_root,

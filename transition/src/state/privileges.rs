@@ -13,15 +13,10 @@ pub(crate) async fn run_privileged_transitions(
         let new_staging_set_cloned = new_staging_set.clone();
         let curr_punish_set = state_manager.get_disputes().await?.punish_set;
         let curr_timeslot = state_manager.get_timeslot().await?;
-        let next_epoch_index = curr_timeslot
-            .epoch()
-            .checked_add(1)
-            .ok_or(TransitionError::EpochIndexOverflow)?;
         let state_manager_cloned = state_manager.clone();
         // Fire and forget: speculatively construct the new ring vrf verifier
         schedule_ring_cache_update(
             state_manager_cloned,
-            next_epoch_index,
             curr_timeslot.slot(),
             new_staging_set_cloned,
             curr_punish_set,

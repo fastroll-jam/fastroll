@@ -18,8 +18,6 @@ pub enum TransitionError {
     InvalidTimeslot { next_slot: u32, current_slot: u32 },
     #[error("Timeslot value {0} is in the future")]
     FutureTimeslot(u32),
-    #[error("Epoch index overflowed")]
-    EpochIndexOverflow,
     // Pending Work Reports errors
     #[error("PendingReports Error")]
     PendingReportsError(#[from] PendingReportsError),

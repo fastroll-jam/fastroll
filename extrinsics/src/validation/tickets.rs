@@ -140,11 +140,7 @@ impl TicketsXtValidator {
         let curr_pending_set = self.state_manager.get_safrole().await?.pending_set; // Called after per-epoch Safrole STF
         let (verifier, _ring_root) = self
             .state_manager
-            .get_or_generate_curr_ring_context(
-                curr_timeslot.epoch(),
-                curr_timeslot.slot(),
-                &curr_pending_set,
-            )
+            .get_or_generate_curr_ring_context(curr_timeslot.slot(), &curr_pending_set)
             .await?;
 
         let epoch_entropy = self.state_manager.get_epoch_entropy().await?;
