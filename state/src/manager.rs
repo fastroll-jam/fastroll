@@ -61,6 +61,7 @@ impl StateCommitArtifact {
 struct RingCacheEntry {
     inserted_at: TimeslotIndex,
     epoch_index: EpochIndex,
+    validator_set: ValidatorKeySet,
     verifier: RingVrfVerifier,
     ring_root: BandersnatchRingRoot,
 }
@@ -223,6 +224,7 @@ impl StateManager {
         if let Some(RingCacheEntry {
             epoch_index: _epoch_index,
             inserted_at,
+            validator_set: _validator_set,
             verifier,
             ring_root,
         }) = self.ring_cache.read().unwrap().as_ref()
@@ -243,6 +245,7 @@ impl StateManager {
         self.update_ring_cache(
             epoch_index,
             curr_timeslot_index,
+            validator_set.clone(),
             verifier.clone(),
             ring_root.clone(),
         );
@@ -253,6 +256,7 @@ impl StateManager {
         &self,
         curr_epoch: EpochIndex,
         curr_timeslot_index: TimeslotIndex,
+        validator_set: ValidatorKeySet,
         verifier: RingVrfVerifier,
         ring_root: BandersnatchRingRoot,
     ) {
@@ -266,10 +270,13 @@ impl StateManager {
         *guard = Some(RingCacheEntry {
             epoch_index: curr_epoch,
             inserted_at: curr_timeslot_index,
+            validator_set,
             verifier,
             ring_root,
         })
     }
+
+    // TODO: add fn nullify_offenders_from_ring_cache
 
     pub async fn get_raw_state_entry(
         &self,

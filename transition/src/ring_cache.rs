@@ -32,6 +32,7 @@ pub fn schedule_ring_cache_update(
                 state_manager.update_ring_cache(
                     next_epoch_index,
                     curr_timeslot_index,
+                    (*new_staging_set).clone(),
                     verifier,
                     ring_root,
                 );
