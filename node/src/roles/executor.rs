@@ -93,9 +93,15 @@ impl BlockExecutor {
         let curr_timeslot = storage.state_manager().get_timeslot().await?;
         let epoch_progressed = prev_timeslot.epoch() < curr_timeslot.epoch();
 
+        // Finalize `RingCache` after nullifying validator keys in the offenders set
+        // of the current Disputes Xt.
+        let offenders = disputes_xt.collect_offender_keys();
+        let state_manager = storage.state_manager();
+        state_manager.nullify_offenders_from_next_ring_cache(offenders.as_ref())?;
+
         // Rotate `RingCache` if this block is the first block of a new epoch
         if epoch_progressed {
-            storage.state_manager().rotate_ring_cache();
+            state_manager.rotate_ring_cache();
         }
 
         // --- Spawn STF tasks
@@ -104,7 +110,7 @@ impl BlockExecutor {
         let manager = storage.state_manager();
         let disputes_xt_cloned = disputes_xt.clone();
         let disputes_jh = spawn_timed("disputes_stf", async move {
-            transition_disputes(manager, &disputes_xt_cloned, prev_timeslot).await
+            transition_disputes(manager, &disputes_xt_cloned, offenders.items, prev_timeslot).await
         });
 
         // Entropy STF (on-epoch-change transition only)

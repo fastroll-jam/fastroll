@@ -1,5 +1,6 @@
 use crate::error::TransitionError;
 use fr_block::types::extrinsics::disputes::DisputesXt;
+use fr_crypto::types::Ed25519PubKey;
 use fr_extrinsics::validation::disputes::DisputesXtValidator;
 use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
@@ -14,6 +15,7 @@ use std::sync::Arc;
 pub async fn transition_disputes(
     state_manager: Arc<StateManager>,
     disputes_xt: &DisputesXt,
+    offenders: Vec<Ed25519PubKey>,
     prior_timeslot: Timeslot,
 ) -> Result<(), TransitionError> {
     let disputes_validator = DisputesXtValidator::new(state_manager.clone());
@@ -22,7 +24,6 @@ pub async fn transition_disputes(
         .await?;
 
     let (good_set, bad_set, wonky_set) = disputes_xt.split_report_set();
-    let offenders = disputes_xt.collect_offender_keys().items;
 
     state_manager
         .with_mut_disputes(

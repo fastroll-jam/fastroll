@@ -23,6 +23,12 @@ pub struct OffendersHeaderMarker {
     pub items: Vec<Ed25519PubKey>,
 }
 
+impl AsRef<[Ed25519PubKey]> for OffendersHeaderMarker {
+    fn as_ref(&self) -> &[Ed25519PubKey] {
+        &self.items
+    }
+}
+
 /// Represents a collection of judgments regarding the validity of work reports and the misbehavior
 /// of validators.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
