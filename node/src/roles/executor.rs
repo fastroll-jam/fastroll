@@ -97,11 +97,11 @@ impl BlockExecutor {
         // of the current Disputes Xt.
         let offenders = disputes_xt.collect_offender_keys();
         let state_manager = storage.state_manager();
-        state_manager.nullify_offenders_from_next_ring_cache(offenders.as_ref())?;
+        state_manager.nullify_offenders_from_staging_ring_cache(offenders.as_ref())?;
 
         // Rotate `RingCache` if this block is the first block of a new epoch
         if epoch_progressed {
-            state_manager.rotate_ring_cache();
+            state_manager.commit_and_rotate_ring_cache();
         }
 
         // --- Spawn STF tasks

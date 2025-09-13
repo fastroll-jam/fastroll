@@ -73,7 +73,7 @@ struct RingCache {
     curr: Option<RingContext>,
     /// Speculatively computed Ring VRF verifier and its context
     /// cached for the next per-epoch Safrole state transition.
-    next: Option<RingContext>,
+    staging: Option<RingContext>,
 }
 
 impl RingCache {
@@ -81,12 +81,12 @@ impl RingCache {
         self.curr.as_ref()
     }
 
-    fn next(&self) -> Option<&RingContext> {
-        self.next.as_ref()
+    fn staging(&self) -> Option<&RingContext> {
+        self.staging.as_ref()
     }
 
     fn rotate(&mut self) {
-        self.curr = self.next.clone();
+        self.curr = self.staging.clone();
     }
 }
 
@@ -275,7 +275,7 @@ impl StateManager {
 
     /// Gets cached ring context or generated one, if not found from the cache,
     /// for the next per-epoch Safrole transition.
-    pub async fn get_or_generate_next_ring_context(
+    pub async fn get_or_generate_staging_ring_context(
         &self,
         curr_timeslot_index: TimeslotIndex,
         validator_set: &ValidatorKeySet,
@@ -286,7 +286,7 @@ impl StateManager {
             validator_set: _validator_set,
             verifier,
             ring_root,
-        }) = self.ring_cache.read().unwrap().next()
+        }) = self.ring_cache.read().unwrap().staging()
         {
             // The cache entry is valid only if StagingSet was not mutated after its insertion
             if self.last_staging_set_transition_slot() <= *inserted_at {
@@ -302,7 +302,7 @@ impl StateManager {
             RingVrfVerifier::new(validator_set)?
         };
         let ring_root = verifier.compute_ring_root()?;
-        self.update_next_ring_cache_entry(RingContext {
+        self.update_staging_ring_cache_entry(RingContext {
             inserted_at: curr_timeslot_index,
             validator_set: validator_set.clone(),
             verifier: verifier.clone(),
@@ -311,48 +311,48 @@ impl StateManager {
         Ok((verifier, ring_root))
     }
 
-    /// Updates the `next` ring cache entry.
+    /// Updates the `staging` ring cache entry.
     ///
     /// This is triggered by StagingSet transition, speculatively computing RingVRFVerifier
     /// that could be used for the next per-epoch Safrole state transition.
-    pub fn update_next_ring_cache_entry(&self, ring_cache_entry: RingContext) {
+    pub fn update_staging_ring_cache_entry(&self, ring_cache_entry: RingContext) {
         let mut guard = self.ring_cache.write().unwrap();
-        if let Some(entry) = guard.next() {
+        if let Some(entry) = guard.staging() {
             if entry.inserted_at >= ring_cache_entry.inserted_at {
                 // Do not update if the incoming cache entry is outdated
                 return;
             }
         }
-        guard.next = Some(ring_cache_entry);
+        guard.staging = Some(ring_cache_entry);
     }
 
-    /// Rotates the ring cache, advancing `next` to `curr`.
+    /// Commits and rotates the ring cache, advancing `staging` to `curr`.
     ///
     /// This is invoked at the very beginning of epoch-changing STFs, so that if StagingSet gets
-    /// updated in the same block, it can be cached into the right place (`next`).
-    pub fn rotate_ring_cache(&self) {
+    /// updated in the same block, it can be cached into the right place (`staging`).
+    pub fn commit_and_rotate_ring_cache(&self) {
         let mut guard = self.ring_cache.write().unwrap();
         guard.rotate();
     }
 
-    /// Invalidates any offenders in the `next` ring cache, recomputing the `RingVRFVerifier` if needed.
+    /// Invalidates any offenders in the `staging` ring cache, recomputing the `RingVRFVerifier` if needed.
     ///
     /// This should be checked in every block with Disputes Xt.
-    pub fn nullify_offenders_from_next_ring_cache(
+    pub fn nullify_offenders_from_staging_ring_cache(
         &self,
         new_offenders: &[Ed25519PubKey],
     ) -> Result<(), StateManagerError> {
         let mut guard = self.ring_cache.write().unwrap();
-        if let Some(ref mut next_entry) = guard.next {
-            let has_offender = next_entry
+        if let Some(ref mut staging_entry) = guard.staging {
+            let has_offender = staging_entry
                 .validator_set
                 .nullify_punished_validators(new_offenders);
             if has_offender {
                 // Recompute the verifier and the ring root
-                let verifier = RingVrfVerifier::new(&next_entry.validator_set)?;
+                let verifier = RingVrfVerifier::new(&staging_entry.validator_set)?;
                 let ring_root = verifier.compute_ring_root()?;
-                next_entry.verifier = verifier;
-                next_entry.ring_root = ring_root;
+                staging_entry.verifier = verifier;
+                staging_entry.ring_root = ring_root;
             }
         }
         Ok(())
