@@ -93,6 +93,11 @@ impl BlockExecutor {
         let curr_timeslot = storage.state_manager().get_timeslot().await?;
         let epoch_progressed = prev_timeslot.epoch() < curr_timeslot.epoch();
 
+        // Rotate `RingCache` if this block is the first block of a new epoch
+        if epoch_progressed {
+            storage.state_manager().rotate_ring_cache();
+        }
+
         // --- Spawn STF tasks
 
         // Disputes STF
