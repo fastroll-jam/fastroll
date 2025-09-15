@@ -186,11 +186,11 @@ impl JamDecode for FuzzMessageKind {
         let msg_id = input.read_byte()?;
         match msg_id {
             0 => Ok(Self::PeerInfo(PeerInfo::decode(input)?)),
-            1 => Ok(Self::ImportBlock(ImportBlock::decode(input)?)),
-            2 => Ok(Self::Initialize(Initialize::decode(input)?)),
-            3 => Ok(Self::GetState(GetState::decode(input)?)),
-            4 => Ok(Self::State(State::decode(input)?)),
-            5 => Ok(Self::StateRoot(StateRoot::decode(input)?)),
+            1 => Ok(Self::Initialize(Initialize::decode(input)?)),
+            2 => Ok(Self::StateRoot(StateRoot::decode(input)?)),
+            3 => Ok(Self::ImportBlock(ImportBlock::decode(input)?)),
+            4 => Ok(Self::GetState(GetState::decode(input)?)),
+            5 => Ok(Self::State(State::decode(input)?)),
             255 => {
                 let len = input.remaining_len();
                 let value = Octets::decode_fixed(input, len)?;
