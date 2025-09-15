@@ -108,14 +108,11 @@ mod fuzz_target_tests {
         async fn import_block(
             client: &mut UnixStream,
             import_block_message: ImportBlock,
-        ) -> Result<StateRoot, FuzzTargetError> {
+        ) -> Result<FuzzMessageKind, FuzzTargetError> {
             StreamUtils::send_message(client, FuzzMessageKind::ImportBlock(import_block_message))
                 .await?;
             let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
-            match res {
-                FuzzMessageKind::StateRoot(root) => Ok(root),
-                kind => panic!("[ImportBlock] Expected StateRoot response. Got: {kind:?}"),
-            }
+            Ok(res)
         }
 
         /// Send GetState message to the fuzz target and receive State message.
@@ -284,9 +281,14 @@ mod fuzz_target_tests {
         .await?;
 
         // --- ImportBlock (Block #2)
-        let root =
+        let import_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
-        assert_eq!(root.0, test_case_2.post_state.state_root);
+        match import_res {
+            FuzzMessageKind::StateRoot(root) => {
+                assert_eq!(root.0, test_case_2.post_state.state_root);
+            }
+            kind => panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}"),
+        }
 
         // Cleanup
         cleanup_socket(&socket_path);
@@ -328,10 +330,15 @@ mod fuzz_target_tests {
         .await?;
 
         // --- ImportBlock (Block #2; invalid)
-        let root =
+        let import_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
-        // Invalid block; should return the last valid state root
-        assert_eq!(root.0, test_case_1.post_state.state_root);
+        // Invalid block; should return `Error` message
+        match import_res {
+            FuzzMessageKind::Error(e) => {
+                println!("Fuzz Error: {}", String::from_utf8(e)?);
+            }
+            kind => panic!("[ImportBlock] Invalid Block: Expected Error response. Got: {kind:?}"),
+        }
 
         // Cleanup
         cleanup_socket(&socket_path);
@@ -373,14 +380,24 @@ mod fuzz_target_tests {
         .await?;
 
         // --- ImportBlock (Block #2)
-        let root =
+        let import_2_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
-        assert_eq!(root.0, test_case_2.post_state.state_root);
+        match import_2_res {
+            FuzzMessageKind::StateRoot(root) => {
+                assert_eq!(root.0, test_case_2.post_state.state_root);
+            }
+            kind => panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}"),
+        }
 
         // --- ImportBlock (Block #3)
-        let root =
+        let import_3_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.into())).await?;
-        assert_eq!(root.0, test_case_3.post_state.state_root);
+        match import_3_res {
+            FuzzMessageKind::StateRoot(root) => {
+                assert_eq!(root.0, test_case_3.post_state.state_root);
+            }
+            kind => panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}"),
+        }
 
         // Cleanup
         cleanup_socket(&socket_path);
@@ -422,11 +439,11 @@ mod fuzz_target_tests {
         .await?;
 
         // --- ImportBlock (Block #2)
-        let _root =
+        let _import_2_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
 
         // --- ImportBlock (Block #3)
-        let _root =
+        let _import_3_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.clone().into()))
                 .await?;
 
@@ -482,12 +499,12 @@ mod fuzz_target_tests {
             .await?;
 
             // --- ImportBlock (Block #2)
-            let _root =
+            let _import_2_res =
                 MockFuzzer::import_block(&mut client_1, ImportBlock(test_case_2.block.into()))
                     .await?;
 
             // --- ImportBlock (Block #3)
-            let _root = MockFuzzer::import_block(
+            let _import_3_res = MockFuzzer::import_block(
                 &mut client_1,
                 ImportBlock(test_case_3.block.clone().into()),
             )
@@ -528,18 +545,30 @@ mod fuzz_target_tests {
             assert_eq!(root.0, test_case_1.post_state.state_root);
 
             // --- ImportBlock (Block #2)
-            let root =
+            let import_2_res =
                 MockFuzzer::import_block(&mut client_2, ImportBlock(test_case_2.block.into()))
                     .await?;
-            assert_eq!(root.0, test_case_2.post_state.state_root);
+            match import_2_res {
+                FuzzMessageKind::StateRoot(root) => {
+                    assert_eq!(root.0, test_case_2.post_state.state_root);
+                }
+                kind => {
+                    panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}")
+                }
+            }
 
             // --- ImportBlock (Block #3)
-            let root = MockFuzzer::import_block(
-                &mut client_2,
-                ImportBlock(test_case_3.block.clone().into()),
-            )
-            .await?;
-            assert_eq!(root.0, test_case_3.post_state.state_root);
+            let import_3_res =
+                MockFuzzer::import_block(&mut client_2, ImportBlock(test_case_3.block.into()))
+                    .await?;
+            match import_3_res {
+                FuzzMessageKind::StateRoot(root) => {
+                    assert_eq!(root.0, test_case_3.post_state.state_root);
+                }
+                kind => {
+                    panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}")
+                }
+            }
         }
 
         // Cleanup
