@@ -59,17 +59,27 @@ impl Version {
 
 #[derive(Clone, Debug, PartialEq, JamEncode, JamDecode)]
 pub struct PeerInfo {
-    pub name: Vec<u8>,
-    pub app_version: Version,
+    pub fuzz_version: u8,
+    pub fuzz_features: u8,
     pub jam_version: Version,
+    pub app_version: Version,
+    pub name: Vec<u8>,
 }
 
 impl PeerInfo {
-    pub fn new(name: String, app_version: Version, jam_version: Version) -> Self {
+    pub fn new(
+        fuzz_version: u8,
+        fuzz_features: u8,
+        jam_version: Version,
+        app_version: Version,
+        name: String,
+    ) -> Self {
         Self {
-            name: name.into_bytes(),
-            app_version,
+            fuzz_version,
+            fuzz_features,
             jam_version,
+            app_version,
+            name: name.into_bytes(),
         }
     }
 }

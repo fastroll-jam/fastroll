@@ -29,9 +29,11 @@ mod fuzz_target_tests {
 
     fn create_test_peer_info(name: &str) -> PeerInfo {
         PeerInfo::new(
-            name.to_string(),
-            Version::from_str("0.1.0").unwrap(),
+            1,
+            0,
             Version::from_str("0.5.0").unwrap(),
+            Version::from_str("0.1.0").unwrap(),
+            name.to_string(),
         )
     }
 
