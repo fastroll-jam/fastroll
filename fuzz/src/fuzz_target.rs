@@ -258,14 +258,7 @@ impl FuzzTargetRunner {
                 let header_hash = block.header.hash()?;
                 self.latest_state_keys
                     .update_header_hash(header_hash.clone());
-                let pre_state_root = storage.state_manager().merkle_root();
-                let post_state_root = match BlockImporter::import_block(
-                    storage.clone(),
-                    block,
-                    *is_first_block,
-                )
-                .await
-                {
+                match BlockImporter::import_block(storage.clone(), block, *is_first_block).await {
                     Ok((post_state_root, account_state_changes)) => {
                         account_state_changes.inner.values().for_each(|change| {
                             for added_key in &change.added_state_keys {
@@ -282,23 +275,29 @@ impl FuzzTargetRunner {
                             .set_post_state_root(&header_hash, post_state_root.clone())
                             .await?;
 
-                        post_state_root
+                        // Send message: StateRoot
+                        StreamUtils::send_message(
+                            stream,
+                            FuzzMessageKind::StateRoot(StateRoot(post_state_root.clone())),
+                        )
+                        .await?;
+                        tracing::info!("[SEND][ImportBlock] root={post_state_root}");
                     }
                     Err(e) => {
                         tracing::debug!("Invalid block - import failed: {e:?}");
 
                         // Rollback the state cache (revert all dirty entries)
                         storage.state_manager().rollback_dirty_cache();
-                        // Return pre-state root for invalid blocks
-                        pre_state_root
+
+                        // Send message: Error
+                        StreamUtils::send_message(
+                            stream,
+                            FuzzMessageKind::Error(e.to_string().into_bytes()),
+                        )
+                        .await?;
+                        tracing::info!("[SEND][ImportBlock] Err {}", e.to_string());
                     }
                 };
-                StreamUtils::send_message(
-                    stream,
-                    FuzzMessageKind::StateRoot(StateRoot(post_state_root.clone())),
-                )
-                .await?;
-                tracing::info!("[SEND][ImportBlock] root={post_state_root}");
                 if *is_first_block {
                     *is_first_block = false;
                 }
