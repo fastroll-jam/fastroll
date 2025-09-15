@@ -144,6 +144,20 @@ impl PeerInfo {
     }
 }
 
+pub struct FuzzFeatures {
+    pub with_ancestry: bool,
+    pub with_forking: bool,
+}
+
+impl From<u32> for FuzzFeatures {
+    fn from(value: u32) -> Self {
+        Self {
+            with_ancestry: (value & 0b01) != 0,
+            with_forking: (value & 0b10) != 0,
+        }
+    }
+}
+
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct KeyValue {
     pub key: TrieKey,
