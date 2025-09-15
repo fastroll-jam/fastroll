@@ -2,7 +2,7 @@
 
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
-use fr_common::{ByteArray, ByteSequence, Hash32, Octets, TimeslotIndex, STATE_KEY_SIZE};
+use fr_common::{ByteArray, ByteSequence, Hash32, TimeslotIndex, STATE_KEY_SIZE};
 use fr_limited_vec::LimitedVec;
 use fr_test_utils::importer_harness::AsnRawState;
 use std::{
@@ -14,13 +14,38 @@ use std::{
 pub type TrieKey = ByteArray<STATE_KEY_SIZE>;
 pub type HeaderHash = Hash32;
 pub type StateRootHash = Hash32;
-pub type FuzzError = String;
 
-#[derive(Clone, Debug, PartialEq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Version {
     pub major: u8,
     pub minor: u8,
     pub patch: u8,
+}
+
+impl JamEncode for Version {
+    fn size_hint(&self) -> usize {
+        3
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.major.encode_to_fixed(dest, 1)?;
+        self.minor.encode_to_fixed(dest, 1)?;
+        self.patch.encode_to_fixed(dest, 1)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for Version {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            major: u8::decode_fixed(input, 1)?,
+            minor: u8::decode_fixed(input, 1)?,
+            patch: u8::decode_fixed(input, 1)?,
+        })
+    }
 }
 
 impl Display for Version {
@@ -59,19 +84,52 @@ impl Version {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PeerInfo {
     pub fuzz_version: u8,
-    pub fuzz_features: u8,
+    pub fuzz_features: u32,
     pub jam_version: Version,
     pub app_version: Version,
     pub app_name: Vec<u8>,
 }
 
+impl JamEncode for PeerInfo {
+    fn size_hint(&self) -> usize {
+        1 + 4
+            + self.jam_version.size_hint()
+            + self.app_version.size_hint()
+            + self.app_name.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.fuzz_version.encode_to_fixed(dest, 1)?;
+        self.fuzz_features.encode_to_fixed(dest, 4)?;
+        self.jam_version.encode_to(dest)?;
+        self.app_version.encode_to(dest)?;
+        self.app_name.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for PeerInfo {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            fuzz_version: u8::decode_fixed(input, 1)?,
+            fuzz_features: u32::decode_fixed(input, 4)?,
+            jam_version: Version::decode(input)?,
+            app_version: Version::decode(input)?,
+            app_name: <Vec<u8>>::decode(input)?,
+        })
+    }
+}
+
 impl PeerInfo {
     pub fn new(
         fuzz_version: u8,
-        fuzz_features: u8,
+        fuzz_features: u32,
         jam_version: Version,
         app_version: Version,
         app_name: String,
@@ -111,10 +169,34 @@ impl From<AsnRawState> for State {
     }
 }
 
-#[derive(Clone, Debug, JamEncode, JamDecode)]
+#[derive(Clone, Debug)]
 pub struct AncestryItem {
     slot: TimeslotIndex,
     header_hash: HeaderHash,
+}
+
+impl JamEncode for AncestryItem {
+    fn size_hint(&self) -> usize {
+        4 + self.header_hash.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.slot.encode_to_fixed(dest, 4)?;
+        self.header_hash.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for AncestryItem {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            slot: TimeslotIndex::decode_fixed(input, 4)?,
+            header_hash: HeaderHash::decode(input)?,
+        })
+    }
 }
 
 pub type Ancestry = LimitedVec<AncestryItem, 24>;
@@ -144,7 +226,7 @@ pub enum FuzzMessageKind {
     ImportBlock(ImportBlock), // Sender: Fuzzer
     GetState(GetState),       // Sender: Fuzzer
     State(State),             // Sender: Target
-    Error(FuzzError),         // Sender: Target
+    Error(Vec<u8>),           // Sender: Target
 }
 
 impl JamEncode for FuzzMessageKind {
@@ -156,7 +238,7 @@ impl JamEncode for FuzzMessageKind {
             Self::ImportBlock(msg) => msg.size_hint(),
             Self::GetState(msg) => msg.size_hint(),
             Self::State(msg) => msg.size_hint(),
-            Self::Error(err_msg) => err_msg.len(),
+            Self::Error(err_msg) => err_msg.size_hint(),
         };
         1 + variant_size
     }
@@ -169,7 +251,7 @@ impl JamEncode for FuzzMessageKind {
             Self::ImportBlock(msg) => (3u8, msg.encode()?),
             Self::GetState(msg) => (4u8, msg.encode()?),
             Self::State(msg) => (5u8, msg.encode()?),
-            Self::Error(err_msg) => (255u8, err_msg.clone().into_bytes()),
+            Self::Error(err_msg) => (255u8, err_msg.encode()?),
         };
 
         dest.push_byte(msg_id);
@@ -191,11 +273,7 @@ impl JamDecode for FuzzMessageKind {
             3 => Ok(Self::ImportBlock(ImportBlock::decode(input)?)),
             4 => Ok(Self::GetState(GetState::decode(input)?)),
             5 => Ok(Self::State(State::decode(input)?)),
-            255 => {
-                let len = input.remaining_len();
-                let value = Octets::decode_fixed(input, len)?;
-                Ok(Self::Error(FuzzError::from_utf8_lossy(&value).into_owned()))
-            }
+            255 => Ok(Self::Error(Vec::<u8>::decode(input)?)),
             _ => Err(JamCodecError::InputError("Unknown message id".to_string())),
         }
     }

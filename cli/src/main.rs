@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Some(CliCommand::Fuzz { socket }) => {
             let mut target_runner = FuzzTargetRunner::new(PeerInfo::new(
                 u8::from_str(FUZZ_PROTO_VERSION)?,
-                u8::from_str(FUZZ_FEATURES)?,
+                u32::from_str(FUZZ_FEATURES)?,
                 Version::from_str(SPEC_VERSION)?,
                 Version::from_str(CLIENT_VERSION)?,
                 "FastRoll".to_string(),
