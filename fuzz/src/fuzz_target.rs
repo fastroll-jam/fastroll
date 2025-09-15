@@ -156,7 +156,7 @@ impl FuzzTargetRunner {
         if let FuzzMessageKind::PeerInfo(peer_info) = message_kind {
             tracing::info!(
                 "[PeerInfo][RECV] Fuzzer info: name={} app_version={} jam_version={}",
-                String::from_utf8(peer_info.name)?,
+                String::from_utf8(peer_info.app_name)?,
                 peer_info.app_version,
                 peer_info.jam_version
             );
@@ -178,18 +178,18 @@ impl FuzzTargetRunner {
         is_first_block: &mut bool,
     ) -> Result<(), FuzzTargetError> {
         match message_kind {
-            FuzzMessageKind::SetState(set_state) => {
-                tracing::info!("[RECV][SetState] Received message");
+            FuzzMessageKind::Initialize(init) => {
+                tracing::info!("[RECV][Initialize] Received message");
                 let storage = self.node_storage();
                 let state_manager = storage.state_manager();
 
-                let parent_header = set_state.header;
+                let parent_header = init.header;
                 let parent_header_hash = parent_header.hash()?;
                 self.latest_state_keys
                     .update_header_hash(parent_header_hash.clone());
 
                 // Add state entries
-                for kv in set_state.state.0 {
+                for kv in init.state.0 {
                     state_manager
                         .add_raw_state_entry(&kv.key, kv.value.into_vec())
                         .await?;
@@ -210,7 +210,7 @@ impl FuzzTargetRunner {
                     FuzzMessageKind::StateRoot(StateRoot(state_root.clone())),
                 )
                 .await?;
-                tracing::info!("[SEND][SetState] root={state_root}");
+                tracing::info!("[SEND][Initialize] root={state_root}");
                 Ok(())
             }
             FuzzMessageKind::ImportBlock(import_block) => {
