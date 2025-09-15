@@ -4,13 +4,16 @@ mod fuzz_target_tests {
     use crate::{
         fuzz_target::{FuzzTargetError, FuzzTargetRunner},
         types::{
-            Ancestry, FuzzMessageKind, GetState, ImportBlock, Initialize, PeerInfo, State,
-            StateRoot, Version,
+            Ancestry, AncestryItem, FuzzMessageKind, GetState, HeaderHash, ImportBlock, Initialize,
+            PeerInfo, State, StateRoot, Version,
         },
         utils::StreamUtils,
     };
     use fr_block::types::block::BlockHeader;
-    use fr_common::utils::{serde::FileLoader, tracing::setup_tracing};
+    use fr_common::{
+        utils::{serde::FileLoader, tracing::setup_tracing},
+        ByteEncodable,
+    };
     use fr_test_utils::importer_harness::AsnTestCase as BlockImportCase;
     use std::{path::PathBuf, str::FromStr, time::Duration};
     use tempfile::tempdir;
@@ -147,6 +150,64 @@ mod fuzz_target_tests {
 
         // Cleanup
         cleanup_socket(&socket_path);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fuzz_initialize_set_ancestry() -> Result<(), FuzzTargetError> {
+        let ancestor_1 = HeaderHash::from_hex("0x1")?;
+        let ancestor_2 = HeaderHash::from_hex("0x2")?;
+        let ancestor_3 = HeaderHash::from_hex("0x3")?;
+        let ancestry = Ancestry::try_from(vec![
+            AncestryItem {
+                slot: 1,
+                header_hash: ancestor_1.clone(),
+            },
+            AncestryItem {
+                slot: 2,
+                header_hash: ancestor_2.clone(),
+            },
+            AncestryItem {
+                slot: 3,
+                header_hash: ancestor_3.clone(),
+            },
+        ])?;
+        let fuzz_target = init_fuzz_target_runner();
+        fuzz_target.set_ancestors(ancestry).await?;
+
+        assert_eq!(
+            fuzz_target
+                .node_storage
+                .header_db()
+                .get_header(&ancestor_1)
+                .await?
+                .unwrap()
+                .data
+                .timeslot_index,
+            1
+        );
+        assert_eq!(
+            fuzz_target
+                .node_storage
+                .header_db()
+                .get_header(&ancestor_2)
+                .await?
+                .unwrap()
+                .data
+                .timeslot_index,
+            2
+        );
+        assert_eq!(
+            fuzz_target
+                .node_storage
+                .header_db()
+                .get_header(&ancestor_3)
+                .await?
+                .unwrap()
+                .data
+                .timeslot_index,
+            3
+        );
         Ok(())
     }
 

@@ -1,11 +1,16 @@
 use crate::{
-    types::{FuzzMessageKind, HeaderHash, KeyValue, PeerInfo, State, StateRoot, TrieKey},
+    types::{Ancestry, FuzzMessageKind, HeaderHash, KeyValue, PeerInfo, State, StateRoot, TrieKey},
     utils::{validate_socket_path, StreamUtils},
 };
-use fr_block::{post_state_root_db::PostStateRootDbError, types::block::BlockHeaderError};
+use fr_block::{
+    header_db::BlockHeaderDBError,
+    post_state_root_db::PostStateRootDbError,
+    types::block::{BlockHeader, BlockHeaderData, BlockHeaderError, BlockSeal},
+};
 use fr_codec::JamCodecError;
-use fr_common::ByteSequence;
+use fr_common::{ByteSequence, CommonTypeError};
 use fr_config::StorageConfig;
+use fr_limited_vec::LimitedVecError;
 use fr_node::roles::importer::BlockImporter;
 use fr_state::error::StateManagerError;
 use fr_storage::node_storage::NodeStorage;
@@ -25,12 +30,18 @@ pub enum FuzzTargetError {
     FromUtf8Error(#[from] FromUtf8Error),
     #[error("ElapsedError: {0}")]
     ElapsedError(#[from] Elapsed),
+    #[error("CommonTypeError: {0}")]
+    CommonTypeError(#[from] CommonTypeError),
+    #[error("LimitedVecError: {0}")]
+    LimitedVecError(#[from] LimitedVecError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
+    #[error("BlockHeaderDBError: {0}")]
+    BlockHeaderDBError(#[from] BlockHeaderDBError),
     #[error("PostStateRootDbError: {0}")]
     PostStateRootDbError(#[from] PostStateRootDbError),
     #[error("First request message is not a peer info")]
@@ -66,7 +77,7 @@ impl LatestStateKeys {
 }
 
 pub struct FuzzTargetRunner {
-    node_storage: Arc<NodeStorage>,
+    pub(crate) node_storage: Arc<NodeStorage>,
     latest_state_keys: LatestStateKeys,
     target_peer_info: PeerInfo,
 }
@@ -88,6 +99,30 @@ impl FuzzTargetRunner {
 
     fn node_storage(&self) -> Arc<NodeStorage> {
         self.node_storage.clone()
+    }
+
+    pub(crate) async fn set_ancestors(&self, ancestors: Ancestry) -> Result<(), FuzzTargetError> {
+        self.node_storage()
+            .header_db()
+            .batch_insert_headers(
+                ancestors
+                    .into_iter()
+                    .map(|item| {
+                        (
+                            item.header_hash,
+                            BlockHeader {
+                                data: BlockHeaderData {
+                                    timeslot_index: item.slot,
+                                    ..Default::default()
+                                },
+                                block_seal: BlockSeal::default(),
+                            },
+                        )
+                    })
+                    .collect(),
+            )
+            .await?;
+        Ok(())
     }
 
     pub async fn run_as_fuzz_target(&mut self, socket_path: String) -> Result<(), FuzzTargetError> {
@@ -204,6 +239,9 @@ impl FuzzTargetRunner {
                     .post_state_root_db()
                     .set_post_state_root(&parent_header_hash, state_root.clone())
                     .await?;
+
+                // Set Ancestor set
+                self.set_ancestors(init.ancestry).await?;
 
                 StreamUtils::send_message(
                     stream,

@@ -171,8 +171,8 @@ impl From<AsnRawState> for State {
 
 #[derive(Clone, Debug)]
 pub struct AncestryItem {
-    slot: TimeslotIndex,
-    header_hash: HeaderHash,
+    pub slot: TimeslotIndex,
+    pub header_hash: HeaderHash,
 }
 
 impl JamEncode for AncestryItem {

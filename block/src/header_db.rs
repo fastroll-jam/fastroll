@@ -11,7 +11,7 @@ use fr_db::{
         cached_db::{CacheItem, CachedDB, CachedDBError},
         core_db::CoreDB,
     },
-    ColumnFamily,
+    ColumnFamily, WriteBatch,
 };
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
@@ -99,5 +99,30 @@ impl BlockHeaderDB {
     pub fn set_best_header(&self, new_best_header: BlockHeader) {
         let mut best_header = self.best_header.lock().unwrap();
         *best_header = new_best_header;
+    }
+
+    pub async fn insert_header(
+        &self,
+        header_hash: BlockHeaderHash,
+        header: BlockHeader,
+    ) -> Result<(), BlockHeaderDBError> {
+        self.db.put_entry(&header_hash, header).await?;
+        Ok(())
+    }
+
+    pub async fn batch_insert_headers(
+        &self,
+        headers: Vec<(BlockHeaderHash, BlockHeader)>,
+    ) -> Result<(), BlockHeaderDBError> {
+        let mut batch = WriteBatch::default();
+        for (header_hash, header) in headers {
+            batch.put_cf(
+                self.cf_handle()?,
+                header_hash.as_slice(),
+                header.into_db_value(),
+            );
+        }
+        self.db.commit_write_batch(batch).await?;
+        Ok(())
     }
 }
