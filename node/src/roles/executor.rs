@@ -166,6 +166,7 @@ impl BlockExecutor {
     pub async fn run_state_transition_post_header_commitment(
         storage: &NodeStorage,
         block: &Block,
+        with_ancestors: bool,
     ) -> Result<BlockExecutionOutput, BlockExecutionError> {
         let xt_cloned = block.extrinsics.clone();
         let disputes_xt = block.extrinsics.disputes.clone();
@@ -194,6 +195,7 @@ impl BlockExecutor {
                 header_db,
                 &guarantees_xt_cloned,
                 curr_timeslot,
+                with_ancestors,
             )
             .await?;
             Ok::<_, TransitionError>((available_reports, reported))

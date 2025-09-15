@@ -66,13 +66,19 @@ pub struct GuaranteesXtValidator {
     state_manager: Arc<StateManager>,
     #[allow(dead_code)]
     header_db: Arc<BlockHeaderDB>,
+    with_ancestors: bool, // FIXME: Remove in production or M1 fuzzing
 }
 
 impl GuaranteesXtValidator {
-    pub fn new(state_manager: Arc<StateManager>, header_db: Arc<BlockHeaderDB>) -> Self {
+    pub fn new(
+        state_manager: Arc<StateManager>,
+        header_db: Arc<BlockHeaderDB>,
+        with_ancestors: bool,
+    ) -> Self {
         Self {
             state_manager,
             header_db,
+            with_ancestors,
         }
     }
 
@@ -437,12 +443,14 @@ impl GuaranteesXtValidator {
         }
 
         // Check the lookup-anchor block is found from the BlockHeaderDB ancestor set.
-        self.validate_lookup_anchor_block_against_ancestor_set(
-            core_index,
-            work_report_context,
-            lookup_anchor_hash,
-        )
-        .await?;
+        if self.with_ancestors {
+            self.validate_lookup_anchor_block_against_ancestor_set(
+                core_index,
+                work_report_context,
+                lookup_anchor_hash,
+            )
+            .await?;
+        }
         Ok(())
     }
 

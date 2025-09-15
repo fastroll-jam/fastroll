@@ -72,6 +72,7 @@ struct AuthorInfo {
 pub struct BlockAuthor {
     new_block: Block,
     author_info: AuthorInfo,
+    with_ancestors: bool, // FIXME: Remove in production or M1 fuzzing
 }
 
 impl BlockAuthor {
@@ -88,6 +89,7 @@ impl BlockAuthor {
                 author_index: validator_index,
                 author_sk,
             },
+            with_ancestors: false,
         })
     }
 
@@ -107,6 +109,7 @@ impl BlockAuthor {
                 author_index,
                 author_sk,
             },
+            with_ancestors: false,
         })
     }
 
@@ -354,10 +357,12 @@ impl BlockAuthor {
         &self,
         storage: &NodeStorage,
     ) -> Result<BlockExecutionOutput, BlockAuthorError> {
-        Ok(
-            BlockExecutor::run_state_transition_post_header_commitment(storage, &self.new_block)
-                .await?,
+        Ok(BlockExecutor::run_state_transition_post_header_commitment(
+            storage,
+            &self.new_block,
+            self.with_ancestors,
         )
+        .await?)
     }
 
     /// Runs the final STF: Appends the last accumulate outputs to the beefy belt

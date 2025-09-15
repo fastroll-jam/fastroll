@@ -1,5 +1,8 @@
 use crate::{
-    types::{Ancestry, FuzzMessageKind, HeaderHash, KeyValue, PeerInfo, State, StateRoot, TrieKey},
+    types::{
+        Ancestry, FuzzFeatures, FuzzMessageKind, HeaderHash, KeyValue, PeerInfo, State, StateRoot,
+        TrieKey,
+    },
     utils::{validate_socket_path, StreamUtils},
 };
 use fr_block::{
@@ -80,6 +83,7 @@ pub struct FuzzTargetRunner {
     pub(crate) node_storage: Arc<NodeStorage>,
     latest_state_keys: LatestStateKeys,
     target_peer_info: PeerInfo,
+    fuzz_features: FuzzFeatures,
 }
 
 impl FuzzTargetRunner {
@@ -94,6 +98,7 @@ impl FuzzTargetRunner {
             ),
             latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
+            fuzz_features: FuzzFeatures::default(),
         }
     }
 
@@ -185,16 +190,24 @@ impl FuzzTargetRunner {
         }
     }
 
-    async fn handle_handshake(&self, stream: &mut UnixStream) -> Result<(), FuzzTargetError> {
+    async fn handle_handshake(&mut self, stream: &mut UnixStream) -> Result<(), FuzzTargetError> {
         let message_kind = StreamUtils::read_message(stream).await?;
 
         if let FuzzMessageKind::PeerInfo(peer_info) = message_kind {
+            // Set fuzz features
+            let features = FuzzFeatures::from(peer_info.fuzz_features);
+            self.fuzz_features = features.clone();
+
             tracing::info!(
-                "[PeerInfo][RECV] Fuzzer info: name={} app_version={} jam_version={}",
+                "[PeerInfo][RECV] Fuzzer info: fuzz_version={} feature_ancestors={} feature_forking={} name={} jam_version={} app_version={}",
+                peer_info.fuzz_version,
+                features.with_ancestors,
+                features.with_forking,
                 String::from_utf8(peer_info.app_name)?,
+                peer_info.jam_version,
                 peer_info.app_version,
-                peer_info.jam_version
             );
+
             StreamUtils::send_message(
                 stream,
                 FuzzMessageKind::PeerInfo(self.target_peer_info.clone()),
@@ -240,8 +253,10 @@ impl FuzzTargetRunner {
                     .set_post_state_root(&parent_header_hash, state_root.clone())
                     .await?;
 
-                // Set Ancestor set
-                self.set_ancestors(init.ancestry).await?;
+                if self.fuzz_features.with_ancestors {
+                    // Set Ancestor set
+                    self.set_ancestors(init.ancestry).await?;
+                }
 
                 StreamUtils::send_message(
                     stream,
@@ -258,7 +273,14 @@ impl FuzzTargetRunner {
                 let header_hash = block.header.hash()?;
                 self.latest_state_keys
                     .update_header_hash(header_hash.clone());
-                match BlockImporter::import_block(storage.clone(), block, *is_first_block).await {
+                match BlockImporter::import_block(
+                    storage.clone(),
+                    block,
+                    *is_first_block,
+                    self.fuzz_features.with_ancestors,
+                )
+                .await
+                {
                     Ok((post_state_root, account_state_changes)) => {
                         account_state_changes.inner.values().for_each(|change| {
                             for added_key in &change.added_state_keys {

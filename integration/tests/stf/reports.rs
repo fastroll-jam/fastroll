@@ -113,6 +113,7 @@ impl StateTransitionTest for ReportsTest {
             header_db,
             &jam_input.extrinsic,
             jam_input.timeslot,
+            false, // Skip ancestor set check for simple STF tests
         )
         .await?;
 

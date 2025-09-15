@@ -144,15 +144,16 @@ impl PeerInfo {
     }
 }
 
+#[derive(Clone, Default)]
 pub struct FuzzFeatures {
-    pub with_ancestry: bool,
+    pub with_ancestors: bool,
     pub with_forking: bool,
 }
 
 impl From<u32> for FuzzFeatures {
     fn from(value: u32) -> Self {
         Self {
-            with_ancestry: (value & 0b01) != 0,
+            with_ancestors: (value & 0b01) != 0,
             with_forking: (value & 0b10) != 0,
         }
     }

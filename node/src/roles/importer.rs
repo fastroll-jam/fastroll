@@ -105,7 +105,7 @@ impl BlockImporter {
                 }
             };
             let timeslot_index = block.header.timeslot_index();
-            match Self::import_block(storage.clone(), block, false).await {
+            match Self::import_block(storage.clone(), block, false, false).await {
                 Ok((post_state_root, _)) => {
                     tracing::info!("✅ Block validated ({header_hash}) (slot: {timeslot_index})");
                     if let Err(e) = storage
@@ -129,24 +129,26 @@ impl BlockImporter {
         storage: Arc<NodeStorage>,
         block: Block,
         is_first_fuzz_block: bool,
+        with_ancestors: bool,
     ) -> Result<(StateRoot, AccountStateChanges), BlockImportError> {
         tracing::info!(
             "📥 Block imported (slot={})(header_hash={})",
             block.header.timeslot_index(),
             &block.header.hash()?,
         );
-        Self::validate_block(storage, block, is_first_fuzz_block).await
+        Self::validate_block(storage, block, is_first_fuzz_block, with_ancestors).await
     }
 
     async fn validate_block(
         storage: Arc<NodeStorage>,
         block: Block,
         is_first_fuzz_block: bool,
+        with_ancestors: bool,
     ) -> Result<(StateRoot, AccountStateChanges), BlockImportError> {
         if block.is_genesis() {
             // Skip validation for the genesis block
             let (post_state_root, account_state_changes) =
-                Self::run_state_transition(&storage, &block).await?;
+                Self::run_state_transition(&storage, &block, with_ancestors).await?;
             return Ok((post_state_root, account_state_changes));
         }
 
@@ -154,7 +156,7 @@ impl BlockImporter {
         Self::validate_block_header_prior_stf(&storage, &block, is_first_fuzz_block).await?;
         // Re-execute STF
         let (post_state_root, account_state_changes) =
-            Self::run_state_transition(&storage, &block).await?;
+            Self::run_state_transition(&storage, &block, with_ancestors).await?;
         // Set best header
         storage.header_db().set_best_header(block.header);
         Ok((post_state_root, account_state_changes))
@@ -189,7 +191,7 @@ impl BlockImporter {
         let tickets_validator = TicketsXtValidator::new(storage.state_manager());
         let preimages_validator = PreimagesXtValidator::new(storage.state_manager());
         let guarantees_validator =
-            GuaranteesXtValidator::new(storage.state_manager(), storage.header_db());
+            GuaranteesXtValidator::new(storage.state_manager(), storage.header_db(), false);
         let assurances_validator = AssurancesXtValidator::new(storage.state_manager());
         let disputes_validator = DisputesXtValidator::new(storage.state_manager());
 
@@ -434,6 +436,7 @@ impl BlockImporter {
     async fn run_state_transition(
         storage: &NodeStorage,
         block: &Block,
+        with_ancestors: bool,
     ) -> Result<(MerkleRoot, AccountStateChanges), BlockImportError> {
         let account_state_changes = if block.is_genesis() {
             let output = BlockExecutor::run_genesis_state_transition(storage, block).await?;
@@ -454,8 +457,12 @@ impl BlockImporter {
             Self::validate_block_header_post_safrole(storage, block, markers).await?;
 
             // STF phase #2
-            let output =
-                BlockExecutor::run_state_transition_post_header_commitment(storage, block).await?;
+            let output = BlockExecutor::run_state_transition_post_header_commitment(
+                storage,
+                block,
+                with_ancestors,
+            )
+            .await?;
 
             // STF phase #3
             BlockExecutor::append_beefy_belt_and_block_history(

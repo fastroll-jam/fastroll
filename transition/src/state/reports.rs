@@ -138,10 +138,12 @@ pub async fn transition_reports_update_entries(
     header_db: Arc<BlockHeaderDB>,
     guarantees_xt: &GuaranteesXt,
     current_timeslot: Timeslot,
+    with_ancestors: bool,
 ) -> Result<(Vec<ReportedWorkPackage>, Vec<Ed25519PubKey>), TransitionError> {
     tracing::info!("Reports: {} guarantees xts", guarantees_xt.len());
     // Validate guarantees extrinsic data.
-    let guarantees_validator = GuaranteesXtValidator::new(state_manager.clone(), header_db);
+    let guarantees_validator =
+        GuaranteesXtValidator::new(state_manager.clone(), header_db, with_ancestors);
     let all_guarantor_keys = guarantees_validator
         .validate(guarantees_xt, current_timeslot.slot())
         .await?;
