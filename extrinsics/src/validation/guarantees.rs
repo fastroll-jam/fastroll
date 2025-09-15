@@ -437,7 +437,7 @@ impl GuaranteesXtValidator {
         }
 
         // Check the lookup-anchor block is found from the BlockHeaderDB ancestor set.
-        #[cfg(not(feature = "skip-ancestor-set-validation"))]
+        #[cfg(feature = "ancestors")]
         self.validate_lookup_anchor_block_against_ancestor_set(
             core_index,
             work_report_context,

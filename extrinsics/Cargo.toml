@@ -19,4 +19,4 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [features]
-skip-ancestor-set-validation = []
+ancestors = []
