@@ -172,39 +172,18 @@ mod fuzz_target_tests {
         let fuzz_target = init_fuzz_target_runner();
         fuzz_target.set_ancestors(ancestry).await?;
 
-        assert_eq!(
-            fuzz_target
-                .node_storage
-                .header_db()
-                .get_header(&ancestor_1)
-                .await?
-                .unwrap()
-                .data
-                .timeslot_index,
-            1
-        );
-        assert_eq!(
-            fuzz_target
-                .node_storage
-                .header_db()
-                .get_header(&ancestor_2)
-                .await?
-                .unwrap()
-                .data
-                .timeslot_index,
-            2
-        );
-        assert_eq!(
-            fuzz_target
-                .node_storage
-                .header_db()
-                .get_header(&ancestor_3)
-                .await?
-                .unwrap()
-                .data
-                .timeslot_index,
-            3
-        );
+        assert!(fuzz_target
+            .node_storage
+            .header_db()
+            .header_exists_in_ancestor_set(&(1, ancestor_1)));
+        assert!(fuzz_target
+            .node_storage
+            .header_db()
+            .header_exists_in_ancestor_set(&(2, ancestor_2)));
+        assert!(fuzz_target
+            .node_storage
+            .header_db()
+            .header_exists_in_ancestor_set(&(3, ancestor_3)));
         Ok(())
     }
 
