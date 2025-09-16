@@ -65,7 +65,6 @@ use std::{collections::HashSet, sync::Arc};
 ///     the current guarantor assignment rotation or in the previous rotation.
 pub struct GuaranteesXtValidator {
     state_manager: Arc<StateManager>,
-    #[allow(dead_code)]
     header_db: Arc<BlockHeaderDB>,
     with_ancestors: bool, // FIXME: Remove in production or M1 fuzzing
 }
@@ -456,7 +455,6 @@ impl GuaranteesXtValidator {
     }
 
     /// Checks the lookup-anchor block can be referenced through the ancestor set (from BlockHeaderDB).
-    #[allow(dead_code)]
     async fn validate_lookup_anchor_block_against_ancestor_set(
         &self,
         core_index: CoreIndex,
