@@ -79,6 +79,12 @@ impl AncestorSet {
         }
     }
 
+    pub fn add_multiple(&mut self, entries: Vec<AncestorEntry>) {
+        for entry in entries {
+            self.add(entry);
+        }
+    }
+
     pub fn remove(&mut self, entry: &AncestorEntry) -> bool {
         let existed = self.set.remove(entry);
         if existed {

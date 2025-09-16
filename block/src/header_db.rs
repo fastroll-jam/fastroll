@@ -63,7 +63,7 @@ pub struct BlockHeaderDB {
     /// A known best block header determined by GRANDPA.
     best_header: Mutex<BlockHeader>,
     /// An in-memory cache of block header ancestor set.
-    ancestors: AncestorSet,
+    ancestors: Mutex<AncestorSet>,
 }
 
 impl BlockHeaderDB {
@@ -71,7 +71,7 @@ impl BlockHeaderDB {
         Self {
             db: CachedDB::new(core, cf_name, cache_size),
             best_header: Mutex::new(BlockHeader::default()),
-            ancestors: AncestorSet::new(),
+            ancestors: Mutex::new(AncestorSet::new()),
         }
     }
 
@@ -106,7 +106,7 @@ impl BlockHeaderDB {
     }
 
     pub fn header_exists_in_ancestor_set(&self, entry: &AncestorEntry) -> bool {
-        self.ancestors.contains(entry)
+        self.ancestors.lock().unwrap().contains(entry)
     }
 
     pub async fn insert_header(
@@ -114,6 +114,11 @@ impl BlockHeaderDB {
         header_hash: BlockHeaderHash,
         header: BlockHeader,
     ) -> Result<(), BlockHeaderDBError> {
+        // Insert to AncestorSet
+        let ancestor_entry = (header.timeslot_index(), header_hash.clone());
+        self.ancestors.lock().unwrap().add(ancestor_entry);
+
+        // Insert to DB
         self.db.put_entry(&header_hash, header).await?;
         Ok(())
     }
@@ -122,6 +127,17 @@ impl BlockHeaderDB {
         &self,
         headers: Vec<(BlockHeaderHash, BlockHeader)>,
     ) -> Result<(), BlockHeaderDBError> {
+        // Insert to AncestorSet
+        let ancestor_entries: Vec<AncestorEntry> = headers
+            .iter()
+            .map(|(hash, header)| (header.timeslot_index(), hash.clone()))
+            .collect();
+        self.ancestors
+            .lock()
+            .unwrap()
+            .add_multiple(ancestor_entries);
+
+        // Insert to DB
         let mut batch = WriteBatch::default();
         for (header_hash, header) in headers {
             batch.put_cf(
