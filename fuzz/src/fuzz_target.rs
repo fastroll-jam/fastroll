@@ -6,9 +6,8 @@ use crate::{
     utils::{validate_socket_path, StreamUtils},
 };
 use fr_block::{
-    header_db::BlockHeaderDBError,
-    post_state_root_db::PostStateRootDbError,
-    types::block::{BlockHeader, BlockHeaderData, BlockHeaderError, BlockSeal},
+    ancestors::AncestorEntry, header_db::BlockHeaderDBError,
+    post_state_root_db::PostStateRootDbError, types::block::BlockHeaderError,
 };
 use fr_codec::JamCodecError;
 use fr_common::{ByteSequence, CommonTypeError};
@@ -106,27 +105,15 @@ impl FuzzTargetRunner {
         self.node_storage.clone()
     }
 
+    /// Insert ancestor entries into in-memory `AncestorSet`
     pub(crate) async fn set_ancestors(&self, ancestors: Ancestry) -> Result<(), FuzzTargetError> {
+        let entries: Vec<AncestorEntry> = ancestors
+            .into_iter()
+            .map(|i| (i.slot, i.header_hash))
+            .collect();
         self.node_storage()
             .header_db()
-            .batch_insert_headers(
-                ancestors
-                    .into_iter()
-                    .map(|item| {
-                        (
-                            item.header_hash,
-                            BlockHeader {
-                                data: BlockHeaderData {
-                                    timeslot_index: item.slot,
-                                    ..Default::default()
-                                },
-                                block_seal: BlockSeal::default(),
-                            },
-                        )
-                    })
-                    .collect(),
-            )
-            .await?;
+            .batch_insert_to_ancestor_set(entries)?;
         Ok(())
     }
 

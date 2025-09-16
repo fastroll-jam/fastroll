@@ -149,4 +149,13 @@ impl BlockHeaderDB {
         self.db.commit_write_batch(batch).await?;
         Ok(())
     }
+
+    pub fn batch_insert_to_ancestor_set(
+        &self,
+        entries: Vec<AncestorEntry>,
+    ) -> Result<(), BlockHeaderDBError> {
+        // Insert to AncestorSet
+        self.ancestors.lock().unwrap().add_multiple(entries);
+        Ok(())
+    }
 }
