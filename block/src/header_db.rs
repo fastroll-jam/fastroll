@@ -5,6 +5,7 @@ use crate::types::{
 use fr_codec::prelude::*;
 use fr_common::BlockHeaderHash;
 
+use crate::ancestors::AncestorSet;
 use fr_crypto::error::CryptoError;
 use fr_db::{
     core::{
@@ -61,6 +62,8 @@ pub struct BlockHeaderDB {
     db: CachedDB<BlockHeaderHash, BlockHeader>,
     /// A known best block header determined by GRANDPA.
     best_header: Mutex<BlockHeader>,
+    /// An in-memory cache of block header ancestor set.
+    pub ancestors: AncestorSet,
 }
 
 impl BlockHeaderDB {
@@ -68,6 +71,7 @@ impl BlockHeaderDB {
         Self {
             db: CachedDB::new(core, cf_name, cache_size),
             best_header: Mutex::new(BlockHeader::default()),
+            ancestors: AncestorSet::new(),
         }
     }
 
@@ -99,6 +103,10 @@ impl BlockHeaderDB {
     pub fn set_best_header(&self, new_best_header: BlockHeader) {
         let mut best_header = self.best_header.lock().unwrap();
         *best_header = new_best_header;
+    }
+
+    pub fn header_exists_in_ancestor_set(&self, header_hash: &BlockHeaderHash) -> bool {
+        self.ancestors.contains(header_hash)
     }
 
     pub async fn insert_header(

@@ -462,6 +462,7 @@ impl GuaranteesXtValidator {
         work_report_context: &RefinementContext,
         lookup_anchor_hash: &Hash32,
     ) -> Result<(), XtError> {
+        // TODO: Check from the in-memory `AncestorSet`
         let Some(lookup_anchor_header) = self.header_db.get_header(lookup_anchor_hash).await?
         else {
             return Err(XtError::LookupAnchorBlockNotFoundFromAncestorSet(
