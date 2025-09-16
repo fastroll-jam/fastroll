@@ -14,8 +14,8 @@ pub struct AncestorSet {
     capacity: usize,
     /// The ancestor set min-heap
     heap: BinaryHeap<Reverse<AncestorEntry>>,
-    /// A helper set of block header hash for easier entry check
-    set: HashSet<BlockHeaderHash>,
+    /// A helper set for easier entry check
+    set: HashSet<AncestorEntry>,
 }
 
 impl Default for AncestorSet {
@@ -54,35 +54,35 @@ impl AncestorSet {
         self.heap.len() == self.capacity
     }
 
-    pub fn contains(&self, hash: &BlockHeaderHash) -> bool {
-        self.set.contains(hash)
+    pub fn contains(&self, entry: &AncestorEntry) -> bool {
+        self.set.contains(entry)
     }
 
     /// Adds an `AncestorEntry` to the `AncestorSet`. If the heap is full, removes the oldest
     /// ancestor entry.
     pub fn add(&mut self, entry: AncestorEntry) {
-        if self.contains(&entry.1) {
+        if self.contains(&entry) {
             return;
         }
 
         if !self.is_full() {
-            self.set.insert(entry.1.clone());
+            self.set.insert(entry.clone());
             self.heap.push(Reverse(entry));
         } else if let Some(min_entry) = self.heap.peek() {
             // Remove the oldest `AncestorEntry` (with the smallest timeslot value)
             if entry > min_entry.0 {
                 let popped = self.heap.pop().expect("Heap should not be empty here").0;
-                self.set.remove(&popped.1);
-                self.set.insert(entry.1.clone());
+                self.set.remove(&popped);
+                self.set.insert(entry.clone());
                 self.heap.push(Reverse(entry));
             }
         }
     }
 
-    pub fn remove(&mut self, header_hash: &BlockHeaderHash) -> bool {
-        let existed = self.set.remove(header_hash);
+    pub fn remove(&mut self, entry: &AncestorEntry) -> bool {
+        let existed = self.set.remove(entry);
         if existed {
-            self.heap.retain(|entry| entry.0 .1 != *header_hash);
+            self.heap.retain(|e| e.0 .1 != entry.1);
         }
         existed
     }
@@ -111,8 +111,8 @@ mod tests {
 
         assert!(!set.is_full());
         assert_eq!(set.len(), 2);
-        assert!(set.contains(&entry1.1));
-        assert!(set.contains(&entry2.1));
+        assert!(set.contains(&entry1));
+        assert!(set.contains(&entry2));
     }
 
     #[test]
@@ -134,11 +134,11 @@ mod tests {
 
         assert!(set.is_full());
         assert_eq!(set.len(), TEST_CAPACITY);
-        assert!(set.contains(&entry2.1));
-        assert!(set.contains(&entry3.1));
-        assert!(set.contains(&entry4.1));
+        assert!(set.contains(&entry2));
+        assert!(set.contains(&entry3));
+        assert!(set.contains(&entry4));
         // entry1 should be evicted
-        assert!(!set.contains(&entry1.1));
+        assert!(!set.contains(&entry1));
     }
 
     #[test]
@@ -153,15 +153,15 @@ mod tests {
         set.add(entry3.clone());
 
         assert!(set.is_full());
-        assert!(set.contains(&entry2.1));
+        assert!(set.contains(&entry2));
 
-        let removed = set.remove(&entry2.1);
+        let removed = set.remove(&entry2);
         assert!(removed);
         assert_eq!(set.len(), 2);
 
-        assert!(set.contains(&entry1.1));
-        assert!(!set.contains(&entry2.1));
-        assert!(set.contains(&entry3.1));
+        assert!(set.contains(&entry1));
+        assert!(!set.contains(&entry2));
+        assert!(set.contains(&entry3));
     }
 
     #[test]
@@ -183,10 +183,10 @@ mod tests {
 
         assert!(set.is_full());
         assert_eq!(set.len(), TEST_CAPACITY);
-        assert!(set.contains(&entry1.1));
-        assert!(set.contains(&entry2.1));
-        assert!(set.contains(&entry3.1));
-        assert!(!set.contains(&entry4.1));
+        assert!(set.contains(&entry1));
+        assert!(set.contains(&entry2));
+        assert!(set.contains(&entry3));
+        assert!(!set.contains(&entry4));
     }
 
     #[test]
@@ -204,13 +204,13 @@ mod tests {
         assert_eq!(set.len(), 3);
 
         // A block is finalized (entry2); discard entry3
-        set.remove(&entry3.1);
+        set.remove(&entry3);
         assert_eq!(set.len(), 2);
 
         // Add the next block
         let entry4 = create_test_entry(40, 4);
         set.add(entry4.clone());
         assert_eq!(set.len(), 3);
-        assert!(set.contains(&entry4.1));
+        assert!(set.contains(&entry4));
     }
 }

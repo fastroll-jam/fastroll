@@ -1,5 +1,6 @@
 use crate::{utils::guarantor_rotation::GuarantorAssignment, validation::error::XtError};
 use fr_block::{
+    ancestors::AncestorEntry,
     header_db::BlockHeaderDB,
     types::extrinsics::guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
 };
@@ -446,8 +447,8 @@ impl GuaranteesXtValidator {
         if self.with_ancestors {
             self.validate_lookup_anchor_block_against_ancestor_set(
                 core_index,
-                work_report_context,
                 lookup_anchor_hash,
+                lookup_anchor_timeslot,
             )
             .await?;
         }
@@ -459,27 +460,16 @@ impl GuaranteesXtValidator {
     async fn validate_lookup_anchor_block_against_ancestor_set(
         &self,
         core_index: CoreIndex,
-        work_report_context: &RefinementContext,
         lookup_anchor_hash: &Hash32,
+        lookup_anchor_timeslot: TimeslotIndex,
     ) -> Result<(), XtError> {
-        // TODO: Check from the in-memory `AncestorSet`
-        let Some(lookup_anchor_header) = self.header_db.get_header(lookup_anchor_hash).await?
-        else {
+        let lookup_anchor_ancestor_entry: AncestorEntry =
+            (lookup_anchor_timeslot, lookup_anchor_hash.clone());
+        if !self
+            .header_db
+            .header_exists_in_ancestor_set(&lookup_anchor_ancestor_entry)
+        {
             return Err(XtError::LookupAnchorBlockNotFoundFromAncestorSet(
-                core_index,
-                lookup_anchor_hash.encode_hex(),
-            ));
-        };
-
-        // Compare the lookup-anchor block fields with the refinement context fields.
-        if lookup_anchor_header.hash()? != work_report_context.lookup_anchor_header_hash {
-            return Err(XtError::LookupAnchorBlockHeaderHashMismatch(
-                core_index,
-                lookup_anchor_hash.encode_hex(),
-            ));
-        }
-        if lookup_anchor_header.data.timeslot_index != work_report_context.lookup_anchor_timeslot {
-            return Err(XtError::LookupAnchorBlockTimeslotMismatch(
                 core_index,
                 lookup_anchor_hash.encode_hex(),
             ));
