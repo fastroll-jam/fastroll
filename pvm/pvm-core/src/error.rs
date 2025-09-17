@@ -45,8 +45,8 @@ pub enum VMCoreError {
     MemoryStateChangeDataLengthMismatch,
     #[error("Page Fault at Address {0}")]
     PageFault(MemAddress),
-    #[error("Invalid memory zone")]
-    InvalidMemZone,
+    #[error("Forbidden memory access (address below 2^16): {0}")]
+    ForbiddenMemZone(MemAddress),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("MemoryError: {0}")]
