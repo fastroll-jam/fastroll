@@ -11,7 +11,7 @@ publish = false
 fr-asn-types = { workspace = true }
 fr-block = { workspace = true }
 fr-common = { workspace = true }
-fr-extrinsics = { workspace = true, features = ["skip-ancestor-set-validation"] }
+fr-extrinsics = { workspace = true }
 fr-pvm-types = { workspace = true }
 fr-state = { workspace = true }
 fr-transition = { workspace = true }

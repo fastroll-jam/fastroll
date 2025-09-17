@@ -78,6 +78,7 @@ fn bench_block_import(c: &mut Criterion) {
                         storage.clone(),
                         test_case.block.clone(),
                         false,
+                        false,
                     )
                     .await
                     {
