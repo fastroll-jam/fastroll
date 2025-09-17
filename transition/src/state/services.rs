@@ -464,6 +464,7 @@ pub async fn transition_services_integrate_preimages(
     state_manager: Arc<StateManager>,
     preimages_xt: &PreimagesXt,
 ) -> Result<(), TransitionError> {
+    tracing::info!("Reports: {} preimages xts", preimages_xt.len());
     // Validate preimages extrinsic data.
     let preimages_validator = PreimagesXtValidator::new(state_manager.clone());
     preimages_validator.validate(preimages_xt).await?;
