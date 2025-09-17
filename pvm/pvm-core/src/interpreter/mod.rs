@@ -112,7 +112,7 @@ impl Interpreter {
                 &single_invocation_result.state_change,
             ) {
                 Ok(post_gas) => post_gas,
-                Err(VMCoreError::InvalidMemZone) => return Ok(ExitReason::Panic),
+                Err(VMCoreError::ForbiddenMemZone(_)) => return Ok(ExitReason::Panic),
                 Err(VMCoreError::PageFault(page_start_address)) => {
                     vm_state.pc = 0; // TODO: PVM Revisit: (test vectors assume page-fault resets pc value but not in GP)
                     return Ok(ExitReason::PageFault(page_start_address));

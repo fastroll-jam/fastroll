@@ -80,6 +80,26 @@ impl VMStateMutator {
         vm_state: &mut VMState,
         change: &VMStateChange,
     ) -> Result<SignedGas, VMCoreError> {
+        // Apply memory change first.
+        // If this results in Panic or PageFault, VM state should remain unchanged.
+        if let Some(MemWrite {
+            buf_offset,
+            write_data,
+        }) = &change.memory_write
+        {
+            if *buf_offset < INIT_ZONE_SIZE as MemAddress {
+                return Err(VMCoreError::ForbiddenMemZone(*buf_offset));
+            }
+
+            match vm_state.memory.write_bytes(*buf_offset, write_data) {
+                Ok(_) => {}
+                Err(MemoryError::AccessViolation(address)) => {
+                    return Err(VMCoreError::PageFault(VMUtils::page_start_address(address)))
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+
         // Apply PC change
         vm_state.pc = change.new_pc;
 
@@ -92,25 +112,6 @@ impl VMStateMutator {
                 return Err(VMCoreError::InvalidRegIndex(reg_index));
             }
             vm_state.regs[reg_index] = new_val;
-        }
-
-        // Apply memory change
-        if let Some(MemWrite {
-            buf_offset,
-            write_data,
-        }) = &change.memory_write
-        {
-            if (*buf_offset as usize) < INIT_ZONE_SIZE {
-                return Err(VMCoreError::InvalidMemZone);
-            }
-
-            match vm_state.memory.write_bytes(*buf_offset, write_data) {
-                Ok(_) => {}
-                Err(MemoryError::AccessViolation(address)) => {
-                    return Err(VMCoreError::PageFault(VMUtils::page_start_address(address)))
-                }
-                Err(e) => return Err(e.into()),
-            }
         }
 
         Ok(post_gas)

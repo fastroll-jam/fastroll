@@ -15,13 +15,15 @@ use fr_common::{
     Octets, ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
     PREIMAGE_EXPIRATION_PERIOD, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
-use fr_crypto::types::{
-    BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys,
+use fr_crypto::{
+    hash,
+    types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys},
+    Blake2b256,
 };
 use fr_pvm_core::state::state_change::HostCallVMStateChange;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
+    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, PAGE_SIZE},
     exit_reason::ExitReason,
     invoke_args::{DeferredTransfer, TransferMemo},
 };
@@ -58,8 +60,8 @@ mod bless_tests {
                     .unwrap();
             let prev_always_accumulate_services = AlwaysAccumulateServices::default();
 
-            let assign_offset = PAGE_SIZE as MemAddress;
-            let always_accumulate_offset = 2 * PAGE_SIZE as MemAddress;
+            let assign_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
+            let always_accumulate_offset = (INIT_ZONE_SIZE + 2 * PAGE_SIZE) as MemAddress;
             let assign_services =
                 AssignServices::try_from((0..CORE_COUNT as ServiceId).collect::<Vec<_>>()).unwrap();
             let mut always_accumulate_services = AlwaysAccumulateServices::new();
@@ -397,7 +399,7 @@ mod assign_tests {
             let mut updated_auth_queue = prev_auth_queue.clone();
             updated_auth_queue.0[core_index] = new_core_auth_queue.clone();
 
-            let auth_offset = PAGE_SIZE as MemAddress;
+            let auth_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = auth_offset..auth_offset + 32 * AUTH_QUEUE_SIZE as MemAddress;
 
             Self {
@@ -678,7 +680,7 @@ mod designate_tests {
             let new_staging_set = StagingSet(ValidatorKeySet(
                 ValidatorKeys::try_from(validators).unwrap(),
             ));
-            let staging_set_offset = PAGE_SIZE as MemAddress;
+            let staging_set_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range =
                 staging_set_offset..staging_set_offset + 336 * VALIDATOR_COUNT as MemAddress;
 
@@ -995,7 +997,7 @@ mod new_tests {
 
     impl Default for NewTestFixture {
         fn default() -> Self {
-            let code_hash_offset = PAGE_SIZE as MemAddress;
+            let code_hash_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = code_hash_offset..code_hash_offset + HASH_SIZE as MemAddress;
             let prev_next_new_service_id = 1 << 16;
             let bump = |a: ServiceId| -> ServiceId {
@@ -1366,7 +1368,7 @@ mod upgrade_tests {
 
     impl Default for UpgradeTestFixture {
         fn default() -> Self {
-            let code_hash_offset = PAGE_SIZE as MemAddress;
+            let code_hash_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = code_hash_offset..code_hash_offset + HASH_SIZE as MemAddress;
             Self {
                 accumulate_host: 1,
@@ -1544,7 +1546,7 @@ mod transfer_tests {
 
     impl Default for TransferTestFixture {
         fn default() -> Self {
-            let memo_offset = PAGE_SIZE as MemAddress;
+            let memo_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = memo_offset..memo_offset + TRANSFER_MEMO_SIZE as MemAddress;
             Self {
                 accumulate_host: 1,
@@ -1910,7 +1912,7 @@ mod eject_tests {
     impl Default for EjectTestFixture {
         fn default() -> Self {
             let accumulate_host = 1;
-            let hash_offset = PAGE_SIZE as MemAddress;
+            let hash_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
             let eject_service_octets_footprint = 200u64;
             let curr_timeslot_index = 20_000;
@@ -2431,7 +2433,7 @@ mod query_tests {
 
     impl Default for QueryTestFixture {
         fn default() -> Self {
-            let hash_offset = PAGE_SIZE as MemAddress;
+            let hash_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
             Self {
                 accumulate_host: 1,
@@ -2697,7 +2699,7 @@ mod solicit_tests {
 
     impl Default for SolicitTestFixture {
         fn default() -> Self {
-            let hash_offset = PAGE_SIZE as MemAddress;
+            let hash_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
             Self {
                 accumulate_host: 1,
@@ -3034,7 +3036,7 @@ mod forget_tests {
 
     impl Default for ForgetTestFixture {
         fn default() -> Self {
-            let hash_offset = PAGE_SIZE as MemAddress;
+            let hash_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
             Self {
                 accumulate_host: 1,
@@ -3475,7 +3477,7 @@ mod yield_tests {
 
     impl Default for YieldTestFixture {
         fn default() -> Self {
-            let hash_offset = PAGE_SIZE as MemAddress;
+            let hash_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
             Self {
                 accumulate_host: 1,
@@ -3581,7 +3583,6 @@ mod yield_tests {
 
 mod provide_tests {
     use super::*;
-    use fr_crypto::{hash, Blake2b256};
 
     struct ProvideTestFixture {
         accumulate_host: ServiceId,
@@ -3595,7 +3596,7 @@ mod provide_tests {
 
     impl Default for ProvideTestFixture {
         fn default() -> Self {
-            let preimage_offset = PAGE_SIZE as MemAddress;
+            let preimage_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = preimage_offset..preimage_offset + HASH_SIZE as MemAddress;
             let preimage_size = 100u32;
             let preimage_data = vec![0; preimage_size as usize];

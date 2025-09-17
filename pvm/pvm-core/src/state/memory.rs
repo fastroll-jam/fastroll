@@ -1,9 +1,14 @@
-use fr_pvm_types::{common::MemAddress, constants::PAGE_SIZE};
+use fr_pvm_types::{
+    common::MemAddress,
+    constants::{INIT_ZONE_SIZE, PAGE_SIZE},
+};
 use std::ops::Range;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum MemoryError {
+    #[error("Forbidden memory access (address below 2^16): {0}")]
+    Forbidden(MemAddress),
     #[error("Memory address out of range: {0}")]
     OutOfRange(MemAddress),
     #[error("Invalid page index: {0}")]
@@ -208,6 +213,10 @@ impl Memory {
 
     /// Read a byte from a memory cell at the given address.
     pub fn read_byte(&self, address: MemAddress) -> Result<u8, MemoryError> {
+        if address < INIT_ZONE_SIZE as MemAddress {
+            return Err(MemoryError::Forbidden(address));
+        }
+
         if address as usize >= self.data.len() {
             return Err(MemoryError::OutOfRange(address));
         }
@@ -224,6 +233,10 @@ impl Memory {
     pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, MemoryError> {
         if length == 0 {
             return Ok(Vec::new());
+        }
+
+        if address < INIT_ZONE_SIZE as MemAddress {
+            return Err(MemoryError::Forbidden(address));
         }
 
         let start = address as usize;
@@ -248,6 +261,10 @@ impl Memory {
 
     /// Write a byte to a memory cell at the given address.
     pub fn write_byte(&mut self, address: MemAddress, value: u8) -> Result<(), MemoryError> {
+        if address < INIT_ZONE_SIZE as MemAddress {
+            return Err(MemoryError::Forbidden(address));
+        }
+
         if address as usize >= self.data.len() {
             return Err(MemoryError::OutOfRange(address));
         }
@@ -262,25 +279,25 @@ impl Memory {
     }
 
     /// Write a slice of bytes to memory starting at the given address.
-    pub fn write_bytes(
-        &mut self,
-        start_address: MemAddress,
-        bytes: &[u8],
-    ) -> Result<(), MemoryError> {
+    pub fn write_bytes(&mut self, address: MemAddress, bytes: &[u8]) -> Result<(), MemoryError> {
         if bytes.is_empty() {
             return Ok(());
         }
 
-        let start = start_address as usize;
-        let end = start
-            .checked_add(bytes.len())
-            .ok_or(MemoryError::OutOfRange(start_address))?;
-
-        if end > self.data.len() {
-            return Err(MemoryError::OutOfRange(start_address));
+        if address < INIT_ZONE_SIZE as MemAddress {
+            return Err(MemoryError::Forbidden(address));
         }
 
-        let (start_page, _) = self.get_page_and_offset(start_address);
+        let start = address as usize;
+        let end = start
+            .checked_add(bytes.len())
+            .ok_or(MemoryError::OutOfRange(address))?;
+
+        if end > self.data.len() {
+            return Err(MemoryError::OutOfRange(address));
+        }
+
+        let (start_page, _) = self.get_page_and_offset(address);
         let (end_page, _) = self.get_page_and_offset((end - 1) as MemAddress);
 
         if let Some(not_writable_addr) = self.check_not_writable_in_range(start_page..end_page + 1)
