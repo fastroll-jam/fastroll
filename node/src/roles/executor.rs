@@ -127,14 +127,18 @@ impl BlockExecutor {
         });
 
         // --- Join: Disputes, Entropy, PastSet, ActiveSet STFs (dependencies for Safrole STF) + History
-        #[allow(unused_must_use)]
-        try_join!(
+        let (disputes_res, entropy_res, past_set_res, active_set_res, history_res) = try_join!(
             disputes_jh,
             entropy_jh,
             past_set_jh,
             active_set_jh,
             history_jh
         )?;
+        disputes_res?;
+        entropy_res?;
+        past_set_res?;
+        active_set_res?;
+        history_res?;
 
         // Safrole STF
         let manager = storage.state_manager();
@@ -280,8 +284,12 @@ impl BlockExecutor {
         });
 
         // --- Join: AuthPool, Services(last_accumulate_at), OnChainStatistics, Preimage integration STFs
-        #[allow(unused_must_use)]
-        try_join!(auth_pool_jh, last_acc_at_jh, stats_jh, preimage_jh)?;
+        let (auth_pool_res, last_acc_at_res, stats_res, preimage_res) =
+            try_join!(auth_pool_jh, last_acc_at_jh, stats_jh, preimage_jh)?;
+        auth_pool_res?;
+        last_acc_at_res?;
+        stats_res?;
+        preimage_res?;
 
         Ok(BlockExecutionOutput {
             accumulate_root,
@@ -332,8 +340,11 @@ impl BlockExecutor {
         });
 
         // --- Join: Disputes, Entropy, PastSet, ActiveSet STFs (dependencies for Safrole STF)
-        #[allow(unused_must_use)]
-        try_join!(entropy_jh, past_set_jh, active_set_jh)?;
+        let (entropy_res, past_set_res, active_set_res) =
+            try_join!(entropy_jh, past_set_jh, active_set_jh)?;
+        entropy_res?;
+        past_set_res?;
+        active_set_res?;
 
         // Safrole STF
         let manager = storage.state_manager();
@@ -348,7 +359,9 @@ impl BlockExecutor {
             .await
         });
         // Join remaining STF tasks
-        let (_, _) = try_join!(auth_pool_jh, safrole_jh)?;
+        let (auth_pool_res, safrole_res) = try_join!(auth_pool_jh, safrole_jh)?;
+        auth_pool_res?;
+        safrole_res?;
 
         // BlockHistory STF (the first half only)
         let manager = storage.state_manager();
