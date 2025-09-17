@@ -128,7 +128,7 @@ fn generate_fuzz_block_import_tests() {
         "1757406079",
         "1757406238",
         "1757406356",
-        "1757406441", // fail [FALSE SUCCESS]
+        "1757406441",
         "1757406516",
         "1757406558",
         "1757406598",
@@ -136,7 +136,7 @@ fn generate_fuzz_block_import_tests() {
         "1757421743",
         "1757421824",
         "1757421952",
-        "1757422106", // fail [FALSE SUCCESS]
+        "1757422106",
         "1757422178",
         "1757422206",
         "1757422550",
@@ -148,6 +148,17 @@ fn generate_fuzz_block_import_tests() {
         "1757423365", // fail-on-fuzz [FORKING]
         "1757423433",
         "1757423902", // fail [FORKING] (success-on-fuzz)
+        "1757841566",
+        "1757842797",
+        "1757842852",
+        "1757843609",
+        "1757843719",
+        "1757843735",
+        "1757861618",
+        "1757862207",
+        "1757862468", // fail (memory access violation)
+        "1757862472", // fail (memory access violation)
+        "1757862743",
     ];
 
     let mut test_case_contents = String::new();
