@@ -230,14 +230,18 @@ impl BlockImporter {
                 .await
         });
 
-        #[allow(unused_must_use)]
-        try_join!(
+        let (t_res, p_res, g_res, a_res, d_res) = try_join!(
             tickets_jh,
             preimages_jh,
             guarantees_jh,
             assurances_jh,
             disputes_jh
         )?;
+        t_res?;
+        p_res?;
+        g_res?;
+        a_res?;
+        d_res?;
         Ok(())
     }
 
