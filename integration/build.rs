@@ -130,9 +130,9 @@ fn generate_fuzz_block_import_tests() {
         "1757406356",
         "1757406441", // fail [FALSE SUCCESS]
         "1757406516",
-        "1757406558", // mismatch (OnChainStatistics, Storage, AccountMetadata)
+        "1757406558",
         "1757406598",
-        "1757421101", // mismatch (BlockHistory, OnChainStatistics, LastAccumulateOutputs, Storage, AccountMetadata)
+        "1757421101",
         "1757421743",
         "1757421824",
         "1757421952",
