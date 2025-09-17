@@ -27,6 +27,32 @@ macro_rules! continue_with_mem_write {
 }
 
 #[macro_export]
+macro_rules! mem_panic {
+    () => {
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Panic,
+            state_change: VMStateChange {
+                gas_charge: 0,
+                ..Default::default()
+            },
+        })
+    };
+}
+
+#[macro_export]
+macro_rules! mem_page_fault {
+    ($addr:expr) => {
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::PageFault($addr),
+            state_change: VMStateChange {
+                gas_charge: 0,
+                ..Default::default()
+            },
+        })
+    };
+}
+
+#[macro_export]
 macro_rules! jump_result {
     ($exit_reason:expr, $target:expr) => {
         Ok(SingleStepResult {

@@ -2,9 +2,10 @@ use crate::{
     continue_with_mem_write, continue_with_reg_write,
     error::VMCoreError,
     interpreter::{Interpreter, SingleStepResult},
-    jump_result, jump_result_with_reg_write,
+    jump_result, jump_result_with_reg_write, mem_page_fault, mem_panic,
     program::{instruction::Instruction, types::program_state::ProgramState},
     state::{
+        memory::MemoryError,
         state_change::{MemWrite, VMStateChange},
         vm_state::VMState,
     },
@@ -319,8 +320,14 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        let val = vm_state.memory.read_byte(imm_address)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val as RegValue)
+        match vm_state.memory.read_byte(imm_address) {
+            Ok(val) => {
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val as RegValue)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load a signed 8-bit value from memory into register
@@ -332,9 +339,15 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        let val = vm_state.memory.read_byte(imm_address)?;
-        let val_extended = VMUtils::sext(val, SextInputSize::Octets1);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_extended)
+        match vm_state.memory.read_byte(imm_address) {
+            Ok(val) => {
+                let val_extended = VMUtils::sext(val, SextInputSize::Octets1);
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_extended)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load unsigned 16-bit value from memory into register
@@ -346,9 +359,15 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        let val = vm_state.memory.read_bytes(imm_address, 2)?;
-        let val_decoded = RegValue::decode_fixed(&mut &val[..], 2)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_decoded)
+        match vm_state.memory.read_bytes(imm_address, 2) {
+            Ok(val) => {
+                let val_decoded = RegValue::decode_fixed(&mut &val[..], 2)?;
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_decoded)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load signed 16-bit value from memory into register
@@ -360,10 +379,16 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        let val = vm_state.memory.read_bytes(imm_address, 2)?;
-        let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
-        let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets2);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_extended)
+        match vm_state.memory.read_bytes(imm_address, 2) {
+            Ok(val) => {
+                let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
+                let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets2);
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_extended)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load unsigned 32-bit value from memory into register
@@ -375,9 +400,15 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        let val = vm_state.memory.read_bytes(imm_address, 4)?;
-        let val_decoded = RegValue::decode_fixed(&mut &val[..], 4)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_decoded)
+        match vm_state.memory.read_bytes(imm_address, 4) {
+            Ok(val) => {
+                let val_decoded = RegValue::decode_fixed(&mut &val[..], 4)?;
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_decoded)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load signed 32-bit value from memory into register
@@ -389,10 +420,16 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        let val = vm_state.memory.read_bytes(imm_address, 4)?;
-        let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
-        let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_extended)
+        match vm_state.memory.read_bytes(imm_address, 4) {
+            Ok(val) => {
+                let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
+                let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets4);
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_extended)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load unsigned 64-bit value from memory into register
@@ -404,9 +441,15 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        let val = vm_state.memory.read_bytes(imm_address, 8)?;
-        let val_decoded = RegValue::decode_fixed(&mut &val[..], 8)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_decoded)
+        match vm_state.memory.read_bytes(imm_address, 8) {
+            Ok(val) => {
+                let val_decoded = RegValue::decode_fixed(&mut &val[..], 8)?;
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_decoded)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Store register value to the memory as 8-bit unsigned integer
@@ -944,8 +987,14 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = vm_state.memory.read_byte(address)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, value as RegValue)
+        match vm_state.memory.read_byte(address) {
+            Ok(val) => {
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val as RegValue)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load 8-bit signed value from memory indirectly
@@ -957,10 +1006,16 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = vm_state.memory.read_byte(address)?;
-        let signed_value = VMUtils::u8_to_i8(value);
-        let unsigned_value = VMUtils::i64_to_u64(signed_value as i64);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, unsigned_value)
+        match vm_state.memory.read_byte(address) {
+            Ok(val) => {
+                let signed_val = VMUtils::u8_to_i8(val);
+                let unsigned_val = VMUtils::i64_to_u64(signed_val as i64);
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, unsigned_val)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load 16-bit unsigned value from memory indirectly
@@ -972,14 +1027,20 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = vm_state.memory.read_bytes(address, 2)?;
-        let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
-        continue_with_reg_write!(
-            vm_state,
-            program_state,
-            ins.rs1()?,
-            value_decoded as RegValue
-        )
+        match vm_state.memory.read_bytes(address, 2) {
+            Ok(val) => {
+                let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
+                continue_with_reg_write!(
+                    vm_state,
+                    program_state,
+                    ins.rs1()?,
+                    val_decoded as RegValue
+                )
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load 16-bit signed value from memory indirectly
@@ -991,11 +1052,17 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = vm_state.memory.read_bytes(address, 2)?;
-        let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
-        let signed_value = VMUtils::u16_to_i16(value_decoded);
-        let unsigned_value = VMUtils::i64_to_u64(signed_value as i64);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, unsigned_value)
+        match vm_state.memory.read_bytes(address, 2) {
+            Ok(val) => {
+                let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
+                let signed_val = VMUtils::u16_to_i16(val_decoded);
+                let unsigned_val = VMUtils::i64_to_u64(signed_val as i64);
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, unsigned_val)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load 32-bit unsigned value from memory indirectly
@@ -1007,14 +1074,20 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = vm_state.memory.read_bytes(address, 4)?;
-        let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
-        continue_with_reg_write!(
-            vm_state,
-            program_state,
-            ins.rs1()?,
-            value_decoded as RegValue
-        )
+        match vm_state.memory.read_bytes(address, 4) {
+            Ok(val) => {
+                let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
+                continue_with_reg_write!(
+                    vm_state,
+                    program_state,
+                    ins.rs1()?,
+                    val_decoded as RegValue
+                )
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load 32-bit signed value from memory indirectly
@@ -1026,11 +1099,17 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = vm_state.memory.read_bytes(address, 4)?;
-        let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
-        let signed_value = VMUtils::u32_to_i32(value_decoded);
-        let unsigned_value = VMUtils::i64_to_u64(signed_value as i64);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, unsigned_value)
+        match vm_state.memory.read_bytes(address, 4) {
+            Ok(val) => {
+                let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
+                let signed_val = VMUtils::u32_to_i32(val_decoded);
+                let unsigned_val = VMUtils::i64_to_u64(signed_val as i64);
+                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, unsigned_val)
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Load 64-bit unsigned value from memory indirectly
@@ -1042,14 +1121,20 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = vm_state.memory.read_bytes(address, 8)?;
-        let value_decoded = u64::decode_fixed(&mut &value[..], 8)?;
-        continue_with_reg_write!(
-            vm_state,
-            program_state,
-            ins.rs1()?,
-            value_decoded as RegValue
-        )
+        match vm_state.memory.read_bytes(address, 8) {
+            Ok(val) => {
+                let val_decoded = u64::decode_fixed(&mut &val[..], 8)?;
+                continue_with_reg_write!(
+                    vm_state,
+                    program_state,
+                    ins.rs1()?,
+                    val_decoded as RegValue
+                )
+            }
+            Err(MemoryError::Forbidden(_)) => mem_panic!(),
+            Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Add 32-bit immediate to register value and allocate to another register
