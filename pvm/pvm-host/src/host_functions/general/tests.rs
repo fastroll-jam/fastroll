@@ -24,7 +24,7 @@ use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::state_change::{HostCallVMStateChange, MemWrite};
 use fr_pvm_types::{
     common::{ExportDataSegment, MemAddress, RegValue, WorkPackageImportSegments},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
+    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, PAGE_SIZE},
     exit_reason::ExitReason,
     invoke_args::{
         AccumulateInputs, AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer,
@@ -95,7 +95,7 @@ mod fetch_tests {
     impl Default for RegParams {
         fn default() -> Self {
             Self {
-                mem_write_offset: PAGE_SIZE as MemAddress,
+                mem_write_offset: (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress,
                 fetch_offset: 5,
                 fetch_length: 20,
                 data_id: 0,
@@ -940,11 +940,11 @@ mod lookup_tests {
 
     impl Default for LookupTestFixture {
         fn default() -> Self {
-            let preimages_key_mem_offset = PAGE_SIZE as MemAddress;
+            let preimages_key_mem_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let preimages_read_size = 5;
             let preimages_data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
             let preimages_data_len = preimages_data.len();
-            let mem_write_offset = 2 * PAGE_SIZE as MemAddress;
+            let mem_write_offset = (INIT_ZONE_SIZE + 2 * PAGE_SIZE) as MemAddress;
             let mem_readable_range =
                 preimages_key_mem_offset..preimages_key_mem_offset + HASH_SIZE as MemAddress;
             let mem_writable_range =
@@ -1229,12 +1229,12 @@ mod read_tests {
 
     impl Default for ReadTestFixture {
         fn default() -> Self {
-            let storage_key_mem_offset = 3 * PAGE_SIZE as MemAddress;
+            let storage_key_mem_offset = (INIT_ZONE_SIZE + 3 * PAGE_SIZE) as MemAddress;
             let storage_key_size = 3;
             let storage_data = (0..255).collect::<Vec<u8>>();
             let storage_data_len = storage_data.len();
             let storage_read_size = 30;
-            let mem_write_offset = 10 * PAGE_SIZE as MemAddress;
+            let mem_write_offset = (INIT_ZONE_SIZE + 10 * PAGE_SIZE) as MemAddress;
             let mem_readable_range =
                 storage_key_mem_offset..storage_key_mem_offset + storage_key_size as MemAddress;
             let mem_writable_range =
@@ -1547,9 +1547,9 @@ mod write_tests {
             let storage_data = (0..PAGE_SIZE + 1)
                 .map(|i| i as u8 % u8::MAX)
                 .collect::<Vec<u8>>();
-            let storage_key_mem_offset = 3 * PAGE_SIZE as MemAddress;
+            let storage_key_mem_offset = (INIT_ZONE_SIZE + 3 * PAGE_SIZE) as MemAddress;
             let storage_key_size = 150;
-            let storage_data_mem_offset = 10 * PAGE_SIZE as MemAddress;
+            let storage_data_mem_offset = (INIT_ZONE_SIZE + 10 * PAGE_SIZE) as MemAddress;
             let storage_data_size = storage_data.len();
             let mem_readable_range_for_key =
                 storage_key_mem_offset..storage_key_mem_offset + storage_key_size as MemAddress;
