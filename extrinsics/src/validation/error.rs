@@ -127,10 +127,6 @@ pub enum XtError {
     LookupAnchorBlockTimeout(CoreIndex, String),
     #[error("Lookup anchor block is not found from the ancestor header set. Core index: {0}, Lookup anchor block header hash: {1}")]
     LookupAnchorBlockNotFoundFromAncestorSet(CoreIndex, String),
-    #[error("Timeslot index of the lookup anchor block from the refinement context doesn't match the value from the actual header. Core index: {0}, Lookup anchor block header hash: {1}")]
-    LookupAnchorBlockTimeslotMismatch(CoreIndex, String),
-    #[error("Header hash of the lookup anchor block from the refinement context doesn't match the value from the actual header. Core index: {0}, Lookup anchor block header hash: {1}")]
-    LookupAnchorBlockHeaderHashMismatch(CoreIndex, String),
     #[error("Invalid number of guarantors ({0}), must be 2 or 3. Core index: {1}")]
     InvalidGuarantorCount(usize, CoreIndex),
     #[error("Credentials in guarantee must be sorted by the validator index. Core index: {0}")]

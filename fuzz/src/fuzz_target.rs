@@ -1,11 +1,18 @@
 use crate::{
-    types::{FuzzMessageKind, HeaderHash, KeyValue, PeerInfo, State, StateRoot, TrieKey},
+    types::{
+        Ancestry, FuzzFeatures, FuzzMessageKind, HeaderHash, KeyValue, PeerInfo, State, StateRoot,
+        TrieKey,
+    },
     utils::{validate_socket_path, StreamUtils},
 };
-use fr_block::{post_state_root_db::PostStateRootDbError, types::block::BlockHeaderError};
+use fr_block::{
+    ancestors::AncestorEntry, header_db::BlockHeaderDBError,
+    post_state_root_db::PostStateRootDbError, types::block::BlockHeaderError,
+};
 use fr_codec::JamCodecError;
-use fr_common::ByteSequence;
+use fr_common::{ByteSequence, CommonTypeError};
 use fr_config::StorageConfig;
+use fr_limited_vec::LimitedVecError;
 use fr_node::roles::importer::BlockImporter;
 use fr_state::error::StateManagerError;
 use fr_storage::node_storage::NodeStorage;
@@ -25,12 +32,18 @@ pub enum FuzzTargetError {
     FromUtf8Error(#[from] FromUtf8Error),
     #[error("ElapsedError: {0}")]
     ElapsedError(#[from] Elapsed),
+    #[error("CommonTypeError: {0}")]
+    CommonTypeError(#[from] CommonTypeError),
+    #[error("LimitedVecError: {0}")]
+    LimitedVecError(#[from] LimitedVecError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
+    #[error("BlockHeaderDBError: {0}")]
+    BlockHeaderDBError(#[from] BlockHeaderDBError),
     #[error("PostStateRootDbError: {0}")]
     PostStateRootDbError(#[from] PostStateRootDbError),
     #[error("First request message is not a peer info")]
@@ -66,9 +79,10 @@ impl LatestStateKeys {
 }
 
 pub struct FuzzTargetRunner {
-    node_storage: Arc<NodeStorage>,
+    pub(crate) node_storage: Arc<NodeStorage>,
     latest_state_keys: LatestStateKeys,
     target_peer_info: PeerInfo,
+    fuzz_features: FuzzFeatures,
 }
 
 impl FuzzTargetRunner {
@@ -83,11 +97,24 @@ impl FuzzTargetRunner {
             ),
             latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
+            fuzz_features: FuzzFeatures::default(),
         }
     }
 
     fn node_storage(&self) -> Arc<NodeStorage> {
         self.node_storage.clone()
+    }
+
+    /// Insert ancestor entries into in-memory `AncestorSet`
+    pub(crate) async fn set_ancestors(&self, ancestors: Ancestry) -> Result<(), FuzzTargetError> {
+        let entries: Vec<AncestorEntry> = ancestors
+            .into_iter()
+            .map(|i| (i.slot, i.header_hash))
+            .collect();
+        self.node_storage()
+            .header_db()
+            .batch_insert_to_ancestor_set(entries)?;
+        Ok(())
     }
 
     pub async fn run_as_fuzz_target(&mut self, socket_path: String) -> Result<(), FuzzTargetError> {
@@ -150,16 +177,24 @@ impl FuzzTargetRunner {
         }
     }
 
-    async fn handle_handshake(&self, stream: &mut UnixStream) -> Result<(), FuzzTargetError> {
+    async fn handle_handshake(&mut self, stream: &mut UnixStream) -> Result<(), FuzzTargetError> {
         let message_kind = StreamUtils::read_message(stream).await?;
 
         if let FuzzMessageKind::PeerInfo(peer_info) = message_kind {
+            // Set fuzz features
+            let features = FuzzFeatures::from(peer_info.fuzz_features);
+            self.fuzz_features = features.clone();
+
             tracing::info!(
-                "[PeerInfo][RECV] Fuzzer info: name={} app_version={} jam_version={}",
-                String::from_utf8(peer_info.name)?,
+                "[PeerInfo][RECV] Fuzzer info: fuzz_version={} feature_ancestors={} feature_forking={} name={} jam_version={} app_version={}",
+                peer_info.fuzz_version,
+                features.with_ancestors,
+                features.with_forking,
+                String::from_utf8(peer_info.app_name)?,
+                peer_info.jam_version,
                 peer_info.app_version,
-                peer_info.jam_version
             );
+
             StreamUtils::send_message(
                 stream,
                 FuzzMessageKind::PeerInfo(self.target_peer_info.clone()),
@@ -178,18 +213,18 @@ impl FuzzTargetRunner {
         is_first_block: &mut bool,
     ) -> Result<(), FuzzTargetError> {
         match message_kind {
-            FuzzMessageKind::SetState(set_state) => {
-                tracing::info!("[RECV][SetState] Received message");
+            FuzzMessageKind::Initialize(init) => {
+                tracing::info!("[RECV][Initialize] Received message");
                 let storage = self.node_storage();
                 let state_manager = storage.state_manager();
 
-                let parent_header = set_state.header;
+                let parent_header = init.header;
                 let parent_header_hash = parent_header.hash()?;
                 self.latest_state_keys
                     .update_header_hash(parent_header_hash.clone());
 
                 // Add state entries
-                for kv in set_state.state.0 {
+                for kv in init.state.0 {
                     state_manager
                         .add_raw_state_entry(&kv.key, kv.value.into_vec())
                         .await?;
@@ -205,12 +240,17 @@ impl FuzzTargetRunner {
                     .set_post_state_root(&parent_header_hash, state_root.clone())
                     .await?;
 
+                if self.fuzz_features.with_ancestors {
+                    // Set Ancestor set
+                    self.set_ancestors(init.ancestry).await?;
+                }
+
                 StreamUtils::send_message(
                     stream,
                     FuzzMessageKind::StateRoot(StateRoot(state_root.clone())),
                 )
                 .await?;
-                tracing::info!("[SEND][SetState] root={state_root}");
+                tracing::info!("[SEND][Initialize] root={state_root}");
                 Ok(())
             }
             FuzzMessageKind::ImportBlock(import_block) => {
@@ -220,11 +260,11 @@ impl FuzzTargetRunner {
                 let header_hash = block.header.hash()?;
                 self.latest_state_keys
                     .update_header_hash(header_hash.clone());
-                let pre_state_root = storage.state_manager().merkle_root();
-                let post_state_root = match BlockImporter::import_block(
+                match BlockImporter::import_block(
                     storage.clone(),
                     block,
                     *is_first_block,
+                    self.fuzz_features.with_ancestors,
                 )
                 .await
                 {
@@ -244,23 +284,29 @@ impl FuzzTargetRunner {
                             .set_post_state_root(&header_hash, post_state_root.clone())
                             .await?;
 
-                        post_state_root
+                        // Send message: StateRoot
+                        StreamUtils::send_message(
+                            stream,
+                            FuzzMessageKind::StateRoot(StateRoot(post_state_root.clone())),
+                        )
+                        .await?;
+                        tracing::info!("[SEND][ImportBlock] root={post_state_root}");
                     }
                     Err(e) => {
                         tracing::debug!("Invalid block - import failed: {e:?}");
 
                         // Rollback the state cache (revert all dirty entries)
                         storage.state_manager().rollback_dirty_cache();
-                        // Return pre-state root for invalid blocks
-                        pre_state_root
+
+                        // Send message: Error
+                        StreamUtils::send_message(
+                            stream,
+                            FuzzMessageKind::Error(e.to_string().into_bytes()),
+                        )
+                        .await?;
+                        tracing::info!("[SEND][ImportBlock] Err {}", e.to_string());
                     }
                 };
-                StreamUtils::send_message(
-                    stream,
-                    FuzzMessageKind::StateRoot(StateRoot(post_state_root.clone())),
-                )
-                .await?;
-                tracing::info!("[SEND][ImportBlock] root={post_state_root}");
                 if *is_first_block {
                     *is_first_block = false;
                 }

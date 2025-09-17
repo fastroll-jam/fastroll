@@ -11,6 +11,7 @@ fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-config = { workspace = true }
 fr-block = { workspace = true }
+fr-limited-vec = { workspace = true }
 fr-node = { workspace = true }
 fr-state = { workspace = true }
 fr-storage = { workspace = true }
