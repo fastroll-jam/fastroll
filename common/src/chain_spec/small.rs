@@ -14,6 +14,11 @@ pub const SLOT_DURATION: u64 = 6;
 /// `D` = (full `PREIMAGE_EXPIRATION_PERIOD`) * (small EPOCH_LENGTH) / (full EPOCH_LENGTH) = 1_152
 pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 1_152;
 
+/// `L`: The maximum age in timeslots of the lookup anchor.
+///
+/// `L` = (full `MAX_LOOKUP_ANCHOR_AGE`) * (small EPOCH_LENGTH) / (full EPOCH_LENGTH) = 864
+pub const MAX_LOOKUP_ANCHOR_AGE: usize = 864;
+
 /// `E`: The length of an epoch in timeslots.
 pub const EPOCH_LENGTH: usize = 36;
 

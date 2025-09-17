@@ -1054,6 +1054,7 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-config",
+ "fr-limited-vec",
  "fr-node",
  "fr-state",
  "fr-storage",

@@ -15,6 +15,9 @@ pub const SLOT_DURATION: u64 = 6;
 /// `PREIMAGE_EXPIRATION_PERIOD` = `MAX_LOOKUP_ANCHOR_AGE` + `8-hour buffer`
 pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 19_200;
 
+/// `L`: The maximum age in timeslots of the lookup anchor.
+pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400;
+
 /// `E`: The length of an epoch in timeslots.
 pub const EPOCH_LENGTH: usize = 600;
 
