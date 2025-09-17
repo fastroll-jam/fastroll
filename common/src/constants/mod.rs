@@ -43,9 +43,6 @@ pub const PENDING_REPORT_TIMEOUT: usize = 5;
 /// `T`: The maximum number of extrinsics in a work-package.
 pub const MAX_EXTRINSICS_PER_PACKAGE: usize = 128;
 
-/// `L`: The maximum age in timeslots of the lookup anchor.
-pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400;
-
 // --- Audit Param Constants
 
 /// `A`: The period, in seconds, between audit tranches.

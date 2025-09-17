@@ -4,12 +4,16 @@ mod fuzz_target_tests {
     use crate::{
         fuzz_target::{FuzzTargetError, FuzzTargetRunner},
         types::{
-            FuzzMessageKind, GetState, ImportBlock, PeerInfo, SetState, State, StateRoot, Version,
+            Ancestry, AncestryItem, FuzzMessageKind, GetState, HeaderHash, ImportBlock, Initialize,
+            PeerInfo, State, StateRoot, Version,
         },
         utils::StreamUtils,
     };
     use fr_block::types::block::BlockHeader;
-    use fr_common::utils::{serde::FileLoader, tracing::setup_tracing};
+    use fr_common::{
+        utils::{serde::FileLoader, tracing::setup_tracing},
+        ByteEncodable,
+    };
     use fr_test_utils::importer_harness::AsnTestCase as BlockImportCase;
     use std::{path::PathBuf, str::FromStr, time::Duration};
     use tempfile::tempdir;
@@ -29,9 +33,11 @@ mod fuzz_target_tests {
 
     fn create_test_peer_info(name: &str) -> PeerInfo {
         PeerInfo::new(
-            name.to_string(),
-            Version::from_str("0.1.0").unwrap(),
+            1,
+            0,
             Version::from_str("0.5.0").unwrap(),
+            Version::from_str("0.1.0").unwrap(),
+            name.to_string(),
         )
     }
 
@@ -84,16 +90,17 @@ mod fuzz_target_tests {
             }
         }
 
-        /// Send SetState message to the fuzz target and receive StateRoot message.
-        async fn set_state(
+        /// Send Initialize message to the fuzz target and receive StateRoot message.
+        async fn initialize(
             client: &mut UnixStream,
-            set_state_message: SetState,
+            initialize_message: Initialize,
         ) -> Result<StateRoot, FuzzTargetError> {
-            StreamUtils::send_message(client, FuzzMessageKind::SetState(set_state_message)).await?;
+            StreamUtils::send_message(client, FuzzMessageKind::Initialize(initialize_message))
+                .await?;
             let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
             match res {
                 FuzzMessageKind::StateRoot(root) => Ok(root),
-                kind => panic!("[SetState] Expected StateRoot response. Got: {kind:?}"),
+                kind => panic!("[Initialize] Expected StateRoot response. Got: {kind:?}"),
             }
         }
 
@@ -101,14 +108,11 @@ mod fuzz_target_tests {
         async fn import_block(
             client: &mut UnixStream,
             import_block_message: ImportBlock,
-        ) -> Result<StateRoot, FuzzTargetError> {
+        ) -> Result<FuzzMessageKind, FuzzTargetError> {
             StreamUtils::send_message(client, FuzzMessageKind::ImportBlock(import_block_message))
                 .await?;
             let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
-            match res {
-                FuzzMessageKind::StateRoot(root) => Ok(root),
-                kind => panic!("[ImportBlock] Expected StateRoot response. Got: {kind:?}"),
-            }
+            Ok(res)
         }
 
         /// Send GetState message to the fuzz target and receive State message.
@@ -146,9 +150,46 @@ mod fuzz_target_tests {
         Ok(())
     }
 
-    // Handshake + SetState
     #[tokio::test]
-    async fn test_fuzz_set_state() -> Result<(), FuzzTargetError> {
+    async fn test_fuzz_initialize_set_ancestry() -> Result<(), FuzzTargetError> {
+        let ancestor_1 = HeaderHash::from_hex("0x1")?;
+        let ancestor_2 = HeaderHash::from_hex("0x2")?;
+        let ancestor_3 = HeaderHash::from_hex("0x3")?;
+        let ancestry = Ancestry::try_from(vec![
+            AncestryItem {
+                slot: 1,
+                header_hash: ancestor_1.clone(),
+            },
+            AncestryItem {
+                slot: 2,
+                header_hash: ancestor_2.clone(),
+            },
+            AncestryItem {
+                slot: 3,
+                header_hash: ancestor_3.clone(),
+            },
+        ])?;
+        let fuzz_target = init_fuzz_target_runner();
+        fuzz_target.set_ancestors(ancestry).await?;
+
+        assert!(fuzz_target
+            .node_storage
+            .header_db()
+            .header_exists_in_ancestor_set(&(1, ancestor_1)));
+        assert!(fuzz_target
+            .node_storage
+            .header_db()
+            .header_exists_in_ancestor_set(&(2, ancestor_2)));
+        assert!(fuzz_target
+            .node_storage
+            .header_db()
+            .header_exists_in_ancestor_set(&(3, ancestor_3)));
+        Ok(())
+    }
+
+    // Handshake + Initialize
+    #[tokio::test]
+    async fn test_fuzz_initialize() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let socket_path = temp_socket_path();
 
@@ -168,12 +209,13 @@ mod fuzz_target_tests {
         // Test with post-state of the case
         let test_state = test_case.post_state;
 
-        // --- SetState
-        let root = MockFuzzer::set_state(
+        // --- Initialize
+        let root = MockFuzzer::initialize(
             &mut client,
-            SetState {
+            Initialize {
                 header: test_case.block.header.into(),
                 state: test_state.clone().into(),
+                ancestry: Ancestry::default(),
             },
         )
         .await?;
@@ -184,7 +226,7 @@ mod fuzz_target_tests {
         Ok(())
     }
 
-    // Handshake + SetState + ImportBlock
+    // Handshake + Initialize + ImportBlock
     #[cfg(feature = "tiny")]
     #[tokio::test]
     #[ignore] // FIXME: block test cases should be aligned with GP v0.7.1
@@ -206,27 +248,33 @@ mod fuzz_target_tests {
         let test_case_1 = load_test_case(1); // Block #1
         let test_case_2 = load_test_case(2); // Block #2
 
-        // --- SetState (post-state of Block #1 == pre-state of Block #2)
-        let _root = MockFuzzer::set_state(
+        // --- Initialize (post-state of Block #1 == pre-state of Block #2)
+        let _root = MockFuzzer::initialize(
             &mut client,
-            SetState {
+            Initialize {
                 header: test_case_1.block.header.clone().into(),
                 state: test_case_1.post_state.clone().into(),
+                ancestry: Ancestry::default(),
             },
         )
         .await?;
 
         // --- ImportBlock (Block #2)
-        let root =
+        let import_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
-        assert_eq!(root.0, test_case_2.post_state.state_root);
+        match import_res {
+            FuzzMessageKind::StateRoot(root) => {
+                assert_eq!(root.0, test_case_2.post_state.state_root);
+            }
+            kind => panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}"),
+        }
 
         // Cleanup
         cleanup_socket(&socket_path);
         Ok(())
     }
 
-    // Handshake + SetState + ImportBlock (invalid)
+    // Handshake + Initialize + ImportBlock (invalid)
     #[cfg(feature = "tiny")]
     #[tokio::test]
     #[ignore] // FIXME: block test cases should be aligned with GP v0.7.1
@@ -249,28 +297,34 @@ mod fuzz_target_tests {
         let mut test_case_2 = load_test_case(2); // Block #2
         test_case_2.block.header.slot = 0; // Fault injection
 
-        // --- SetState (post-state of Block #1 == pre-state of Block #2)
-        let _root = MockFuzzer::set_state(
+        // --- Initialize (post-state of Block #1 == pre-state of Block #2)
+        let _root = MockFuzzer::initialize(
             &mut client,
-            SetState {
+            Initialize {
                 header: test_case_1.block.header.clone().into(),
                 state: test_case_1.post_state.clone().into(),
+                ancestry: Ancestry::default(),
             },
         )
         .await?;
 
         // --- ImportBlock (Block #2; invalid)
-        let root =
+        let import_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
-        // Invalid block; should return the last valid state root
-        assert_eq!(root.0, test_case_1.post_state.state_root);
+        // Invalid block; should return `Error` message
+        match import_res {
+            FuzzMessageKind::Error(e) => {
+                println!("Fuzz Error: {}", String::from_utf8(e)?);
+            }
+            kind => panic!("[ImportBlock] Invalid Block: Expected Error response. Got: {kind:?}"),
+        }
 
         // Cleanup
         cleanup_socket(&socket_path);
         Ok(())
     }
 
-    // Handshake + SetState + ImportBlock
+    // Handshake + Initialize + ImportBlock
     #[cfg(feature = "tiny")]
     #[tokio::test]
     #[ignore] // FIXME: block test cases should be aligned with GP v0.7.1
@@ -293,32 +347,43 @@ mod fuzz_target_tests {
         let test_case_2 = load_test_case(2); // Block #2
         let test_case_3 = load_test_case(3); // Block #3
 
-        // --- SetState (post-state of Block #1 == pre-state of Block #2)
-        let _root = MockFuzzer::set_state(
+        // --- Initialize (post-state of Block #1 == pre-state of Block #2)
+        let _root = MockFuzzer::initialize(
             &mut client,
-            SetState {
+            Initialize {
                 header: test_case_1.block.header.clone().into(),
                 state: test_case_1.post_state.clone().into(),
+                ancestry: Ancestry::default(),
             },
         )
         .await?;
 
         // --- ImportBlock (Block #2)
-        let root =
+        let import_2_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
-        assert_eq!(root.0, test_case_2.post_state.state_root);
+        match import_2_res {
+            FuzzMessageKind::StateRoot(root) => {
+                assert_eq!(root.0, test_case_2.post_state.state_root);
+            }
+            kind => panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}"),
+        }
 
         // --- ImportBlock (Block #3)
-        let root =
+        let import_3_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.into())).await?;
-        assert_eq!(root.0, test_case_3.post_state.state_root);
+        match import_3_res {
+            FuzzMessageKind::StateRoot(root) => {
+                assert_eq!(root.0, test_case_3.post_state.state_root);
+            }
+            kind => panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}"),
+        }
 
         // Cleanup
         cleanup_socket(&socket_path);
         Ok(())
     }
 
-    // Handshake + SetState + ImportBlock + GetState
+    // Handshake + Initialize + ImportBlock + GetState
     #[cfg(feature = "tiny")]
     #[tokio::test]
     #[ignore] // FIXME: block test cases should be aligned with GP v0.7.1
@@ -341,22 +406,23 @@ mod fuzz_target_tests {
         let test_case_2 = load_test_case(2); // Block #2
         let test_case_3 = load_test_case(3); // Block #3
 
-        // --- SetState (post-state of Block #1 == pre-state of Block #2)
-        let _root = MockFuzzer::set_state(
+        // --- Initialize (post-state of Block #1 == pre-state of Block #2)
+        let _root = MockFuzzer::initialize(
             &mut client,
-            SetState {
+            Initialize {
                 header: test_case_1.block.header.clone().into(),
                 state: test_case_1.post_state.clone().into(),
+                ancestry: Ancestry::default(),
             },
         )
         .await?;
 
         // --- ImportBlock (Block #2)
-        let _root =
+        let _import_2_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
 
         // --- ImportBlock (Block #3)
-        let _root =
+        let _import_3_res =
             MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.clone().into()))
                 .await?;
 
@@ -400,23 +466,24 @@ mod fuzz_target_tests {
             let test_case_2 = load_test_case(2); // Block #2
             let test_case_3 = load_test_case(3); // Block #3
 
-            // --- SetState (post-state of Block #1 == pre-state of Block #2)
-            let _root = MockFuzzer::set_state(
+            // --- Initialize (post-state of Block #1 == pre-state of Block #2)
+            let _root = MockFuzzer::initialize(
                 &mut client_1,
-                SetState {
+                Initialize {
                     header: test_case_1.block.header.clone().into(),
                     state: test_case_1.post_state.clone().into(),
+                    ancestry: Ancestry::default(),
                 },
             )
             .await?;
 
             // --- ImportBlock (Block #2)
-            let _root =
+            let _import_2_res =
                 MockFuzzer::import_block(&mut client_1, ImportBlock(test_case_2.block.into()))
                     .await?;
 
             // --- ImportBlock (Block #3)
-            let _root = MockFuzzer::import_block(
+            let _import_3_res = MockFuzzer::import_block(
                 &mut client_1,
                 ImportBlock(test_case_3.block.clone().into()),
             )
@@ -444,30 +511,43 @@ mod fuzz_target_tests {
             let test_case_2 = load_test_case(2); // Block #2
             let test_case_3 = load_test_case(3); // Block #3
 
-            // --- SetState (post-state of Block #1 == pre-state of Block #2)
-            let root = MockFuzzer::set_state(
+            // --- Initialize (post-state of Block #1 == pre-state of Block #2)
+            let root = MockFuzzer::initialize(
                 &mut client_2,
-                SetState {
+                Initialize {
                     header: test_case_1.block.header.clone().into(),
                     state: test_case_1.post_state.clone().into(),
+                    ancestry: Ancestry::default(),
                 },
             )
             .await?;
             assert_eq!(root.0, test_case_1.post_state.state_root);
 
             // --- ImportBlock (Block #2)
-            let root =
+            let import_2_res =
                 MockFuzzer::import_block(&mut client_2, ImportBlock(test_case_2.block.into()))
                     .await?;
-            assert_eq!(root.0, test_case_2.post_state.state_root);
+            match import_2_res {
+                FuzzMessageKind::StateRoot(root) => {
+                    assert_eq!(root.0, test_case_2.post_state.state_root);
+                }
+                kind => {
+                    panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}")
+                }
+            }
 
             // --- ImportBlock (Block #3)
-            let root = MockFuzzer::import_block(
-                &mut client_2,
-                ImportBlock(test_case_3.block.clone().into()),
-            )
-            .await?;
-            assert_eq!(root.0, test_case_3.post_state.state_root);
+            let import_3_res =
+                MockFuzzer::import_block(&mut client_2, ImportBlock(test_case_3.block.into()))
+                    .await?;
+            match import_3_res {
+                FuzzMessageKind::StateRoot(root) => {
+                    assert_eq!(root.0, test_case_3.post_state.state_root);
+                }
+                kind => {
+                    panic!("[ImportBlock] Valid Block: Expected StateRoot response. Got: {kind:?}")
+                }
+            }
         }
 
         // Cleanup

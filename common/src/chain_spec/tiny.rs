@@ -18,6 +18,9 @@ pub const SLOT_DURATION: u64 = 6;
 /// Note: "tiny" configuration has `D` = 384, but here set as 32 for testing purpose.
 pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 32;
 
+/// `L`: The maximum age in timeslots of the lookup anchor.
+pub const MAX_LOOKUP_ANCHOR_AGE: usize = 24;
+
 /// `E`: The length of an epoch in timeslots.
 pub const EPOCH_LENGTH: usize = 12;
 

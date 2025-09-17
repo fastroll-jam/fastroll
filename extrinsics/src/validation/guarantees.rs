@@ -1,5 +1,6 @@
 use crate::{utils::guarantor_rotation::GuarantorAssignment, validation::error::XtError};
 use fr_block::{
+    ancestors::AncestorEntry,
     header_db::BlockHeaderDB,
     types::extrinsics::guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
 };
@@ -64,15 +65,20 @@ use std::{collections::HashSet, sync::Arc};
 ///     the current guarantor assignment rotation or in the previous rotation.
 pub struct GuaranteesXtValidator {
     state_manager: Arc<StateManager>,
-    #[allow(dead_code)]
     header_db: Arc<BlockHeaderDB>,
+    with_ancestors: bool, // FIXME: Remove in production or M1 fuzzing
 }
 
 impl GuaranteesXtValidator {
-    pub fn new(state_manager: Arc<StateManager>, header_db: Arc<BlockHeaderDB>) -> Self {
+    pub fn new(
+        state_manager: Arc<StateManager>,
+        header_db: Arc<BlockHeaderDB>,
+        with_ancestors: bool,
+    ) -> Self {
         Self {
             state_manager,
             header_db,
+            with_ancestors,
         }
     }
 
@@ -437,41 +443,31 @@ impl GuaranteesXtValidator {
         }
 
         // Check the lookup-anchor block is found from the BlockHeaderDB ancestor set.
-        #[cfg(not(feature = "skip-ancestor-set-validation"))]
-        self.validate_lookup_anchor_block_against_ancestor_set(
-            core_index,
-            work_report_context,
-            lookup_anchor_hash,
-        )
-        .await?;
+        if self.with_ancestors {
+            self.validate_lookup_anchor_block_against_ancestor_set(
+                core_index,
+                lookup_anchor_hash,
+                lookup_anchor_timeslot,
+            )
+            .await?;
+        }
         Ok(())
     }
 
     /// Checks the lookup-anchor block can be referenced through the ancestor set (from BlockHeaderDB).
-    #[allow(dead_code)]
     async fn validate_lookup_anchor_block_against_ancestor_set(
         &self,
         core_index: CoreIndex,
-        work_report_context: &RefinementContext,
         lookup_anchor_hash: &Hash32,
+        lookup_anchor_timeslot: TimeslotIndex,
     ) -> Result<(), XtError> {
-        let Some(lookup_anchor_header) = self.header_db.get_header(lookup_anchor_hash).await?
-        else {
+        let lookup_anchor_ancestor_entry: AncestorEntry =
+            (lookup_anchor_timeslot, lookup_anchor_hash.clone());
+        if !self
+            .header_db
+            .header_exists_in_ancestor_set(&lookup_anchor_ancestor_entry)
+        {
             return Err(XtError::LookupAnchorBlockNotFoundFromAncestorSet(
-                core_index,
-                lookup_anchor_hash.encode_hex(),
-            ));
-        };
-
-        // Compare the lookup-anchor block fields with the refinement context fields.
-        if lookup_anchor_header.hash()? != work_report_context.lookup_anchor_header_hash {
-            return Err(XtError::LookupAnchorBlockHeaderHashMismatch(
-                core_index,
-                lookup_anchor_hash.encode_hex(),
-            ));
-        }
-        if lookup_anchor_header.data.timeslot_index != work_report_context.lookup_anchor_timeslot {
-            return Err(XtError::LookupAnchorBlockTimeslotMismatch(
                 core_index,
                 lookup_anchor_hash.encode_hex(),
             ));
