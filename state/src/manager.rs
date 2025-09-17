@@ -850,6 +850,16 @@ impl StateManager {
         self.get_state_entry_internal(state_key).await // account state key could not be initialized yet
     }
 
+    async fn get_clean_account_state_entry<T>(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<Option<T>, StateManagerError>
+    where
+        T: AccountStateComponent,
+    {
+        self.get_clean_state_entry_internal(state_key).await // account state key could not be initialized yet
+    }
+
     async fn with_mut_account_state_entry<T, F, E>(
         &self,
         state_key: &StateKey,
@@ -925,6 +935,15 @@ impl StateManager {
         self.add_account_state_entry(&state_key, metadata).await
     }
 
+    pub async fn get_account_storage_entry_clean(
+        &self,
+        service_id: ServiceId,
+        storage_key: &StorageKey,
+    ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
+        let state_key = get_account_storage_state_key(service_id, storage_key);
+        self.get_clean_account_state_entry(&state_key).await
+    }
+
     pub async fn get_account_storage_entry(
         &self,
         service_id: ServiceId,
@@ -961,6 +980,15 @@ impl StateManager {
             .await
     }
 
+    pub async fn get_account_preimages_entry_clean(
+        &self,
+        service_id: ServiceId,
+        preimages_key: &PreimagesKey,
+    ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
+        let state_key = get_account_preimage_state_key(service_id, preimages_key);
+        self.get_clean_account_state_entry(&state_key).await
+    }
+
     pub async fn get_account_preimages_entry(
         &self,
         service_id: ServiceId,
@@ -995,6 +1023,15 @@ impl StateManager {
         let state_key = get_account_preimage_state_key(service_id, preimages_key);
         self.add_account_state_entry(&state_key, preimages_entry)
             .await
+    }
+
+    pub async fn get_account_lookups_entry_clean(
+        &self,
+        service_id: ServiceId,
+        lookups_key: &LookupsKey,
+    ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
+        let state_key = get_account_lookups_state_key(service_id, lookups_key);
+        self.get_clean_account_state_entry(&state_key).await
     }
 
     pub async fn get_account_lookups_entry(

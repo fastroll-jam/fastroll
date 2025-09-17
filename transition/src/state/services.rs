@@ -464,7 +464,6 @@ pub async fn transition_services_integrate_preimages(
     state_manager: Arc<StateManager>,
     preimages_xt: &PreimagesXt,
 ) -> Result<(), TransitionError> {
-    // TODO: check if this should be explicitly validated against the prior service accounts `δ` as well.
     // Validate preimages extrinsic data.
     let preimages_validator = PreimagesXtValidator::new(state_manager.clone());
     preimages_validator.validate(preimages_xt).await?;
