@@ -31,10 +31,7 @@ macro_rules! mem_panic {
     () => {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Panic,
-            state_change: VMStateChange {
-                gas_charge: 0,
-                ..Default::default()
-            },
+            state_change: VMStateChange::default()
         })
     };
 }
@@ -44,10 +41,7 @@ macro_rules! mem_page_fault {
     ($addr:expr) => {
         Ok(SingleStepResult {
             exit_reason: ExitReason::PageFault($addr),
-            state_change: VMStateChange {
-                gas_charge: 0,
-                ..Default::default()
-            },
+            state_change: VMStateChange::default()
         })
     };
 }
