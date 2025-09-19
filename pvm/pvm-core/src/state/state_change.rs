@@ -80,8 +80,11 @@ impl VMStateMutator {
         vm_state: &mut VMState,
         change: &VMStateChange,
     ) -> Result<SignedGas, VMCoreError> {
+        // Check gas counter and apply gas change
+        let post_gas = GasCharger::apply_gas_cost(vm_state, change.gas_charge)?;
+
         // Apply memory change first.
-        // If this results in Panic or PageFault, VM state should remain unchanged.
+        // If this results in Panic or PageFault, VM state should remain unchanged except the gas counter.
         if let Some(MemWrite {
             buf_offset,
             write_data,
@@ -102,9 +105,6 @@ impl VMStateMutator {
 
         // Apply PC change
         vm_state.pc = change.new_pc;
-
-        // Check gas counter and apply gas change
-        let post_gas = GasCharger::apply_gas_cost(vm_state, change.gas_charge)?;
 
         // Apply register changes
         if let Some((reg_index, new_val)) = change.register_write {
