@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+fr-common = { workspace = true }
+fr-state = { workspace = true }
+bit-vec = { workspace = true }
