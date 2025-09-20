@@ -6,15 +6,22 @@ use bit_vec::BitVec;
 use fr_common::{NodeHash, StateKey};
 use std::cmp::Ordering;
 // FIXME: Make `fr-state` depend on `fr-state-merkle-v2`
-use fr_state::cache::CacheEntry;
-use std::{collections::HashMap, ops::Deref};
+use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+};
 
 struct MerkleNode {
     hash: NodeHash,
     data: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// A bit vector representing the path from the merkle root to a node.
+///
+/// For leaf nodes, this path may be shorter than the full state key.
+/// This happens since the trie doesn't create intermediate nodes for unique paths.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct MerklePath(BitVec);
 
 impl MerklePath {
@@ -30,12 +37,13 @@ type NodeWithPath = (MerklePath, MerkleNode);
 
 struct MerkleCache {
     map: HashMap<MerklePath, MerkleNode>,
-    affected_paths: Vec<MerklePath>,
+    affected_paths: HashSet<MerklePath>,
 }
 
 impl MerkleCache {
-    fn sort_affected_paths(&mut self) {
-        self.affected_paths.sort_by(|a, b| {
+    fn affected_paths_as_sorted_vec(self) -> Vec<MerklePath> {
+        let mut affected_paths_vec = self.affected_paths.into_iter().collect::<Vec<_>>();
+        affected_paths_vec.sort_by(|a, b| {
             // First, sort by the path length (descending)
             match b.0.len().cmp(&a.0.len()) {
                 Ordering::Equal => {
@@ -51,7 +59,8 @@ impl MerkleCache {
                 }
                 other => other,
             }
-        })
+        });
+        affected_paths_vec
     }
 }
 
@@ -68,8 +77,18 @@ fn get_affected_paths(merkle_path: MerklePath) -> Vec<MerklePath> {
 }
 
 fn dirty_state_cache_entry_to_node_with_path(
-    _dirty_entries: &[(StateKey, CacheEntry)],
+    dirty_entries: &[(StateKey, CacheEntry)],
 ) -> NodeWithPath {
+    for (_state_key, entry) in dirty_entries {
+        if let CacheEntryStatus::Dirty(state_mut) = &entry.status {
+            match state_mut {
+                StateMut::Add => {}
+                StateMut::Update => {}
+                StateMut::Remove => {}
+            }
+        }
+    }
+
     unimplemented!()
 }
 
@@ -87,28 +106,28 @@ mod tests {
 
     #[test]
     fn test_affected_paths_sorting() {
-        let paths = vec![
+        let paths = HashSet::from_iter(vec![
             MerklePath(BitVec::from_iter(vec![true, false, true, true])), // BitVec(1011)
             MerklePath(BitVec::from_iter(vec![true, false, true, true, true])), // BitVec(10111)
             MerklePath(BitVec::from_iter(vec![true])),                    // BitVec(1)
             MerklePath(BitVec::from_iter(vec![true, false, true, false, true])), // BitVec(10101)
             MerklePath(BitVec::from_iter(vec![true, false])),             // BitVec(10)
-        ];
+        ]);
 
-        let mut merkle_cache = MerkleCache {
+        let merkle_cache = MerkleCache {
             map: HashMap::new(),
             affected_paths: paths,
         };
-        merkle_cache.sort_affected_paths();
+        let paths_sorted = merkle_cache.affected_paths_as_sorted_vec();
 
-        let paths_sorted = vec![
+        let paths_sorted_expected = vec![
             MerklePath(BitVec::from_iter(vec![true, false, true, true, true])), // BitVec(10111)
             MerklePath(BitVec::from_iter(vec![true, false, true, false, true])), // BitVec(10101)
             MerklePath(BitVec::from_iter(vec![true, false, true, true])),       // BitVec(1011)
             MerklePath(BitVec::from_iter(vec![true, false])),                   // BitVec(10)
             MerklePath(BitVec::from_iter(vec![true])),                          // BitVec(1)
         ];
-        assert_eq!(paths_sorted, merkle_cache.affected_paths);
+        assert_eq!(paths_sorted, paths_sorted_expected);
     }
 
     #[test]

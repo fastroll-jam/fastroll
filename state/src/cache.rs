@@ -18,8 +18,9 @@ pub enum StateMut {
     Remove,
 }
 
+// FIXME: visibility
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum CacheEntryStatus {
+pub enum CacheEntryStatus {
     Clean,
     Dirty(StateMut),
 }
@@ -32,7 +33,7 @@ pub struct CacheEntry {
     /// Latest state cache entry value.
     pub(crate) value: Arc<StateEntryType>,
     /// State cache status (Clean or Dirty).
-    pub(crate) status: CacheEntryStatus,
+    pub status: CacheEntryStatus,
 }
 
 impl CacheEntry {
