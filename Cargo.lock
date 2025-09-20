@@ -1278,6 +1278,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "fr-state-merkle-v2"
+version = "0.1.0"
+
+[[package]]
 name = "fr-storage"
 version = "0.1.12"
 dependencies = [
