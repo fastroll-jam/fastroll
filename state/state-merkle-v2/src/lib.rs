@@ -6,11 +6,15 @@ use fr_common::{MerkleRoot, NodeHash, StateKey};
 use std::cmp::Ordering;
 // FIXME: Make `fr-state` depend on `fr-state-merkle-v2`
 use bitvec::prelude::*;
-use fr_db::core::cached_db::{CacheItem, CachedDB};
+use fr_db::core::{
+    cached_db::{CacheItem, CachedDB},
+    core_db::CoreDB,
+};
 use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
+    sync::Arc,
 };
 
 #[derive(Clone)]
@@ -89,6 +93,16 @@ struct MerkleDB {
     nodes: CachedDB<MerklePath, MerkleNode>,
     leaf_paths: CachedDB<FullMerklePath, MerklePath>,
     root: MerkleRoot,
+}
+
+impl MerkleDB {
+    fn new(core: Arc<CoreDB>, cf_name: &'static str, cache_size: usize) -> Self {
+        Self {
+            nodes: CachedDB::new(core.clone(), cf_name, cache_size),
+            leaf_paths: CachedDB::new(core, "merkle_leaf_paths", cache_size), // FIXME
+            root: MerkleRoot::default(),
+        }
+    }
 }
 
 struct MerkleCache {
