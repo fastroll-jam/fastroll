@@ -8,5 +8,6 @@ repository.workspace = true
 
 [dependencies]
 fr-common = { workspace = true }
+fr-db = { workspace = true }
 fr-state = { workspace = true }
-bit-vec = { workspace = true }
+bitvec = { version = "1.0.1", features = ["serde"] }

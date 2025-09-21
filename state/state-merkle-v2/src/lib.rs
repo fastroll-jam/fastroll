@@ -2,19 +2,37 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-use bit_vec::BitVec;
-use fr_common::{NodeHash, StateKey};
+use fr_common::{MerkleRoot, NodeHash, StateKey};
 use std::cmp::Ordering;
 // FIXME: Make `fr-state` depend on `fr-state-merkle-v2`
+use bitvec::prelude::*;
+use fr_db::core::cached_db::{CacheItem, CachedDB};
 use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
 };
 
+#[derive(Clone)]
 struct MerkleNode {
     hash: NodeHash,
     data: Vec<u8>,
+}
+
+impl CacheItem for MerkleNode {
+    fn into_db_value(self) -> Vec<u8> {
+        self.data
+    }
+
+    fn from_db_kv(key: &[u8], val: Vec<u8>) -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            hash: NodeHash::try_from(key).expect("Hash length mismatch"),
+            data: val,
+        }
+    }
 }
 
 /// A bit vector representing the path from the merkle root to a node.
@@ -22,7 +40,39 @@ struct MerkleNode {
 /// For leaf nodes, this path may be shorter than the full state key.
 /// This happens since the trie doesn't create intermediate nodes for unique paths.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct MerklePath(BitVec);
+struct MerklePath(BitVec<u8, Msb0>);
+
+impl AsRef<[u8]> for MerklePath {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_raw_slice()
+    }
+}
+
+impl CacheItem for MerklePath {
+    fn into_db_value(self) -> Vec<u8> {
+        self.0.into_vec()
+    }
+
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self
+    where
+        Self: Sized,
+    {
+        Self(BitVec::from_vec(val))
+    }
+}
+
+/// A bit vector representing the path from the merkle root to a node.
+///
+/// Unlike `MerklePath`, this exactly matches with the bit vector representation of state keys
+/// for leaf nodes.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct FullMerklePath(BitVec<u8, Msb0>);
+
+impl AsRef<[u8]> for FullMerklePath {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_raw_slice()
+    }
+}
 
 impl MerklePath {
     fn sibling(&self) -> Self {
@@ -34,6 +84,12 @@ impl MerklePath {
 }
 
 type NodeWithPath = (MerklePath, MerkleNode);
+
+struct MerkleDB {
+    nodes: CachedDB<MerklePath, MerkleNode>,
+    leaf_paths: CachedDB<FullMerklePath, MerklePath>,
+    root: MerkleRoot,
+}
 
 struct MerkleCache {
     map: HashMap<MerklePath, MerkleNode>,
