@@ -1295,9 +1295,11 @@ name = "fr-state-merkle-v2"
 version = "0.1.12"
 dependencies = [
  "bitvec",
+ "fr-codec",
  "fr-common",
  "fr-db",
  "fr-state",
+ "thiserror 2.0.16",
 ]
 
 [[package]]

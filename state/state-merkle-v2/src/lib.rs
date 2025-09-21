@@ -2,10 +2,14 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-use fr_common::{MerkleRoot, NodeHash, StateKey};
+mod utils;
+
+use fr_codec::prelude::*;
+use fr_common::{Hash32, MerkleRoot, NodeHash, StateKey};
 use std::cmp::Ordering;
 // FIXME: Make `fr-state` depend on `fr-state-merkle-v2`
-use bitvec::prelude::*;
+use crate::utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash, slice_bitvec};
+use bitvec::{macros::internal::funty::Fundamental, prelude::*};
 use fr_db::core::{
     cached_db::{CacheItem, CachedDB},
     core_db::CoreDB,
@@ -16,26 +20,158 @@ use std::{
     ops::Deref,
     sync::Arc,
 };
+use thiserror::Error;
 
-#[derive(Clone)]
-struct MerkleNode {
-    hash: NodeHash,
-    data: Vec<u8>,
+/// Merkle node data size in bits.
+pub const NODE_SIZE_BITS: usize = 512;
+
+#[derive(Debug, Error)]
+enum StateMerkleError {
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
+    #[error("Invalid node type with hash")]
+    InvalidNodeType,
+    #[error("Invalid byte length")]
+    InvalidByteLength(usize),
+    #[error("Invalid BitVec slice range")]
+    InvalidBitVecSliceRange,
+    #[error("Invalid node data length")]
+    InvalidNodeDataLength(usize),
+}
+
+#[derive(Clone, Debug)]
+enum LeafNodeData {
+    Embedded(Vec<u8>),
+    Regular(Hash32),
+}
+
+#[derive(Clone, Debug)]
+struct LeafNode {
+    state_key_bv: BitVec<u8, Msb0>,
+    data: LeafNodeData,
+}
+
+impl LeafNode {
+    fn encode(&self) -> Result<Vec<u8>, StateMerkleError> {
+        let mut node = bitvec![u8, Msb0; 1]; // Indicator for leaf node
+        match &self.data {
+            LeafNodeData::Embedded(state_val) => {
+                node.push(false); // Indicator for embedded leaf
+                let lengths_bits = bits_encode_msb(&state_val.len().encode_fixed(1)?); // 8 bits
+
+                node.extend(slice_bitvec(&lengths_bits, 2..)?);
+                node.extend(self.state_key_bv.clone());
+                node.extend(bits_encode_msb(state_val));
+
+                while node.len() < NODE_SIZE_BITS {
+                    node.push(false); // zero padding for the remaining bits
+                }
+            }
+            LeafNodeData::Regular(state_hash) => {
+                node.push(true); // Indicator for regular leaf
+                node.extend(bitvec![u8, Msb0; 0, 0, 0, 0, 0, 0]); // zero padding
+                node.extend(bits_encode_msb(state_hash.as_slice()));
+            }
+        }
+
+        Ok(bits_decode_msb(node))
+    }
+
+    fn decode(val: &[u8]) -> Result<Self, StateMerkleError> {
+        let node_data_bv = bits_encode_msb(val);
+        let state_key_bv = slice_bitvec(&node_data_bv, 8..256)?.to_bitvec();
+        let first_bit = node_data_bv.get(0).map(|b| *b);
+        let second_bit = node_data_bv.get(1).map(|b| *b);
+
+        match (first_bit, second_bit) {
+            (Some(true), Some(true)) => {
+                // Regular Leaf
+                let val_hash_bv = slice_bitvec(&node_data_bv, 256..)?.to_bitvec();
+                Ok(Self {
+                    state_key_bv,
+                    data: LeafNodeData::Regular(bitvec_to_hash(val_hash_bv)?),
+                })
+            }
+            (Some(true), Some(false)) => {
+                // Embedded Leaf
+                // Pad the leading 2 bits with zeros (which were dropped while encoding)
+                let mut length_bits_padded = bitvec![u8, Msb0; 0, 0];
+                length_bits_padded.extend(slice_bitvec(&node_data_bv, 2..8)?);
+                let val_len_decoded =
+                    u8::decode_fixed(&mut bits_decode_msb(length_bits_padded).as_slice(), 1)?;
+                let val_len_in_bits = (val_len_decoded as usize) * 8;
+                let val_end_bit = 256 + val_len_in_bits;
+                let val =
+                    bits_decode_msb(slice_bitvec(&node_data_bv, 256..val_end_bit)?.to_bitvec());
+
+                Ok(Self {
+                    state_key_bv,
+                    data: LeafNodeData::Embedded(val),
+                })
+            }
+            _ => Err(StateMerkleError::InvalidNodeType),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct BranchNode {
+    left_lossy: BitVec<u8, Msb0>,
+    right: BitVec<u8, Msb0>,
+}
+
+impl BranchNode {
+    fn encode(&self) -> Result<Vec<u8>, StateMerkleError> {
+        let mut node_data = bitvec![u8, Msb0; 0]; // Indicator for branch node
+        let left_255_bv = slice_bitvec(&self.left_lossy, 1..)?.to_bitvec();
+        node_data.extend(left_255_bv);
+        node_data.extend(self.right.clone());
+        Ok(bits_decode_msb(node_data))
+    }
+
+    fn decode(val: &[u8]) -> Result<Self, StateMerkleError> {
+        // check node data length
+        let len = val.len();
+        if len != 64 {
+            return Err(StateMerkleError::InvalidNodeDataLength(len));
+        }
+
+        let bv = bits_encode_msb(val);
+        let first_bit = bv.get(0).unwrap();
+
+        // ensure the node data represents a branch node
+        if first_bit.as_bool() {
+            return Err(StateMerkleError::InvalidNodeType);
+        }
+
+        let mut left_lossy = slice_bitvec(&bv, 1..=255)?.to_bitvec();
+        left_lossy.insert(0, false); // Push an arbitrary bit (0)
+        let right = slice_bitvec(&bv, 256..)?.to_bitvec();
+
+        Ok(Self { left_lossy, right })
+    }
+}
+
+#[derive(Clone, Debug)]
+enum MerkleNode {
+    Leaf(LeafNode),
+    Branch(BranchNode),
 }
 
 impl CacheItem for MerkleNode {
     fn into_db_value(self) -> Vec<u8> {
-        self.data
+        match self {
+            Self::Leaf(leaf) => leaf.encode().expect("Failed to encode Leaf MerkleNode"),
+            Self::Branch(branch) => branch.encode().expect("Failed to encode Branch MerkleNode"),
+        }
     }
 
-    fn from_db_kv(key: &[u8], val: Vec<u8>) -> Self
+    fn from_db_kv(_key: &[u8], _val: Vec<u8>) -> Self
     where
         Self: Sized,
     {
-        Self {
-            hash: NodeHash::try_from(key).expect("Hash length mismatch"),
-            data: val,
-        }
+        // TODO: determine node kind (leaf / branch) efficiently
+        unimplemented!()
     }
 }
 
@@ -49,19 +185,6 @@ struct MerklePath(BitVec<u8, Msb0>);
 impl AsRef<[u8]> for MerklePath {
     fn as_ref(&self) -> &[u8] {
         self.0.as_raw_slice()
-    }
-}
-
-impl CacheItem for MerklePath {
-    fn into_db_value(self) -> Vec<u8> {
-        self.0.into_vec()
-    }
-
-    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self
-    where
-        Self: Sized,
-    {
-        Self(BitVec::from_vec(val))
     }
 }
 
@@ -91,7 +214,7 @@ type NodeWithPath = (MerklePath, MerkleNode);
 
 struct MerkleDB {
     nodes: CachedDB<MerklePath, MerkleNode>,
-    leaf_paths: CachedDB<FullMerklePath, MerklePath>,
+    leaf_nodes: CachedDB<FullMerklePath, MerkleNode>,
     root: MerkleRoot,
 }
 
@@ -99,7 +222,7 @@ impl MerkleDB {
     fn new(core: Arc<CoreDB>, cf_name: &'static str, cache_size: usize) -> Self {
         Self {
             nodes: CachedDB::new(core.clone(), cf_name, cache_size),
-            leaf_paths: CachedDB::new(core, "merkle_leaf_paths", cache_size), // FIXME
+            leaf_nodes: CachedDB::new(core.clone(), "leaf_nodes", cache_size), // FIXME cf name
             root: MerkleRoot::default(),
         }
     }
@@ -168,20 +291,20 @@ mod tests {
 
     #[test]
     fn test_merkle_path_sibling() {
-        let path = MerklePath(BitVec::from_iter(vec![true, false, true, true]));
+        let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
         let sibling = path.sibling();
-        let sibling_expected = MerklePath(BitVec::from_iter(vec![true, false, true, false]));
+        let sibling_expected = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 0]);
         assert_eq!(sibling, sibling_expected);
     }
 
     #[test]
     fn test_affected_paths_sorting() {
         let paths = HashSet::from_iter(vec![
-            MerklePath(BitVec::from_iter(vec![true, false, true, true])), // BitVec(1011)
-            MerklePath(BitVec::from_iter(vec![true, false, true, true, true])), // BitVec(10111)
-            MerklePath(BitVec::from_iter(vec![true])),                    // BitVec(1)
-            MerklePath(BitVec::from_iter(vec![true, false, true, false, true])), // BitVec(10101)
-            MerklePath(BitVec::from_iter(vec![true, false])),             // BitVec(10)
+            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]),
+            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 1]),
+            MerklePath(bitvec![u8, Msb0; 1]),
+            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 0, 1]),
+            MerklePath(bitvec![u8, Msb0; 1, 0]),
         ]);
 
         let merkle_cache = MerkleCache {
@@ -191,19 +314,22 @@ mod tests {
         let paths_sorted = merkle_cache.affected_paths_as_sorted_vec();
 
         let paths_sorted_expected = vec![
-            MerklePath(BitVec::from_iter(vec![true, false, true, true, true])), // BitVec(10111)
-            MerklePath(BitVec::from_iter(vec![true, false, true, false, true])), // BitVec(10101)
-            MerklePath(BitVec::from_iter(vec![true, false, true, true])),       // BitVec(1011)
-            MerklePath(BitVec::from_iter(vec![true, false])),                   // BitVec(10)
-            MerklePath(BitVec::from_iter(vec![true])),                          // BitVec(1)
+            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 1]),
+            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 0, 1]),
+            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]),
+            MerklePath(bitvec![u8, Msb0; 1, 0]),
+            MerklePath(bitvec![u8, Msb0; 1]),
         ];
         assert_eq!(paths_sorted, paths_sorted_expected);
     }
 
     #[test]
     fn test_get_affected_paths() {
-        let path = MerklePath(BitVec::from_iter(vec![true, false, true, true])); // BitVec(1011)
+        let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
         let affected_paths = get_affected_paths(path);
         assert_eq!(affected_paths.len(), 4);
     }
+
+    #[test]
+    fn test_branch_encode() {}
 }

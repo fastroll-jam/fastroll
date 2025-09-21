@@ -7,7 +7,9 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-db = { workspace = true }
 fr-state = { workspace = true }
 bitvec = { version = "1.0.1", features = ["serde"] }
+thiserror = { workspace = true }
