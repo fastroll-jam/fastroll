@@ -8,6 +8,7 @@ use std::{
 
 type NodeWithPath = (MerklePath, MerkleNode);
 
+// TODO: Concurrency
 struct MerkleCache {
     map: HashMap<MerklePath, MerkleNode>,
     affected_paths: HashSet<MerklePath>,
@@ -42,11 +43,14 @@ fn dirty_state_cache_entries_to_node_with_paths(
 ) -> Vec<NodeWithPath> {
     dirty_entries
         .iter()
-        .map(|(_s, entry)| dirty_state_cache_entry_to_node_with_path(entry))
+        .map(|(state_key, entry)| dirty_state_cache_entry_to_node_with_path(state_key, entry))
         .collect()
 }
 
-fn dirty_state_cache_entry_to_node_with_path(dirty_entry: &CacheEntry) -> NodeWithPath {
+fn dirty_state_cache_entry_to_node_with_path(
+    _state_key: &StateKey,
+    dirty_entry: &CacheEntry,
+) -> NodeWithPath {
     if let CacheEntryStatus::Dirty(state_mut) = &dirty_entry.status {
         match state_mut {
             StateMut::Add => {}

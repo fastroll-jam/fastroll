@@ -36,21 +36,6 @@ pub(crate) struct LeafNode {
     data: LeafNodeData,
 }
 
-// TODO: Error propagation
-impl CacheItem for LeafNode {
-    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
-        Ok(self.encode().expect("Failed to encode Leaf MerkleNode"))
-    }
-
-    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
-    where
-        Self: Sized,
-    {
-        let node_data_bv = bits_encode_msb(val.as_slice());
-        Ok(Self::decode(&node_data_bv).expect("Failed to decode Leaf node"))
-    }
-}
-
 impl LeafNode {
     pub(crate) fn new(state_key_bv: BitVec<u8, Msb0>, data: LeafNodeData) -> Self {
         Self { state_key_bv, data }
@@ -183,7 +168,7 @@ pub(crate) enum MerkleNode {
 impl CacheItem for MerkleNode {
     fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
         match self {
-            Self::Leaf(leaf) => leaf.into_db_value(),
+            Self::Leaf(leaf) => Ok(leaf.encode().expect("Failed to encode Leaf MerkleNode")),
             Self::Branch(branch) => {
                 Ok(branch.encode().expect("Failed to encode Branch MerkleNode"))
             }
@@ -228,6 +213,19 @@ pub(crate) struct MerklePath(pub(crate) BitVec<u8, Msb0>);
 impl AsRef<[u8]> for MerklePath {
     fn as_ref(&self) -> &[u8] {
         self.0.as_raw_slice()
+    }
+}
+
+impl CacheItem for MerklePath {
+    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
+        Ok(bits_decode_msb(self.0))
+    }
+
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self(bits_encode_msb(val.as_slice())))
     }
 }
 
