@@ -77,9 +77,13 @@ impl LeafNode {
         Ok(bits_decode_msb(node))
     }
 
-    fn decode(val: &[u8]) -> Result<Self, StateMerkleError> {
-        let node_data_bv = bits_encode_msb(val);
-        let state_key_bv = slice_bitvec(&node_data_bv, 8..256)?.to_bitvec();
+    fn decode(node_data_bv: BitVec<u8, Msb0>) -> Result<Self, StateMerkleError> {
+        // check node data length
+        let len = node_data_bv.len();
+        if len != NODE_SIZE_BITS {
+            return Err(StateMerkleError::InvalidNodeDataLength(len));
+        }
+
         let first_bit = node_data_bv.get(0).map(|b| *b);
         let second_bit = node_data_bv.get(1).map(|b| *b);
 
@@ -87,6 +91,7 @@ impl LeafNode {
             (Some(true), Some(true)) => {
                 // Regular Leaf
                 let val_hash_bv = slice_bitvec(&node_data_bv, 256..)?.to_bitvec();
+                let state_key_bv = slice_bitvec(&node_data_bv, 8..256)?.to_bitvec();
                 Ok(Self {
                     state_key_bv,
                     data: LeafNodeData::Regular(bitvec_to_hash(val_hash_bv)?),
@@ -103,6 +108,7 @@ impl LeafNode {
                 let val_end_bit = 256 + val_len_in_bits;
                 let val =
                     bits_decode_msb(slice_bitvec(&node_data_bv, 256..val_end_bit)?.to_bitvec());
+                let state_key_bv = slice_bitvec(&node_data_bv, 8..256)?.to_bitvec();
 
                 Ok(Self {
                     state_key_bv,
@@ -129,24 +135,23 @@ impl BranchNode {
         Ok(bits_decode_msb(node_data))
     }
 
-    fn decode(val: &[u8]) -> Result<Self, StateMerkleError> {
+    fn decode(node_data_bv: BitVec<u8, Msb0>) -> Result<Self, StateMerkleError> {
         // check node data length
-        let len = val.len();
-        if len != 64 {
+        let len = node_data_bv.len();
+        if len != NODE_SIZE_BITS {
             return Err(StateMerkleError::InvalidNodeDataLength(len));
         }
 
-        let bv = bits_encode_msb(val);
-        let first_bit = bv.get(0).unwrap();
+        let first_bit = node_data_bv.get(0).unwrap();
 
         // ensure the node data represents a branch node
         if first_bit.as_bool() {
             return Err(StateMerkleError::InvalidNodeType);
         }
 
-        let mut left_lossy = slice_bitvec(&bv, 1..=255)?.to_bitvec();
+        let mut left_lossy = slice_bitvec(&node_data_bv, 1..=255)?.to_bitvec();
         left_lossy.insert(0, false); // Push an arbitrary bit (0)
-        let right = slice_bitvec(&bv, 256..)?.to_bitvec();
+        let right = slice_bitvec(&node_data_bv, 256..)?.to_bitvec();
 
         Ok(Self { left_lossy, right })
     }
@@ -166,12 +171,29 @@ impl CacheItem for MerkleNode {
         }
     }
 
-    fn from_db_kv(_key: &[u8], _val: Vec<u8>) -> Self
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self
     where
         Self: Sized,
     {
-        // TODO: determine node kind (leaf / branch) efficiently
-        unimplemented!()
+        let node_data_bv = bits_encode_msb(val.as_slice());
+        let first_bit = node_data_bv.get(0).map(|b| *b);
+        let second_bit = node_data_bv.get(1).map(|b| *b);
+
+        match (first_bit, second_bit) {
+            (Some(true), _) => {
+                // Leaf Node
+                Self::Leaf(LeafNode::decode(node_data_bv).expect("Failed to decode Leaf node"))
+            }
+            (Some(false), _) => {
+                // Branch Node
+                Self::Branch(
+                    BranchNode::decode(node_data_bv).expect("Failed to decode Branch node"),
+                )
+            }
+            _ => {
+                panic!("Invalid node data")
+            }
+        }
     }
 }
 
