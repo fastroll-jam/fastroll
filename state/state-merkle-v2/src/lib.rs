@@ -5,7 +5,7 @@
 mod utils;
 
 use fr_codec::prelude::*;
-use fr_common::{Hash32, MerkleRoot, NodeHash, StateKey};
+use fr_common::{ByteEncodable, Hash32, MerkleRoot, NodeHash, StateHash, StateKey};
 use std::cmp::Ordering;
 // FIXME: Make `fr-state` depend on `fr-state-merkle-v2`
 use crate::utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash, slice_bitvec};
@@ -39,13 +39,13 @@ enum StateMerkleError {
     InvalidNodeDataLength(usize),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum LeafNodeData {
     Embedded(Vec<u8>),
     Regular(Hash32),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct LeafNode {
     state_key_bv: BitVec<u8, Msb0>,
     data: LeafNodeData,
@@ -70,6 +70,7 @@ impl LeafNode {
             LeafNodeData::Regular(state_hash) => {
                 node.push(true); // Indicator for regular leaf
                 node.extend(bitvec![u8, Msb0; 0, 0, 0, 0, 0, 0]); // zero padding
+                node.extend(self.state_key_bv.clone());
                 node.extend(bits_encode_msb(state_hash.as_slice()));
             }
         }
@@ -77,7 +78,7 @@ impl LeafNode {
         Ok(bits_decode_msb(node))
     }
 
-    fn decode(node_data_bv: BitVec<u8, Msb0>) -> Result<Self, StateMerkleError> {
+    fn decode(node_data_bv: &BitVec<u8, Msb0>) -> Result<Self, StateMerkleError> {
         // check node data length
         let len = node_data_bv.len();
         if len != NODE_SIZE_BITS {
@@ -90,8 +91,8 @@ impl LeafNode {
         match (first_bit, second_bit) {
             (Some(true), Some(true)) => {
                 // Regular Leaf
-                let val_hash_bv = slice_bitvec(&node_data_bv, 256..)?.to_bitvec();
-                let state_key_bv = slice_bitvec(&node_data_bv, 8..256)?.to_bitvec();
+                let val_hash_bv = slice_bitvec(node_data_bv, 256..)?.to_bitvec();
+                let state_key_bv = slice_bitvec(node_data_bv, 8..256)?.to_bitvec();
                 Ok(Self {
                     state_key_bv,
                     data: LeafNodeData::Regular(bitvec_to_hash(val_hash_bv)?),
@@ -101,14 +102,14 @@ impl LeafNode {
                 // Embedded Leaf
                 // Pad the leading 2 bits with zeros (which were dropped while encoding)
                 let mut length_bits_padded = bitvec![u8, Msb0; 0, 0];
-                length_bits_padded.extend(slice_bitvec(&node_data_bv, 2..8)?);
+                length_bits_padded.extend(slice_bitvec(node_data_bv, 2..8)?);
                 let val_len_decoded =
                     u8::decode_fixed(&mut bits_decode_msb(length_bits_padded).as_slice(), 1)?;
                 let val_len_in_bits = (val_len_decoded as usize) * 8;
                 let val_end_bit = 256 + val_len_in_bits;
                 let val =
-                    bits_decode_msb(slice_bitvec(&node_data_bv, 256..val_end_bit)?.to_bitvec());
-                let state_key_bv = slice_bitvec(&node_data_bv, 8..256)?.to_bitvec();
+                    bits_decode_msb(slice_bitvec(node_data_bv, 256..val_end_bit)?.to_bitvec());
+                let state_key_bv = slice_bitvec(node_data_bv, 8..256)?.to_bitvec();
 
                 Ok(Self {
                     state_key_bv,
@@ -120,22 +121,23 @@ impl LeafNode {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct BranchNode {
+    /// 255-bit left child node hash value, with the first bit dropped.  
     left_lossy: BitVec<u8, Msb0>,
+    /// The right child node hash value.
     right: BitVec<u8, Msb0>,
 }
 
 impl BranchNode {
     fn encode(&self) -> Result<Vec<u8>, StateMerkleError> {
         let mut node_data = bitvec![u8, Msb0; 0]; // Indicator for branch node
-        let left_255_bv = slice_bitvec(&self.left_lossy, 1..)?.to_bitvec();
-        node_data.extend(left_255_bv);
+        node_data.extend(self.left_lossy.clone());
         node_data.extend(self.right.clone());
         Ok(bits_decode_msb(node_data))
     }
 
-    fn decode(node_data_bv: BitVec<u8, Msb0>) -> Result<Self, StateMerkleError> {
+    fn decode(node_data_bv: &BitVec<u8, Msb0>) -> Result<Self, StateMerkleError> {
         // check node data length
         let len = node_data_bv.len();
         if len != NODE_SIZE_BITS {
@@ -145,13 +147,12 @@ impl BranchNode {
         let first_bit = node_data_bv.get(0).unwrap();
 
         // ensure the node data represents a branch node
-        if first_bit.as_bool() {
+        if *first_bit {
             return Err(StateMerkleError::InvalidNodeType);
         }
 
-        let mut left_lossy = slice_bitvec(&node_data_bv, 1..=255)?.to_bitvec();
-        left_lossy.insert(0, false); // Push an arbitrary bit (0)
-        let right = slice_bitvec(&node_data_bv, 256..)?.to_bitvec();
+        let left_lossy = slice_bitvec(node_data_bv, 1..=255)?.to_bitvec();
+        let right = slice_bitvec(node_data_bv, 256..)?.to_bitvec();
 
         Ok(Self { left_lossy, right })
     }
@@ -186,13 +187,13 @@ impl CacheItem for MerkleNode {
             (Some(true), _) => {
                 // Leaf Node
                 Ok(Self::Leaf(
-                    LeafNode::decode(node_data_bv).expect("Failed to decode Leaf node"),
+                    LeafNode::decode(&node_data_bv).expect("Failed to decode Leaf node"),
                 ))
             }
             (Some(false), _) => {
                 // Branch Node
                 Ok(Self::Branch(
-                    BranchNode::decode(node_data_bv).expect("Failed to decode Branch node"),
+                    BranchNode::decode(&node_data_bv).expect("Failed to decode Branch node"),
                 ))
             }
             _ => {
@@ -215,6 +216,39 @@ impl AsRef<[u8]> for MerklePath {
     }
 }
 
+impl MerklePath {
+    fn sibling(&self) -> Option<Self> {
+        if self.0.is_empty() {
+            return None;
+        }
+        let mut sibling = self.clone();
+        let last_bit = sibling
+            .0
+            .pop()
+            .expect("MerklePath BitVec should not be empty");
+        sibling.0.push(!last_bit);
+        Some(sibling)
+    }
+
+    fn left_child(&self) -> Option<Self> {
+        if self.0.len() >= NODE_SIZE_BITS {
+            return None;
+        }
+        let mut left_child = self.clone();
+        left_child.0.push(false);
+        Some(left_child)
+    }
+
+    fn right_child(&self) -> Option<Self> {
+        if self.0.len() >= NODE_SIZE_BITS {
+            return None;
+        }
+        let mut right_child = self.clone();
+        right_child.0.push(true);
+        Some(right_child)
+    }
+}
+
 /// A bit vector representing the path from the merkle root to a node.
 ///
 /// Unlike `MerklePath`, this exactly matches with the bit vector representation of state keys
@@ -225,15 +259,6 @@ struct FullMerklePath(BitVec<u8, Msb0>);
 impl AsRef<[u8]> for FullMerklePath {
     fn as_ref(&self) -> &[u8] {
         self.0.as_raw_slice()
-    }
-}
-
-impl MerklePath {
-    fn sibling(&self) -> Self {
-        let mut sibling = self.clone();
-        let last_bit = sibling.0.pop().unwrap();
-        sibling.0.push(!last_bit);
-        sibling
     }
 }
 
@@ -320,8 +345,24 @@ mod tests {
     fn test_merkle_path_sibling() {
         let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
         let sibling = path.sibling();
-        let sibling_expected = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 0]);
+        let sibling_expected = Some(MerklePath(bitvec![u8, Msb0; 1, 0, 1, 0]));
         assert_eq!(sibling, sibling_expected);
+    }
+
+    #[test]
+    fn test_merkle_path_left_child() {
+        let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
+        let left_child = path.left_child();
+        let left_child_expected = Some(MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0]));
+        assert_eq!(left_child, left_child_expected);
+    }
+
+    #[test]
+    fn test_merkle_path_rightt_child() {
+        let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
+        let right_child = path.right_child();
+        let right_child_expected = Some(MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 1]));
+        assert_eq!(right_child, right_child_expected);
     }
 
     #[test]
@@ -355,8 +396,66 @@ mod tests {
         let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
         let affected_paths = get_affected_paths(path);
         assert_eq!(affected_paths.len(), 4);
+        assert!(affected_paths.contains(&MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1])));
+        assert!(affected_paths.contains(&MerklePath(bitvec![u8, Msb0; 1, 0, 1])));
+        assert!(affected_paths.contains(&MerklePath(bitvec![u8, Msb0; 1, 0])));
+        assert!(affected_paths.contains(&MerklePath(bitvec![u8, Msb0; 1])));
     }
 
     #[test]
-    fn test_branch_encode() {}
+    fn test_branch_encode_decode() {
+        let left_bv = bits_encode_msb(&[0xAA; 32]);
+        let right_bv = bits_encode_msb(&[0xBB; 32]);
+
+        let branch_node = BranchNode {
+            left_lossy: slice_bitvec(&left_bv, 1..).unwrap().to_bitvec(),
+            right: right_bv,
+        };
+
+        let encoded = branch_node.encode().unwrap();
+        assert_eq!(encoded.len(), NODE_SIZE_BITS / 8);
+
+        let encoded_bv = bits_encode_msb(encoded.as_slice());
+        let decoded = BranchNode::decode(&encoded_bv).unwrap();
+
+        assert_eq!(branch_node, decoded);
+    }
+
+    #[test]
+    fn test_embedded_leaf_encode_decode() {
+        let state_key_bv = bits_encode_msb(&[0xAA; 31]);
+        let state_val = vec![0xFFu8; 32];
+
+        let leaf_node = LeafNode {
+            state_key_bv,
+            data: LeafNodeData::Embedded(state_val),
+        };
+
+        let encoded = leaf_node.encode().unwrap();
+        assert_eq!(encoded.len(), NODE_SIZE_BITS / 8);
+
+        let encoded_bv = bits_encode_msb(encoded.as_slice());
+        let decoded = LeafNode::decode(&encoded_bv).unwrap();
+
+        assert_eq!(leaf_node, decoded);
+    }
+
+    #[test]
+    fn test_regular_leaf_encode_decode() {
+        let state_key_bv = bits_encode_msb(&[0xAA; 31]);
+        let state_hash = StateHash::from_slice(&[0xBB; 32]).unwrap();
+
+        let leaf_node = LeafNode {
+            state_key_bv,
+            data: LeafNodeData::Regular(state_hash),
+        };
+
+        let encoded = leaf_node.encode().unwrap();
+        assert_eq!(encoded.len(), NODE_SIZE_BITS / 8);
+
+        let encoded_bv = bits_encode_msb(encoded.as_slice());
+        let decoded = LeafNode::decode(&encoded_bv).unwrap();
+
+        assert_eq!(leaf_node, decoded);
+    }
 }
