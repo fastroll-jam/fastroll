@@ -66,6 +66,7 @@ impl MerkleManager {
                             dirty_entry,
                         )?;
                     // `StateMut::Update` case updates 1 merkle node entry
+                    self.merkle_cache.extend_affected_paths(&leaf_path);
                     let _replaced = self.merkle_cache.insert(leaf_path, MerkleNode::Leaf(leaf));
                     if let Some(state_db_write) = maybe_state_db_write {
                         self.merkle_cache.insert_state_db_write(state_db_write);

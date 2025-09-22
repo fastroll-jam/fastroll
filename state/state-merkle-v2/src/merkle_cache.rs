@@ -33,7 +33,10 @@ impl MerkleCache {
         self.map.insert(merkle_path, Some(node)).flatten()
     }
 
-    pub(crate) fn extend_affected_paths(&mut self, affected_paths: Vec<MerklePath>) {
+    /// Extends `affected_paths` set with all paths that are affected by mutating
+    /// a node at the given merkle path.
+    pub(crate) fn extend_affected_paths(&mut self, merkle_path: &MerklePath) {
+        let affected_paths = merkle_path.all_paths_to_root();
         self.affected_paths.extend(affected_paths);
     }
 
