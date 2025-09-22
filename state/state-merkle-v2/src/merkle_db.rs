@@ -1,4 +1,4 @@
-use crate::types::{MerkleNode, MerklePath, StateMerkleError};
+use crate::types::{LeafNode, MerkleNode, MerklePath, StateMerkleError};
 use fr_common::{MerkleRoot, StateKey};
 use fr_db::{
     core::{cached_db::CachedDB, core_db::CoreDB},
@@ -41,11 +41,23 @@ impl MerkleDB {
         Ok(self.nodes.get_entry(merkle_path).await?)
     }
 
-    pub(crate) async fn get_leaf_path(
+    async fn get_leaf_path(
         &self,
         state_key: &StateKey,
     ) -> Result<Option<MerklePath>, StateMerkleError> {
         Ok(self.leaf_paths.get_entry(state_key).await?)
+    }
+
+    pub(crate) async fn get_leaf(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<Option<LeafNode>, StateMerkleError> {
+        if let Some(leaf_merkle_path) = self.get_leaf_path(state_key).await? {
+            if let Some(MerkleNode::Leaf(leaf)) = self.get(&leaf_merkle_path).await? {
+                return Ok(Some(leaf));
+            }
+        }
+        Ok(None)
     }
 
     pub(crate) async fn put(
@@ -56,12 +68,25 @@ impl MerkleDB {
         Ok(self.nodes.put_entry(merkle_path, node).await?)
     }
 
-    pub(crate) async fn put_leaf_path(
+    async fn put_leaf_path(
         &self,
         state_key: &StateKey,
         leaf_path: MerklePath,
     ) -> Result<(), StateMerkleError> {
         Ok(self.leaf_paths.put_entry(state_key, leaf_path).await?)
+    }
+
+    pub(crate) async fn put_leaf(
+        &self,
+        state_key: &StateKey,
+        leaf_path: MerklePath,
+        leaf_node: LeafNode,
+    ) -> Result<(), StateMerkleError> {
+        self.nodes
+            .put_entry(&leaf_path, MerkleNode::Leaf(leaf_node))
+            .await?;
+        self.leaf_paths.put_entry(state_key, leaf_path).await?;
+        Ok(())
     }
 
     /// Commit write batches for node entries and leaf node entries into the MerkleDB.
@@ -136,24 +161,18 @@ mod tests {
         let state_key_bv = bits_encode_msb(state_key.as_slice());
 
         let leaf_path = MerklePath(bitvec![u8, Msb0; 0, 1, 1, 1]);
-        let leaf_node = MerkleNode::Leaf(LeafNode::new(
-            state_key_bv,
-            LeafNodeData::Regular(Hash32::new([0xDD; 32])),
-        ));
+        let leaf_node = LeafNode::new(state_key_bv, LeafNodeData::Regular(Hash32::new([0xDD; 32])));
 
-        assert_eq!(merkle_db.get_leaf_path(&state_key).await.unwrap(), None);
-        assert_eq!(merkle_db.get(&leaf_path).await.unwrap(), None);
+        assert_eq!(merkle_db.get_leaf(&state_key).await.unwrap(), None);
 
         merkle_db
-            .put_leaf_path(&state_key, leaf_path.clone())
+            .put_leaf(&state_key, leaf_path, leaf_node.clone())
             .await
             .unwrap();
-        merkle_db.put(&leaf_path, leaf_node.clone()).await.unwrap();
 
         assert_eq!(
-            merkle_db.get_leaf_path(&state_key).await.unwrap(),
-            Some(leaf_path.clone())
+            merkle_db.get_leaf(&state_key).await.unwrap(),
+            Some(leaf_node)
         );
-        assert_eq!(merkle_db.get(&leaf_path).await.unwrap(), Some(leaf_node));
     }
 }
