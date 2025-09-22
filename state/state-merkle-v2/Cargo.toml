@@ -13,8 +13,6 @@ fr-crypto = { workspace = true }
 fr-db = { workspace = true }
 fr-state = { workspace = true }
 bitvec = { version = "1.0.1", features = ["serde"] }
-dashmap = { workspace = true }
-futures = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

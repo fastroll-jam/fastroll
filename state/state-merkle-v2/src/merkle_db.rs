@@ -4,12 +4,12 @@ use fr_db::{
     core::{cached_db::CachedDB, core_db::CoreDB},
     WriteBatch,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub(crate) struct MerkleDB {
     nodes: CachedDB<MerklePath, MerkleNode>,
     leaf_paths: CachedDB<StateKey, MerklePath>,
-    root: Mutex<MerkleRoot>,
+    root: MerkleRoot,
 }
 
 impl MerkleDB {
@@ -22,16 +22,16 @@ impl MerkleDB {
         Self {
             nodes: CachedDB::new(core.clone(), nodes_cf_name, cache_size),
             leaf_paths: CachedDB::new(core.clone(), leaf_paths_cf_name, cache_size),
-            root: Mutex::new(MerkleRoot::default()),
+            root: MerkleRoot::default(),
         }
     }
 
-    pub(crate) fn root(&self) -> MerkleRoot {
-        self.root.lock().unwrap().clone()
+    pub(crate) fn root(&self) -> &MerkleRoot {
+        &self.root
     }
 
-    pub(crate) fn update_root(&self, new_root: MerkleRoot) {
-        *self.root.lock().unwrap() = new_root;
+    pub(crate) fn update_root(&mut self, new_root: MerkleRoot) {
+        self.root = new_root;
     }
 
     pub(crate) async fn get(

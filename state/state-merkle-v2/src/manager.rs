@@ -8,7 +8,6 @@ use fr_codec::prelude::*;
 use fr_common::{StateKey, HASH_SIZE};
 use fr_crypto::{hash, Blake2b256};
 use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
-use futures::future::join_all;
 
 pub(crate) struct MerkleManager {
     merkle_db: MerkleDB,
@@ -39,18 +38,18 @@ impl MerkleManager {
     }
 
     async fn insert_dirty_cache_entries_as_db_writes(
-        &self,
+        &mut self,
         dirty_entries: &[(StateKey, CacheEntry)],
     ) -> Result<(), StateMerkleError> {
-        let futures = dirty_entries
-            .iter()
-            .map(|(state_key, entry)| self.insert_dirty_cache_entry_as_db_write(state_key, entry));
-        let results = join_all(futures).await;
-        results.into_iter().collect()
+        for (state_key, entry) in dirty_entries {
+            self.insert_dirty_cache_entry_as_db_write(state_key, entry)
+                .await?;
+        }
+        Ok(())
     }
 
     async fn insert_dirty_cache_entry_as_db_write(
-        &self,
+        &mut self,
         state_key: &StateKey,
         dirty_entry: &CacheEntry,
     ) -> Result<(), StateMerkleError> {

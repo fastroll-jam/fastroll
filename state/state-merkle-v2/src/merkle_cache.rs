@@ -1,7 +1,9 @@
 use crate::types::{MerkleNode, MerklePath};
-use dashmap::{DashMap, DashSet};
 use fr_common::{StateHash, StateKey};
-use std::{cmp::Ordering, sync::Mutex};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+};
 
 pub(crate) type StateDBWrite = (StateHash, Vec<u8>);
 pub(crate) type MerkleDBNodesWrite = (MerklePath, MerkleNode);
@@ -16,45 +18,48 @@ struct DBWriteSet {
 
 pub(crate) struct MerkleCache {
     /// Represents posterior state of merkle nodes after commiting dirty cache entries.
-    map: DashMap<MerklePath, Option<MerkleNode>>,
+    map: HashMap<MerklePath, Option<MerkleNode>>,
     /// A set of merkle paths that are affected by dirty cache commitment.
-    affected_paths: DashSet<MerklePath>,
-    db_write_set: Mutex<DBWriteSet>,
+    affected_paths: HashSet<MerklePath>,
+    db_write_set: DBWriteSet,
 }
 
 impl MerkleCache {
-    pub(crate) fn insert(&self, merkle_path: MerklePath, node: MerkleNode) -> Option<MerkleNode> {
+    pub(crate) fn insert(
+        &mut self,
+        merkle_path: MerklePath,
+        node: MerkleNode,
+    ) -> Option<MerkleNode> {
         self.map.insert(merkle_path, Some(node)).flatten()
     }
 
-    pub(crate) fn clear(&self) {
+    pub(crate) fn extend_affected_paths(&mut self, affected_paths: Vec<MerklePath>) {
+        self.affected_paths.extend(affected_paths);
+    }
+
+    pub(crate) fn clear(&mut self) {
         self.map.clear();
         self.affected_paths.clear();
     }
 
-    pub(crate) fn insert_state_db_write(&self, state_db_write: StateDBWrite) {
-        self.db_write_set
-            .lock()
-            .unwrap()
-            .state_db_write_set
-            .push(state_db_write);
+    pub(crate) fn insert_state_db_write(&mut self, state_db_write: StateDBWrite) {
+        self.db_write_set.state_db_write_set.push(state_db_write);
     }
 
-    pub(crate) fn insert_merkle_db_nodes_write(&self, merkle_db_nodes_write: MerkleDBNodesWrite) {
+    pub(crate) fn insert_merkle_db_nodes_write(
+        &mut self,
+        merkle_db_nodes_write: MerkleDBNodesWrite,
+    ) {
         self.db_write_set
-            .lock()
-            .unwrap()
             .merkle_db_nodes_write_set
             .push(merkle_db_nodes_write);
     }
 
     pub(crate) fn insert_merkle_db_leaf_paths_write(
-        &self,
+        &mut self,
         merkle_db_leaf_paths_write: MerkleDBLeafPathsWrite,
     ) {
         self.db_write_set
-            .lock()
-            .unwrap()
             .merkle_db_leaf_paths_write_set
             .push(merkle_db_leaf_paths_write);
     }
@@ -89,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_affected_paths_sorting() {
-        let paths = DashSet::from_iter(vec![
+        let paths = HashSet::from_iter(vec![
             MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]),
             MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 1]),
             MerklePath(bitvec![u8, Msb0; 1]),
@@ -98,9 +103,9 @@ mod tests {
         ]);
 
         let merkle_cache = MerkleCache {
-            map: DashMap::new(),
+            map: HashMap::new(),
             affected_paths: paths,
-            db_write_set: Mutex::new(DBWriteSet::default()),
+            db_write_set: DBWriteSet::default(),
         };
         let paths_sorted = merkle_cache.affected_paths_as_sorted_vec();
 

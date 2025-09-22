@@ -1296,14 +1296,12 @@ name = "fr-state-merkle-v2"
 version = "0.1.12"
 dependencies = [
  "bitvec",
- "dashmap 6.1.0",
  "fr-codec",
  "fr-common",
  "fr-config",
  "fr-crypto",
  "fr-db",
  "fr-state",
- "futures",
  "tempfile",
  "thiserror 2.0.16",
  "tokio",
