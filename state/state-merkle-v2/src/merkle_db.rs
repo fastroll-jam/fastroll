@@ -41,7 +41,7 @@ impl MerkleDB {
         Ok(self.nodes.get_entry(merkle_path).await?)
     }
 
-    async fn get_leaf_path(
+    pub(crate) async fn get_leaf_path(
         &self,
         state_key: &StateKey,
     ) -> Result<Option<MerklePath>, StateMerkleError> {

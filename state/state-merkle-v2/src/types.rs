@@ -2,6 +2,7 @@ use crate::utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash, slice_bitve
 use bitvec::{bitvec, order::Msb0, prelude::BitVec};
 use fr_codec::prelude::*;
 use fr_common::{ByteEncodable, Hash32, NodeHash};
+use fr_crypto::error::CryptoError;
 use fr_db::core::cached_db::{CacheItem, CacheItemCodecError, CachedDBError};
 use thiserror::Error;
 
@@ -12,6 +13,8 @@ pub const NODE_SIZE_BITS: usize = 512;
 pub enum StateMerkleError {
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("CryptoError: {0}")]
+    CryptoError(#[from] CryptoError),
     #[error("CachedDBError: {0}")]
     CachedDBError(#[from] CachedDBError),
     #[error("Invalid node type with hash")]
@@ -22,6 +25,8 @@ pub enum StateMerkleError {
     InvalidBitVecSliceRange,
     #[error("Invalid node data length")]
     InvalidNodeDataLength(usize),
+    #[error("Merkle path unknown for state key: {0}")]
+    MerklePathUnknownForStateKey(String),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

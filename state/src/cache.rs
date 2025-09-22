@@ -31,7 +31,7 @@ pub struct CacheEntry {
     /// Cached snapshot of clean state entry, synchronized with the DB.
     pub(crate) clean_snapshot: Arc<StateEntryType>,
     /// Latest state cache entry value.
-    pub(crate) value: Arc<StateEntryType>,
+    pub value: Arc<StateEntryType>,
     /// State cache status (Clean or Dirty).
     pub status: CacheEntryStatus,
 }
