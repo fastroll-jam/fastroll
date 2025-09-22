@@ -37,19 +37,23 @@ impl MerkleCache {
     }
 }
 
-fn dirty_state_cache_entry_to_node_with_path(
+fn dirty_state_cache_entries_to_node_with_paths(
     dirty_entries: &[(StateKey, CacheEntry)],
-) -> NodeWithPath {
-    for (_state_key, entry) in dirty_entries {
-        if let CacheEntryStatus::Dirty(state_mut) = &entry.status {
-            match state_mut {
-                StateMut::Add => {}
-                StateMut::Update => {}
-                StateMut::Remove => {}
-            }
+) -> Vec<NodeWithPath> {
+    dirty_entries
+        .iter()
+        .map(|(_s, entry)| dirty_state_cache_entry_to_node_with_path(entry))
+        .collect()
+}
+
+fn dirty_state_cache_entry_to_node_with_path(dirty_entry: &CacheEntry) -> NodeWithPath {
+    if let CacheEntryStatus::Dirty(state_mut) = &dirty_entry.status {
+        match state_mut {
+            StateMut::Add => {}
+            StateMut::Update => {}
+            StateMut::Remove => {}
         }
     }
-
     unimplemented!()
 }
 
