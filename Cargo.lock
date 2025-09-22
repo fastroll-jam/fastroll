@@ -1298,9 +1298,12 @@ dependencies = [
  "bitvec",
  "fr-codec",
  "fr-common",
+ "fr-config",
  "fr-db",
  "fr-state",
+ "tempfile",
  "thiserror 2.0.16",
+ "tokio",
 ]
 
 [[package]]

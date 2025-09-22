@@ -1,8 +1,8 @@
 use crate::utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash, slice_bitvec};
 use bitvec::{bitvec, order::Msb0, prelude::BitVec};
 use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, Hash32};
-use fr_db::core::cached_db::{CacheItem, CacheItemCodecError};
+use fr_common::{ByteEncodable, Hash32, NodeHash};
+use fr_db::core::cached_db::{CacheItem, CacheItemCodecError, CachedDBError};
 use thiserror::Error;
 
 /// Merkle node data size in bits.
@@ -12,6 +12,8 @@ pub const NODE_SIZE_BITS: usize = 512;
 pub enum StateMerkleError {
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("CachedDBError: {0}")]
+    CachedDBError(#[from] CachedDBError),
     #[error("Invalid node type with hash")]
     InvalidNodeType,
     #[error("Invalid byte length")]
@@ -23,7 +25,7 @@ pub enum StateMerkleError {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum LeafNodeData {
+pub(crate) enum LeafNodeData {
     Embedded(Vec<u8>),
     Regular(Hash32),
 }
@@ -34,7 +36,26 @@ pub(crate) struct LeafNode {
     data: LeafNodeData,
 }
 
+// TODO: Error propagation
+impl CacheItem for LeafNode {
+    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
+        Ok(self.encode().expect("Failed to encode Leaf MerkleNode"))
+    }
+
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
+    where
+        Self: Sized,
+    {
+        let node_data_bv = bits_encode_msb(val.as_slice());
+        Ok(Self::decode(&node_data_bv).expect("Failed to decode Leaf node"))
+    }
+}
+
 impl LeafNode {
+    pub(crate) fn new(state_key_bv: BitVec<u8, Msb0>, data: LeafNodeData) -> Self {
+        Self { state_key_bv, data }
+    }
+
     pub(crate) fn encode(&self) -> Result<Vec<u8>, StateMerkleError> {
         let mut node = bitvec![u8, Msb0; 1]; // Indicator for leaf node
         match &self.data {
@@ -113,6 +134,17 @@ pub(crate) struct BranchNode {
 }
 
 impl BranchNode {
+    pub(crate) fn new(left: &NodeHash, right: &NodeHash) -> Self {
+        let left_bv = bits_encode_msb(left.as_slice());
+        let right_bv = bits_encode_msb(right.as_slice());
+        Self {
+            left_lossy: slice_bitvec(&left_bv, 1..)
+                .expect("Has 256 bits")
+                .to_bitvec(),
+            right: right_bv,
+        }
+    }
+
     pub(crate) fn encode(&self) -> Result<Vec<u8>, StateMerkleError> {
         let mut node_data = bitvec![u8, Msb0; 0]; // Indicator for branch node
         node_data.extend(self.left_lossy.clone());
@@ -141,7 +173,7 @@ impl BranchNode {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MerkleNode {
     Leaf(LeafNode),
     Branch(BranchNode),
@@ -151,7 +183,7 @@ pub(crate) enum MerkleNode {
 impl CacheItem for MerkleNode {
     fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
         match self {
-            Self::Leaf(leaf) => Ok(leaf.encode().expect("Failed to encode Leaf MerkleNode")),
+            Self::Leaf(leaf) => leaf.into_db_value(),
             Self::Branch(branch) => {
                 Ok(branch.encode().expect("Failed to encode Branch MerkleNode"))
             }
@@ -241,19 +273,6 @@ impl MerklePath {
             merkle_path.0.pop();
         }
         result
-    }
-}
-
-/// A bit vector representing the path from the merkle root to a node.
-///
-/// Unlike `MerklePath`, this exactly matches with the bit vector representation of state keys
-/// for leaf nodes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct FullMerklePath(BitVec<u8, Msb0>);
-
-impl AsRef<[u8]> for FullMerklePath {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_raw_slice()
     }
 }
 

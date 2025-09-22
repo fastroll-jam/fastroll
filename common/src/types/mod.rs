@@ -322,7 +322,7 @@ impl<const N: usize> ByteArray<N> {
     }
 }
 
-impl AsRef<[u8]> for Hash32 {
+impl<const N: usize> AsRef<[u8]> for ByteArray<N> {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
