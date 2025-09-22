@@ -1025,6 +1025,7 @@ dependencies = [
 name = "fr-db"
 version = "0.1.12"
 dependencies = [
+ "fr-codec",
  "fr-common",
  "mini-moka",
  "rocksdb",

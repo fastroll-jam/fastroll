@@ -1,5 +1,6 @@
 use crate::core::core_db::{CoreDB, CoreDBError};
-use fr_common::{ByteEncodable, Hash32};
+use fr_codec::JamCodecError;
+use fr_common::{ByteEncodable, CommonTypeError, Hash32};
 use mini_moka::sync::Cache;
 use rocksdb::{ColumnFamily, WriteBatch};
 use std::{hash::Hash, sync::Arc};
@@ -9,37 +10,47 @@ use thiserror::Error;
 pub enum CachedDBError {
     #[error("CoreDBError: {0}")]
     CoreDBError(#[from] CoreDBError),
+    #[error("CacheItemCodecError: {0}")]
+    CacheItemCodecError(#[from] CacheItemCodecError),
+}
+
+#[derive(Debug, Error)]
+pub enum CacheItemCodecError {
+    #[error("CommonTypeError: {0}")]
+    CommonTypeError(#[from] CommonTypeError),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
 }
 
 /// A trait for types that are hold under DB cache, defining encoding rules for the cache entries.
 pub trait CacheItem: Clone {
-    fn into_db_value(self) -> Vec<u8>;
+    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError>;
 
-    fn from_db_kv(key: &[u8], val: Vec<u8>) -> Self
+    fn from_db_kv(key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
     where
         Self: Sized;
 }
 
 impl CacheItem for Vec<u8> {
-    fn into_db_value(self) -> Vec<u8> {
-        self
+    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
+        Ok(self)
     }
 
-    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self {
-        val
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError> {
+        Ok(val)
     }
 }
 
 impl CacheItem for Hash32 {
-    fn into_db_value(self) -> Vec<u8> {
-        self.to_vec()
+    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
+        Ok(self.to_vec())
     }
 
-    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
     where
         Self: Sized,
     {
-        Self::from_slice(&val).expect("Val should be 32-octet bytes")
+        Ok(Self::from_slice(&val)?)
     }
 }
 
@@ -85,11 +96,12 @@ where
             .core
             .get_entry(self.cf_name, key.as_ref())
             .await?
-            .map(|v| V::from_db_kv(key.as_ref(), v));
+            .map(|v| V::from_db_kv(key.as_ref(), v))
+            .transpose()?;
 
         // insert into cache if found
-        if let Some(data) = &value {
-            self.cache.insert(key.clone(), Arc::new(data.clone()));
+        if let Some(data) = value.clone() {
+            self.cache.insert(key.clone(), Arc::new(data));
         }
 
         Ok(value)
@@ -98,7 +110,7 @@ where
     pub async fn put_entry(&self, key: &K, val: V) -> Result<(), CachedDBError> {
         // write to DB
         self.core
-            .put_entry(self.cf_name, key.as_ref(), &val.clone().into_db_value())
+            .put_entry(self.cf_name, key.as_ref(), &val.clone().into_db_value()?)
             .await?;
         // insert into cache
         self.cache.insert(key.clone(), Arc::new(val));

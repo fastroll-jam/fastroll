@@ -9,7 +9,7 @@ use crate::ancestors::{AncestorEntry, AncestorSet};
 use fr_crypto::error::CryptoError;
 use fr_db::{
     core::{
-        cached_db::{CacheItem, CachedDB, CachedDBError},
+        cached_db::{CacheItem, CacheItemCodecError, CachedDB, CachedDBError},
         core_db::CoreDB,
     },
     ColumnFamily, WriteBatch,
@@ -37,18 +37,20 @@ pub enum BlockHeaderDBError {
     CryptoError(#[from] CryptoError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("CacheItemCodecError: {0}")]
+    CacheItemCodecError(#[from] CacheItemCodecError),
 }
 
 impl CacheItem for BlockHeader {
-    fn into_db_value(self) -> Vec<u8> {
-        self.encode().expect("Failed to encode BlockHeader")
+    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
+        Ok(self.encode()?)
     }
 
-    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
     where
         Self: Sized,
     {
-        Self::decode(&mut val.as_slice()).expect("Failed to decode BlockHeader")
+        Ok(Self::decode(&mut val.as_slice())?)
     }
 }
 
@@ -143,7 +145,7 @@ impl BlockHeaderDB {
             batch.put_cf(
                 self.cf_handle()?,
                 header_hash.as_slice(),
-                header.into_db_value(),
+                header.into_db_value()?,
             );
         }
         self.db.commit_write_batch(batch).await?;

@@ -329,11 +329,13 @@ impl AsRef<[u8]> for Hash32 {
 }
 
 impl TryFrom<&[u8]> for Hash32 {
-    type Error = String;
+    type Error = CommonTypeError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         if value.len() != HASH_SIZE {
-            return Err("Hash length mismatch".into());
+            return Err(CommonTypeError::SliceToByteArrayConversionError(
+                value.len(),
+            ));
         }
 
         let mut arr = Hash32::default();

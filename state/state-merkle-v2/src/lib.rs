@@ -11,7 +11,7 @@ use std::cmp::Ordering;
 use crate::utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash, slice_bitvec};
 use bitvec::{macros::internal::funty::Fundamental, prelude::*};
 use fr_db::core::{
-    cached_db::{CacheItem, CachedDB},
+    cached_db::{CacheItem, CacheItemCodecError, CachedDB},
     core_db::CoreDB,
 };
 use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
@@ -163,15 +163,18 @@ enum MerkleNode {
     Branch(BranchNode),
 }
 
+// TODO: Error propagation
 impl CacheItem for MerkleNode {
-    fn into_db_value(self) -> Vec<u8> {
+    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
         match self {
-            Self::Leaf(leaf) => leaf.encode().expect("Failed to encode Leaf MerkleNode"),
-            Self::Branch(branch) => branch.encode().expect("Failed to encode Branch MerkleNode"),
+            Self::Leaf(leaf) => Ok(leaf.encode().expect("Failed to encode Leaf MerkleNode")),
+            Self::Branch(branch) => {
+                Ok(branch.encode().expect("Failed to encode Branch MerkleNode"))
+            }
         }
     }
 
-    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
     where
         Self: Sized,
     {
@@ -182,13 +185,15 @@ impl CacheItem for MerkleNode {
         match (first_bit, second_bit) {
             (Some(true), _) => {
                 // Leaf Node
-                Self::Leaf(LeafNode::decode(node_data_bv).expect("Failed to decode Leaf node"))
+                Ok(Self::Leaf(
+                    LeafNode::decode(node_data_bv).expect("Failed to decode Leaf node"),
+                ))
             }
             (Some(false), _) => {
                 // Branch Node
-                Self::Branch(
+                Ok(Self::Branch(
                     BranchNode::decode(node_data_bv).expect("Failed to decode Branch node"),
-                )
+                ))
             }
             _ => {
                 panic!("Invalid node data")
