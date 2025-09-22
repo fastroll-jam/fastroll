@@ -1,7 +1,6 @@
-use crate::StateMerkleError;
+use crate::types::StateMerkleError;
 use bitvec::{prelude::*, slice::BitSliceIndex};
 use fr_common::Hash32;
-use std::ops::RangeBounds;
 
 /// The `bits` function of the GP (MSB-first encoding for each byte)
 pub(crate) fn bits_encode_msb(data: &[u8]) -> BitVec<u8, Msb0> {
