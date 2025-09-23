@@ -43,6 +43,7 @@ impl MerkleDB {
         // Temporary path for searching the longest prefix path, representing
         // the state key as a full merkle path.
         let search_path = MerklePath(bits_encode_msb(state_key.as_slice()));
+        let search_db_key = search_path.as_db_key().into_owned().into_boxed_slice();
 
         // Invalid state key
         if search_path.0.is_empty() {
@@ -66,12 +67,15 @@ impl MerkleDB {
             // Iterate on DB keys until we find a DB key which becomes the longest prefix of `state_key`
             while let Some(Ok((candidate_db_key, _))) = iter.next() {
                 let candidate_path = MerklePath::from_db_key(&candidate_db_key)?;
+
+                // Reached to a DB key with larger value; no need to check further
+                if candidate_db_key > search_db_key {
+                    break;
+                }
+
                 if search_path.0.starts_with(&candidate_path.0) {
                     // Found a longer prefix; update `longest_prefix`
                     longest_prefix = Some(candidate_path);
-                } else {
-                    // Merkle path diverges; no need to check further
-                    break;
                 }
             }
 
