@@ -31,8 +31,12 @@ impl MerkleManager {
             .merkle_db
             .find_longest_prefix(state_key)
             .await?
-            .unwrap(); // TODO: error handling
-        let lcp_node = self.merkle_db.get(&lcp_path).await?.unwrap(); // TODO: error handling
+            .ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
+        let lcp_node = self
+            .merkle_db
+            .get(&lcp_path)
+            .await?
+            .ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
         Ok((lcp_node, lcp_path))
     }
 
@@ -286,8 +290,6 @@ mod tests {
     }
 
     mod dirty_cache_entry_tests {
-        use super::*;
-
         #[tokio::test]
         async fn test_add_branch_lcp_node() {}
     }
