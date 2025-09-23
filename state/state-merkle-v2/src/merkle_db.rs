@@ -1,7 +1,13 @@
-use crate::types::{LeafNode, MerkleNode, MerklePath, StateMerkleError};
+use crate::{
+    types::{LeafNode, MerkleNode, MerklePath, StateMerkleError},
+    utils::bits_encode_msb,
+};
 use fr_common::{MerkleRoot, StateKey};
 use fr_db::{
-    core::{cached_db::CachedDB, core_db::CoreDB},
+    core::{
+        cached_db::{CachedDB, DBKey},
+        core_db::CoreDB,
+    },
     Direction, IteratorMode, WriteBatch,
 };
 use std::sync::Arc;
@@ -31,20 +37,24 @@ impl MerkleDB {
         state_key: &StateKey,
     ) -> Result<Option<MerklePath>, StateMerkleError> {
         let core_db = self.nodes.core.clone();
-        let state_key_vec = state_key.to_vec();
+
+        // Temporary path for searching the longest prefix path, representing
+        // the state key as a full merkle path.
+        let search_path = MerklePath(bits_encode_msb(state_key.as_slice()));
+        let search_key_bytes = search_path.as_db_key().into_owned();
+
         let nodes_cf_handle = self.nodes.cf_name;
 
         tokio::task::spawn_blocking(move || -> Result<_, StateMerkleError> {
             let mut iter = core_db.iterator_cf(
                 nodes_cf_handle,
-                IteratorMode::From(&state_key_vec, Direction::Reverse),
+                IteratorMode::From(&search_key_bytes, Direction::Reverse),
             )?;
 
             // Get the first key from the iterator
             if let Some(Ok((candidate_key, _))) = iter.next() {
-                if state_key_vec.starts_with(&candidate_key) {
-                    let key_vec = candidate_key.into_vec();
-                    let merkle_path = MerklePath::from(key_vec);
+                if search_key_bytes.starts_with(&candidate_key) {
+                    let merkle_path = MerklePath::from_db_key(&candidate_key)?;
                     return Ok(Some(merkle_path));
                 }
             }

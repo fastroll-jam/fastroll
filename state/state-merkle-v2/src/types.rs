@@ -1,12 +1,13 @@
 use crate::utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash, slice_bitvec};
-use bitvec::{bitvec, order::Msb0, prelude::BitVec};
+use bitvec::prelude::*;
 use fr_codec::prelude::*;
 use fr_common::{ByteEncodable, Hash32, NodeHash};
 use fr_crypto::error::CryptoError;
 use fr_db::core::{
-    cached_db::{CacheItem, CacheItemCodecError, CachedDBError},
+    cached_db::{CacheItem, CacheItemCodecError, CachedDBError, DBKey},
     core_db::CoreDBError,
 };
+use std::borrow::Cow;
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -231,15 +232,27 @@ impl CacheItem for MerkleNode {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct MerklePath(pub(crate) BitVec<u8, Msb0>);
 
-impl AsRef<[u8]> for MerklePath {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_raw_slice()
+// MerklePath lengths and prefixes should be preserved; we construct String keys here
+// for correct serialization of `MerklePath` as CacheDB keys.
+impl DBKey for MerklePath {
+    fn as_db_key(&'_ self) -> Cow<'_, [u8]> {
+        let key_string: String = self.0.iter().map(|b| if *b { '1' } else { '0' }).collect();
+        Cow::Owned(key_string.into_bytes())
     }
-}
 
-impl From<Vec<u8>> for MerklePath {
-    fn from(value: Vec<u8>) -> Self {
-        Self(BitVec::from_vec(value))
+    fn from_db_key(key: &[u8]) -> Result<Self, CachedDBError> {
+        let string_key =
+            String::from_utf8(key.to_vec()).map_err(|_| CachedDBError::InvalidCachedDBKey)?;
+        let mut bv = BitVec::<u8, Msb0>::new();
+        for char in string_key.chars() {
+            match char {
+                '1' => bv.push(true),
+                '0' => bv.push(false),
+                _ => return Err(CachedDBError::InvalidCachedDBKey),
+            }
+        }
+
+        Ok(Self(bv))
     }
 }
 
