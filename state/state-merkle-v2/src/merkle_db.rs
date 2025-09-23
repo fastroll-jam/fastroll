@@ -32,37 +32,50 @@ impl MerkleDB {
         }
     }
 
+    /// Finds the longest Merkle path in the `MerkleDB` that is a prefix of a given state key.
     pub(crate) async fn find_longest_prefix(
         &self,
         state_key: &StateKey,
     ) -> Result<Option<MerklePath>, StateMerkleError> {
         let core_db = self.nodes.core.clone();
+        let nodes_cf_handle = self.nodes.cf_name;
 
         // Temporary path for searching the longest prefix path, representing
         // the state key as a full merkle path.
         let search_path = MerklePath(bits_encode_msb(state_key.as_slice()));
-        println!("search_path: {}", search_path.0);
-        let search_db_key = search_path.as_db_key().into_owned();
 
-        let nodes_cf_handle = self.nodes.cf_name;
+        // Invalid state key
+        if search_path.0.is_empty() {
+            return Ok(None);
+        }
+
+        // Create a merkle path with the first bit of `search_path` to initialize
+        // `longest_prefix` variable below. We start iterating DB keys from this path.
+        let start_key = MerklePath(search_path.0[0..1].to_bitvec())
+            .as_db_key()
+            .into_owned();
 
         tokio::task::spawn_blocking(move || -> Result<_, StateMerkleError> {
+            let mut longest_prefix: Option<MerklePath> = None;
+
             let mut iter = core_db.iterator_cf(
                 nodes_cf_handle,
-                IteratorMode::From(&search_db_key, Direction::Reverse),
+                IteratorMode::From(&start_key, Direction::Forward),
             )?;
 
-            // Get the first key from the iterator
-            if let Some(Ok((candidate_db_key, _))) = iter.next() {
+            // Iterate on DB keys until we find a DB key which becomes the longest prefix of `state_key`
+            while let Some(Ok((candidate_db_key, _))) = iter.next() {
                 let candidate_path = MerklePath::from_db_key(&candidate_db_key)?;
-                println!("candidate_path: {}", candidate_path.0);
                 if search_path.0.starts_with(&candidate_path.0) {
-                    return Ok(Some(candidate_path));
+                    // Found a longer prefix; update `longest_prefix`
+                    longest_prefix = Some(candidate_path);
+                } else {
+                    // Merkle path diverges; no need to check further
+                    break;
                 }
             }
 
-            // No key found or the found key was not a prefix
-            Ok(None)
+            Ok(longest_prefix)
         })
         .await?
     }

@@ -342,8 +342,9 @@ mod tests {
 
             // Check `MerkleCache.affected_paths`
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
-            assert_eq!(affected_paths.len(), 1);
+            assert_eq!(affected_paths.len(), 2);
             assert!(affected_paths.contains(&path_1));
+            assert!(affected_paths.contains(&expected_added_leaf_merkle_path));
 
             // Check `MerkleCache.db_write_set`
             // Embedded leaf; no db write set
