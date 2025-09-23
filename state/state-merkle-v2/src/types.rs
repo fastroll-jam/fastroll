@@ -27,6 +27,8 @@ pub enum StateMerkleError {
     InvalidNodeDataLength(usize),
     #[error("Merkle path unknown for state key: {0}")]
     MerklePathUnknownForStateKey(String),
+    #[error("Merkle trie is not initialized yet")]
+    MerkleTrieNotInitialized,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -37,7 +39,7 @@ pub(crate) enum LeafNodeData {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LeafNode {
-    state_key_bv: BitVec<u8, Msb0>,
+    pub(crate) state_key_bv: BitVec<u8, Msb0>,
     data: LeafNodeData,
 }
 
@@ -133,6 +135,12 @@ impl BranchNode {
                 .to_bitvec(),
             right: right_bv,
         }
+    }
+
+    pub(crate) fn has_single_child(&self) -> bool {
+        let left_is_zero = !self.left_lossy.any();
+        let right_is_zero = !self.right.any();
+        left_is_zero ^ right_is_zero
     }
 
     pub(crate) fn encode(&self) -> Result<Vec<u8>, StateMerkleError> {

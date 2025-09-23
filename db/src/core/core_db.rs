@@ -1,4 +1,7 @@
-use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, Options, WriteBatch, WriteOptions, DB};
+use rocksdb::{
+    ColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, WriteBatch,
+    WriteOptions, DB,
+};
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
 
@@ -109,6 +112,30 @@ impl CoreDB {
             let write_opts = WriteOptions::default();
             db.write_opt(batch, &write_opts)?;
             Ok(())
+        })
+        .await?
+    }
+
+    pub async fn find_neighboring_keys(
+        &self,
+        cf_name: &'static str,
+        key: &[u8],
+    ) -> Result<(Option<Vec<u8>>, Option<Vec<u8>>), CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+
+        tokio::task::spawn_blocking(move || -> Result<_, CoreDBError> {
+            let cf = db
+                .cf_handle(cf_name)
+                .ok_or(CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
+            // TODO: further advance iterators
+            let mut iter = db.iterator_cf(cf, IteratorMode::From(&key_vec, Direction::Forward));
+            let next_key = iter.next().transpose()?.map(|(k, _)| k.to_vec());
+
+            let mut iter_rev = db.iterator_cf(cf, IteratorMode::From(&key_vec, Direction::Reverse));
+            let prev_key = iter_rev.next().transpose()?.map(|(k, _)| k.to_vec());
+
+            Ok((next_key, prev_key))
         })
         .await?
     }
