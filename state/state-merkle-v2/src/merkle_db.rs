@@ -41,21 +41,23 @@ impl MerkleDB {
         // Temporary path for searching the longest prefix path, representing
         // the state key as a full merkle path.
         let search_path = MerklePath(bits_encode_msb(state_key.as_slice()));
-        let search_key_bytes = search_path.as_db_key().into_owned();
+        println!("search_path: {}", search_path.0);
+        let search_db_key = search_path.as_db_key().into_owned();
 
         let nodes_cf_handle = self.nodes.cf_name;
 
         tokio::task::spawn_blocking(move || -> Result<_, StateMerkleError> {
             let mut iter = core_db.iterator_cf(
                 nodes_cf_handle,
-                IteratorMode::From(&search_key_bytes, Direction::Reverse),
+                IteratorMode::From(&search_db_key, Direction::Reverse),
             )?;
 
             // Get the first key from the iterator
-            if let Some(Ok((candidate_key, _))) = iter.next() {
-                if search_key_bytes.starts_with(&candidate_key) {
-                    let merkle_path = MerklePath::from_db_key(&candidate_key)?;
-                    return Ok(Some(merkle_path));
+            if let Some(Ok((candidate_db_key, _))) = iter.next() {
+                let candidate_path = MerklePath::from_db_key(&candidate_db_key)?;
+                println!("candidate_path: {}", candidate_path.0);
+                if search_path.0.starts_with(&candidate_path.0) {
+                    return Ok(Some(candidate_path));
                 }
             }
 

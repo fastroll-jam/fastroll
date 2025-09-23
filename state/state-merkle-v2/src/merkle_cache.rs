@@ -10,19 +10,19 @@ pub(crate) type MerkleDBNodesWrite = (MerklePath, MerkleNode);
 pub(crate) type MerkleDBLeafPathsWrite = (StateKey, MerklePath);
 
 #[derive(Default)]
-struct DBWriteSet {
-    state_db_write_set: Vec<StateDBWrite>,
-    merkle_db_nodes_write_set: Vec<MerkleDBNodesWrite>,
-    merkle_db_leaf_paths_write_set: Vec<MerkleDBLeafPathsWrite>,
+pub(crate) struct DBWriteSet {
+    pub(crate) state_db_write_set: Vec<StateDBWrite>,
+    pub(crate) merkle_db_nodes_write_set: Vec<MerkleDBNodesWrite>,
+    pub(crate) merkle_db_leaf_paths_write_set: Vec<MerkleDBLeafPathsWrite>,
 }
 
 #[derive(Default)]
 pub(crate) struct MerkleCache {
     /// Represents posterior state of merkle nodes after commiting dirty cache entries.
-    map: HashMap<MerklePath, Option<MerkleNode>>,
+    pub(crate) map: HashMap<MerklePath, Option<MerkleNode>>,
     /// A set of merkle paths that are affected by dirty cache commitment.
-    affected_paths: HashSet<MerklePath>,
-    db_write_set: DBWriteSet,
+    pub(crate) affected_paths: HashSet<MerklePath>,
+    pub(crate) db_write_set: DBWriteSet,
 }
 
 impl MerkleCache {

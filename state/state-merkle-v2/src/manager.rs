@@ -248,7 +248,7 @@ mod tests {
     use super::*;
     use crate::{
         merkle_path,
-        test_utils::{create_branch, open_merkle_db},
+        test_utils::{create_dummy_branch, open_merkle_db},
         utils::bits_decode_msb,
     };
     use bitvec::prelude::*;
@@ -264,10 +264,7 @@ mod tests {
         let path_4 = merkle_path![1, 0, 1, 1, 0, 1];
         let path_5 = merkle_path![1, 0, 1, 1, 0, 1, 0, 1, 1];
 
-        let test_node = create_branch(
-            &NodeHash::from_slice(&[0xAA; 32]).unwrap(),
-            &NodeHash::from_slice(&[0xBB; 32]).unwrap(),
-        );
+        let test_node = create_dummy_branch(1);
 
         merkle_db.put(&path_1, test_node.clone()).await.unwrap();
         merkle_db.put(&path_2, test_node.clone()).await.unwrap();
@@ -290,7 +287,71 @@ mod tests {
     }
 
     mod dirty_cache_entry_tests {
+        use super::*;
+        use crate::{test_utils::*, types::*};
+        use fr_state::{state_utils::StateEntryType, types::Timeslot};
+
         #[tokio::test]
-        async fn test_add_branch_lcp_node() {}
+        async fn test_add_branch_lcp_node() {
+            let merkle_db = open_merkle_db();
+
+            let path_0 = merkle_path![0];
+            let path_1 = merkle_path![1]; // LCP node; single-child branch
+            let path_10 = merkle_path![1, 0];
+            let path_100 = merkle_path![1, 0, 0];
+            let path_101 = merkle_path![1, 0, 1];
+
+            let dummy_branch = create_dummy_branch(1);
+            let dummy_leaf = create_dummy_regular_leaf(1);
+            let single_child_branch = MerkleNode::Branch(BranchNode::new(
+                &NodeHash::from_slice(&[1; 32]).unwrap(),
+                &NodeHash::default(), // no right child
+            ));
+
+            merkle_db.put(&path_0, dummy_leaf.clone()).await.unwrap();
+            merkle_db.put(&path_1, single_child_branch).await.unwrap();
+            merkle_db.put(&path_10, dummy_branch).await.unwrap();
+            merkle_db.put(&path_100, dummy_leaf.clone()).await.unwrap();
+            merkle_db.put(&path_101, dummy_leaf).await.unwrap();
+
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+
+            let state_key_path_prefix = merkle_path![1, 1, 0, 1, 1];
+            let state_key = create_state_key_from_path_prefix(state_key_path_prefix);
+            let mut cache_entry = CacheEntry::new(StateEntryType::Timeslot(Timeslot::default()));
+            cache_entry.status = CacheEntryStatus::Dirty(StateMut::Add);
+
+            merkle_manager
+                .insert_dirty_cache_entry_as_leaf_writes(&state_key, &cache_entry)
+                .await
+                .unwrap();
+
+            let expected_added_leaf_merkle_path = merkle_path![1, 1];
+            let expected_added_leaf_node = MerkleNode::Leaf(LeafNode::new(
+                bits_encode_msb(state_key.as_slice()),
+                LeafNodeData::Embedded(cache_entry.value.encode().unwrap()),
+            ));
+
+            // Check `MerkleCache.map`
+            let entry = merkle_manager
+                .merkle_cache
+                .map
+                .get(&expected_added_leaf_merkle_path)
+                .unwrap();
+            assert_eq!(*entry, Some(expected_added_leaf_node));
+
+            // Check `MerkleCache.affected_paths`
+            let affected_paths = merkle_manager.merkle_cache.affected_paths;
+            assert_eq!(affected_paths.len(), 1);
+            assert!(affected_paths.contains(&path_1));
+
+            // Check `MerkleCache.db_write_set`
+            // Embedded leaf; no db write set
+            assert!(merkle_manager
+                .merkle_cache
+                .db_write_set
+                .state_db_write_set
+                .is_empty());
+        }
     }
 }
