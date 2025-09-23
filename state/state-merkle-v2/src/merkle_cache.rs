@@ -98,16 +98,17 @@ impl MerkleCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::merkle_path;
     use bitvec::prelude::*;
 
     #[test]
     fn test_affected_paths_sorting() {
         let paths = HashSet::from_iter(vec![
-            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]),
-            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 1]),
-            MerklePath(bitvec![u8, Msb0; 1]),
-            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 0, 1]),
-            MerklePath(bitvec![u8, Msb0; 1, 0]),
+            merkle_path![1, 0, 1, 1],
+            merkle_path![1, 0, 1, 1, 1],
+            merkle_path![1],
+            merkle_path![1, 0, 1, 0, 1],
+            merkle_path![1, 0],
         ]);
 
         let merkle_cache = MerkleCache {
@@ -118,11 +119,11 @@ mod tests {
         let paths_sorted = merkle_cache.affected_paths_as_sorted_vec();
 
         let paths_sorted_expected = vec![
-            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 1]),
-            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 0, 1]),
-            MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]),
-            MerklePath(bitvec![u8, Msb0; 1, 0]),
-            MerklePath(bitvec![u8, Msb0; 1]),
+            merkle_path![1, 0, 1, 1, 1],
+            merkle_path![1, 0, 1, 0, 1],
+            merkle_path![1, 0, 1, 1],
+            merkle_path![1, 0],
+            merkle_path![1],
         ];
         assert_eq!(paths_sorted, paths_sorted_expected);
     }

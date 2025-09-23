@@ -242,7 +242,11 @@ impl MerkleManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_utils::open_merkle_db, types::BranchNode, utils::bits_decode_msb};
+    use crate::{
+        merkle_path,
+        test_utils::{create_branch, open_merkle_db},
+        utils::bits_decode_msb,
+    };
     use bitvec::prelude::*;
     use fr_common::{ByteEncodable, NodeHash};
 
@@ -250,16 +254,16 @@ mod tests {
     async fn test_get_longest_common_path_node() {
         let merkle_db = open_merkle_db();
 
-        let path_1 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
-        let path_2 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0]);
-        let path_3 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 0]);
-        let path_4 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 1]);
-        let path_5 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 1, 0, 1, 1]);
+        let path_1 = merkle_path![1, 0, 1, 1];
+        let path_2 = merkle_path![1, 0, 1, 1, 0];
+        let path_3 = merkle_path![1, 0, 1, 1, 0, 0];
+        let path_4 = merkle_path![1, 0, 1, 1, 0, 1];
+        let path_5 = merkle_path![1, 0, 1, 1, 0, 1, 0, 1, 1];
 
-        let test_node = MerkleNode::Branch(BranchNode::new(
+        let test_node = create_branch(
             &NodeHash::from_slice(&[0xAA; 32]).unwrap(),
             &NodeHash::from_slice(&[0xBB; 32]).unwrap(),
-        ));
+        );
 
         merkle_db.put(&path_1, test_node.clone()).await.unwrap();
         merkle_db.put(&path_2, test_node.clone()).await.unwrap();
@@ -279,5 +283,12 @@ mod tests {
             .unwrap();
         let expected_path = path_3;
         assert_eq!(lcp_path, expected_path);
+    }
+
+    mod dirty_cache_entry_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_add_branch_lcp_node() {}
     }
 }

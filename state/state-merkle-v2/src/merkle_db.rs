@@ -144,8 +144,9 @@ impl MerkleDB {
 mod tests {
     use super::*;
     use crate::{
-        test_utils::open_merkle_db,
-        types::{BranchNode, LeafNode, LeafNodeData},
+        merkle_path,
+        test_utils::{create_branch, open_merkle_db},
+        types::{LeafNode, LeafNodeData},
         utils::bits_encode_msb,
     };
     use bitvec::prelude::*;
@@ -154,14 +155,14 @@ mod tests {
     #[tokio::test]
     async fn test_node_entries() {
         let merkle_db = open_merkle_db();
-        let merkle_path = MerklePath(bitvec![u8, Msb0; 0, 0, 1]);
+        let merkle_path = merkle_path![0, 0, 1];
 
         assert_eq!(merkle_db.get(&merkle_path).await.unwrap(), None);
 
-        let branch_node = MerkleNode::Branch(BranchNode::new(
+        let branch_node = create_branch(
             &NodeHash::from_slice(&[0xAA; 32]).unwrap(),
             &NodeHash::from_slice(&[0xBB; 32]).unwrap(),
-        ));
+        );
         merkle_db
             .put(&merkle_path, branch_node.clone())
             .await
@@ -178,7 +179,7 @@ mod tests {
         let state_key = StateKey::from_slice(&[0xCC; 31]).unwrap();
         let state_key_bv = bits_encode_msb(state_key.as_slice());
 
-        let leaf_path = MerklePath(bitvec![u8, Msb0; 0, 1, 1, 1]);
+        let leaf_path = merkle_path![0, 1, 1, 1];
         let leaf_node = LeafNode::new(state_key_bv, LeafNodeData::Regular(Hash32::new([0xDD; 32])));
 
         assert_eq!(merkle_db.get_leaf(&state_key).await.unwrap(), None);
