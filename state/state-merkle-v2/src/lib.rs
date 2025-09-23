@@ -3,5 +3,7 @@
 mod manager;
 mod merkle_cache;
 mod merkle_db;
+#[cfg(test)]
+mod test_utils;
 mod types;
 mod utils;

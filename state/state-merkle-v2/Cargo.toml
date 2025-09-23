@@ -14,8 +14,8 @@ fr-db = { workspace = true }
 fr-state = { workspace = true }
 bitvec = { version = "1.0.1", features = ["serde"] }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 fr-config = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true }

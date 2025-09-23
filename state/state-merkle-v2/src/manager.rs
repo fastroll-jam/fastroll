@@ -15,8 +15,25 @@ pub(crate) struct MerkleManager {
 }
 
 impl MerkleManager {
-    fn get_longest_common_path_node(&self, _state_key: &StateKey) -> (MerkleNode, MerklePath) {
-        unimplemented!()
+    pub fn new(merkle_db: MerkleDB, merkle_cache: MerkleCache) -> Self {
+        Self {
+            merkle_db,
+            merkle_cache,
+        }
+    }
+
+    /// Gets a merkle node with the longest common path with the given state key found from the MerkleDB.
+    async fn get_longest_common_path_node(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<(MerkleNode, MerklePath), StateMerkleError> {
+        let lcp_path = self
+            .merkle_db
+            .find_longest_prefix(state_key)
+            .await?
+            .unwrap(); // TODO: error handling
+        let lcp_node = self.merkle_db.get(&lcp_path).await?.unwrap(); // TODO: error handling
+        Ok((lcp_node, lcp_path))
     }
 
     fn cache_entry_to_leaf_node_and_state_db_write_set(
@@ -60,7 +77,7 @@ impl MerkleManager {
         if let CacheEntryStatus::Dirty(state_mut) = &dirty_entry.status {
             match state_mut {
                 StateMut::Add => {
-                    let (lcp_node, lcp_path) = self.get_longest_common_path_node(state_key);
+                    let (lcp_node, lcp_path) = self.get_longest_common_path_node(state_key).await?;
                     match lcp_node {
                         MerkleNode::Branch(_) => {
                             // New leaf is extending the single-child branch node
@@ -219,5 +236,48 @@ impl MerkleManager {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{test_utils::open_merkle_db, types::BranchNode, utils::bits_decode_msb};
+    use bitvec::prelude::*;
+    use fr_common::{ByteEncodable, NodeHash};
+
+    #[tokio::test]
+    async fn test_get_longest_common_path_node() {
+        let merkle_db = open_merkle_db();
+
+        let path_1 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
+        let path_2 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0]);
+        let path_3 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 0]);
+        let path_4 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 1]);
+        let path_5 = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 1, 0, 1, 1]);
+
+        let test_node = MerkleNode::Branch(BranchNode::new(
+            &NodeHash::from_slice(&[0xAA; 32]).unwrap(),
+            &NodeHash::from_slice(&[0xBB; 32]).unwrap(),
+        ));
+
+        merkle_db.put(&path_1, test_node.clone()).await.unwrap();
+        merkle_db.put(&path_2, test_node.clone()).await.unwrap();
+        merkle_db.put(&path_3, test_node.clone()).await.unwrap();
+        merkle_db.put(&path_4, test_node.clone()).await.unwrap();
+        merkle_db.put(&path_5, test_node.clone()).await.unwrap();
+
+        let merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+
+        let mut state_key_vec = bits_decode_msb(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 0, 1, 1, 1]);
+        state_key_vec.resize(31, 0);
+        let state_key = StateKey::from_slice(&state_key_vec).unwrap();
+
+        let (_lcp_node, lcp_path) = merkle_manager
+            .get_longest_common_path_node(&state_key)
+            .await
+            .unwrap();
+        let expected_path = path_3;
+        assert_eq!(lcp_path, expected_path);
     }
 }

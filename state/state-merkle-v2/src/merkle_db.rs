@@ -2,7 +2,7 @@ use crate::types::{LeafNode, MerkleNode, MerklePath, StateMerkleError};
 use fr_common::{MerkleRoot, StateKey};
 use fr_db::{
     core::{cached_db::CachedDB, core_db::CoreDB},
-    WriteBatch,
+    Direction, IteratorMode, WriteBatch,
 };
 use std::sync::Arc;
 
@@ -24,6 +24,35 @@ impl MerkleDB {
             leaf_paths: CachedDB::new(core.clone(), leaf_paths_cf_name, cache_size),
             root: MerkleRoot::default(),
         }
+    }
+
+    pub(crate) async fn find_longest_prefix(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<Option<MerklePath>, StateMerkleError> {
+        let core_db = self.nodes.core.clone();
+        let state_key_vec = state_key.to_vec();
+        let nodes_cf_handle = self.nodes.cf_name;
+
+        tokio::task::spawn_blocking(move || -> Result<_, StateMerkleError> {
+            let mut iter = core_db.iterator_cf(
+                nodes_cf_handle,
+                IteratorMode::From(&state_key_vec, Direction::Reverse),
+            )?;
+
+            // Get the first key from the iterator
+            if let Some(Ok((candidate_key, _))) = iter.next() {
+                if state_key_vec.starts_with(&candidate_key) {
+                    let key_vec = candidate_key.into_vec();
+                    let merkle_path = MerklePath::from(key_vec);
+                    return Ok(Some(merkle_path));
+                }
+            }
+
+            // No key found or the found key was not a prefix
+            Ok(None)
+        })
+        .await?
     }
 
     pub(crate) fn root(&self) -> &MerkleRoot {
@@ -105,33 +134,12 @@ impl MerkleDB {
 mod tests {
     use super::*;
     use crate::{
+        test_utils::open_merkle_db,
         types::{BranchNode, LeafNode, LeafNodeData},
         utils::bits_encode_msb,
     };
     use bitvec::prelude::*;
     use fr_common::{ByteEncodable, Hash32, NodeHash};
-    use fr_config::{StorageConfig, MERKLE_CF_NAME, MERKLE_LEAF_PATHS_CF_NAME};
-    use tempfile::tempdir;
-
-    fn open_core_db() -> CoreDB {
-        let db_path = tempdir().unwrap().path().join("test_db");
-        CoreDB::open(
-            db_path,
-            StorageConfig::rocksdb_opts(),
-            StorageConfig::cf_descriptors(),
-        )
-        .unwrap()
-    }
-
-    fn open_merkle_db() -> MerkleDB {
-        let core_db = open_core_db();
-        MerkleDB::new(
-            Arc::new(core_db),
-            MERKLE_CF_NAME,
-            MERKLE_LEAF_PATHS_CF_NAME,
-            4096,
-        )
-    }
 
     #[tokio::test]
     async fn test_node_entries() {

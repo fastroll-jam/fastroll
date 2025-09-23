@@ -3,8 +3,12 @@ use bitvec::{bitvec, order::Msb0, prelude::BitVec};
 use fr_codec::prelude::*;
 use fr_common::{ByteEncodable, Hash32, NodeHash};
 use fr_crypto::error::CryptoError;
-use fr_db::core::cached_db::{CacheItem, CacheItemCodecError, CachedDBError};
+use fr_db::core::{
+    cached_db::{CacheItem, CacheItemCodecError, CachedDBError},
+    core_db::CoreDBError,
+};
 use thiserror::Error;
+use tokio::task::JoinError;
 
 /// Merkle node data size in bits.
 pub const NODE_SIZE_BITS: usize = 512;
@@ -15,8 +19,12 @@ pub enum StateMerkleError {
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
+    #[error("CoreDBError: {0}")]
+    CoreDBError(#[from] CoreDBError),
     #[error("CachedDBError: {0}")]
     CachedDBError(#[from] CachedDBError),
+    #[error("tokio JoinError: {0}")]
+    JoinError(#[from] JoinError),
     #[error("Invalid node type with hash")]
     InvalidNodeType,
     #[error("Invalid byte length")]
@@ -226,6 +234,12 @@ pub(crate) struct MerklePath(pub(crate) BitVec<u8, Msb0>);
 impl AsRef<[u8]> for MerklePath {
     fn as_ref(&self) -> &[u8] {
         self.0.as_raw_slice()
+    }
+}
+
+impl From<Vec<u8>> for MerklePath {
+    fn from(value: Vec<u8>) -> Self {
+        Self(BitVec::from_vec(value))
     }
 }
 

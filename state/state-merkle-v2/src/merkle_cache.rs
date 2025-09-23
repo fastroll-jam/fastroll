@@ -16,6 +16,7 @@ struct DBWriteSet {
     merkle_db_leaf_paths_write_set: Vec<MerkleDBLeafPathsWrite>,
 }
 
+#[derive(Default)]
 pub(crate) struct MerkleCache {
     /// Represents posterior state of merkle nodes after commiting dirty cache entries.
     map: HashMap<MerklePath, Option<MerkleNode>>,
