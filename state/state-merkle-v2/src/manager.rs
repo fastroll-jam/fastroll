@@ -278,6 +278,7 @@ impl MerkleManager {
     }
 }
 
+// TODO: check `MerkleCache.leaf_paths`
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -367,7 +368,7 @@ mod tests {
                 LeafNodeData::Embedded(dirty_cache_entry.value.encode().unwrap()),
             ));
 
-            // Check `MerkleCache.map`
+            // Check `MerkleCache.nodes`
             let entry = merkle_manager
                 .merkle_cache
                 .nodes
@@ -441,7 +442,7 @@ mod tests {
             // LCP node path should be updated to: 11_0000
             let expected_lcp_node_final_merkle_path = merkle_path![1, 1, 0, 0, 0, 0];
 
-            // Check `MerkleCache.map`
+            // Check `MerkleCache.nodes`
             let entry = merkle_manager
                 .merkle_cache
                 .nodes
@@ -519,7 +520,7 @@ mod tests {
             // Updated leaf merkle path is: 11
             let updated_leaf_merkle_path = merkle_path![1, 1];
 
-            // Check `MerkleCache.map`
+            // Check `MerkleCache.nodes`
             let entry = merkle_manager
                 .merkle_cache
                 .nodes
@@ -585,7 +586,7 @@ mod tests {
             // Removed leaf merkle path is: 11
             let removed_leaf_merkle_path = merkle_path![1, 1];
 
-            // Check `MerkleCache.map`
+            // Check `MerkleCache.nodes`
             let entry = merkle_manager
                 .merkle_cache
                 .nodes
@@ -623,6 +624,7 @@ mod tests {
             let dummy_branch = MerkleNode::Branch(create_dummy_branch(1));
             let dummy_single_child_branch = MerkleNode::Branch(create_dummy_single_child_branch(1));
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
+            let sibling = MerkleNode::Leaf(create_dummy_regular_leaf(255));
 
             merkle_db.put(&path_0, dummy_leaf.clone()).await.unwrap();
             merkle_db
@@ -633,13 +635,10 @@ mod tests {
                 .put(&path_10, dummy_single_child_branch.clone())
                 .await
                 .unwrap();
-            merkle_db
-                .put(&path_101, dummy_branch.clone())
-                .await
-                .unwrap();
-            merkle_db.put(&path_1010, dummy_leaf).await.unwrap();
+            merkle_db.put(&path_101, dummy_branch).await.unwrap();
+            merkle_db.put(&path_1010, sibling.clone()).await.unwrap();
 
-            // State key of the updated entry: 1011... (248 bits)
+            // State key of the removed entry: 1011... (248 bits)
             let state_key = create_state_key_from_path_prefix(merkle_path![1, 0, 1, 1]);
             let original_leaf = create_dummy_regular_leaf(1);
             merkle_db
@@ -661,13 +660,168 @@ mod tests {
             // Removed leaf merkle path is: 1011
             let removed_leaf_merkle_path = merkle_path![1, 0, 1, 1];
 
-            // Check `MerkleCache.map`
+            // Check `MerkleCache.nodes`
             let entry = merkle_manager
                 .merkle_cache
                 .nodes
                 .get(&removed_leaf_merkle_path)
                 .unwrap();
             assert!(entry.is_none()); // Should be marked as `None`
+
+            // Check removed node entries
+            assert!(merkle_manager
+                .merkle_cache
+                .nodes
+                .get(&merkle_path![1, 0])
+                .unwrap()
+                .is_none());
+            assert!(merkle_manager
+                .merkle_cache
+                .nodes
+                .get(&merkle_path![1, 0, 1])
+                .unwrap()
+                .is_none());
+            assert!(merkle_manager
+                .merkle_cache
+                .nodes
+                .get(&merkle_path![1, 0, 1, 0])
+                .unwrap()
+                .is_none());
+
+            // Check the updated path entry
+            assert_eq!(
+                merkle_manager
+                    .merkle_cache
+                    .nodes
+                    .get(&merkle_path![1])
+                    .cloned()
+                    .unwrap(),
+                Some(sibling)
+            );
+
+            // Check `MerkleCache.affected_paths`
+            // affected paths should be: 1, 10, 101, 1010, 1011
+            let affected_paths = merkle_manager.merkle_cache.affected_paths;
+            assert_eq!(affected_paths.len(), 5);
+            assert!(affected_paths.contains(&merkle_path![1]));
+            assert!(affected_paths.contains(&merkle_path![1, 0]));
+            assert!(affected_paths.contains(&merkle_path![1, 0, 1]));
+            assert!(affected_paths.contains(&merkle_path![1, 0, 1, 0]));
+            assert!(affected_paths.contains(&merkle_path![1, 0, 1, 1]));
+
+            // Check `MerkleCache.db_write_set`
+            // No db write set
+            assert!(merkle_manager
+                .merkle_cache
+                .db_write_set
+                .state_db_write_set
+                .is_empty());
+        }
+
+        #[tokio::test]
+        async fn test_remove_two_adjacent_leaves() {
+            let merkle_db = open_merkle_db();
+
+            let path_0 = merkle_path![0];
+            let path_1 = merkle_path![1];
+            let path_00 = merkle_path![0, 0];
+            let path_01 = merkle_path![0, 1];
+            let path_10 = merkle_path![1, 0];
+            let path_101 = merkle_path![1, 0, 1];
+            let path_1010 = merkle_path![1, 0, 1, 0];
+            let path_1011 = merkle_path![1, 0, 1, 1];
+
+            let dummy_branch = MerkleNode::Branch(create_dummy_branch(1));
+            let dummy_single_child_branch = MerkleNode::Branch(create_dummy_single_child_branch(1));
+            let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
+
+            merkle_db.put(&path_0, dummy_branch.clone()).await.unwrap();
+            merkle_db
+                .put(&path_1, dummy_single_child_branch.clone())
+                .await
+                .unwrap();
+            merkle_db.put(&path_00, dummy_leaf.clone()).await.unwrap();
+            merkle_db.put(&path_01, dummy_leaf.clone()).await.unwrap();
+            merkle_db
+                .put(&path_10, dummy_single_child_branch.clone())
+                .await
+                .unwrap();
+            merkle_db.put(&path_101, dummy_leaf.clone()).await.unwrap();
+
+            // State key of the removed entry #1: 1011... (248 bits)
+            let state_key_1011 = create_state_key_from_path_prefix(merkle_path![1, 0, 1, 1]);
+            let original_leaf_1011 = create_dummy_regular_leaf(2);
+            merkle_db
+                .put_leaf(&state_key_1011, path_1011, original_leaf_1011)
+                .await
+                .unwrap();
+
+            // State key of the removed entry #1: 1010... (248 bits)
+            let state_key_1010 = create_state_key_from_path_prefix(merkle_path![1, 0, 1, 0]);
+            let original_leaf_1010 = create_dummy_regular_leaf(3);
+            merkle_db
+                .put_leaf(&state_key_1010, path_1010, original_leaf_1010)
+                .await
+                .unwrap();
+
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+
+            let mut dirty_cache_entry_1011 =
+                CacheEntry::new(StateEntryType::Timeslot(Timeslot::new(2)));
+            dirty_cache_entry_1011.status = CacheEntryStatus::Dirty(StateMut::Remove);
+
+            let mut dirty_cache_entry_1010 =
+                CacheEntry::new(StateEntryType::Timeslot(Timeslot::new(3)));
+            dirty_cache_entry_1010.status = CacheEntryStatus::Dirty(StateMut::Remove);
+
+            let dirty_cache_entries = vec![
+                (state_key_1011, dirty_cache_entry_1011),
+                (state_key_1010, dirty_cache_entry_1010),
+            ];
+
+            merkle_manager
+                .insert_dirty_cache_entries_as_leaf_writes(&dirty_cache_entries)
+                .await
+                .unwrap();
+
+            // Removed leaf merkle path #1 is: 1011
+            let removed_leaf_merkle_path_1011 = merkle_path![1, 0, 1, 1];
+            // Removed leaf merkle path #2 is: 1010
+            let removed_leaf_merkle_path_1010 = merkle_path![1, 0, 1, 0];
+
+            // Check `MerkleCache.nodes`
+            // Check removed node entries
+            assert!(merkle_manager
+                .merkle_cache
+                .nodes
+                .get(&merkle_path![1])
+                .unwrap()
+                .is_none()); // FIXME: This should be none
+            assert!(merkle_manager
+                .merkle_cache
+                .nodes
+                .get(&merkle_path![1, 0])
+                .unwrap()
+                .is_none());
+            assert!(merkle_manager
+                .merkle_cache
+                .nodes
+                .get(&merkle_path![1, 0, 1])
+                .unwrap()
+                .is_none());
+            assert!(merkle_manager
+                .merkle_cache
+                .nodes
+                .get(&removed_leaf_merkle_path_1011)
+                .unwrap()
+                .is_none());
+
+            assert!(merkle_manager
+                .merkle_cache
+                .nodes
+                .get(&removed_leaf_merkle_path_1010)
+                .unwrap()
+                .is_none());
 
             // Check `MerkleCache.affected_paths`
             // affected paths should be: 1, 10, 101, 1010, 1011
