@@ -178,10 +178,10 @@ mod tests {
 
         assert_eq!(merkle_db.get(&merkle_path).await.unwrap(), None);
 
-        let branch_node = create_branch(
+        let branch_node = MerkleNode::Branch(create_branch(
             &NodeHash::from_slice(&[0xAA; 32]).unwrap(),
             &NodeHash::from_slice(&[0xBB; 32]).unwrap(),
-        );
+        ));
         merkle_db
             .put(&merkle_path, branch_node.clone())
             .await

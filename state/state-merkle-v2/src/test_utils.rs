@@ -1,6 +1,6 @@
 use crate::{
     merkle_db::MerkleDB,
-    types::{BranchNode, LeafNode, LeafNodeData, MerkleNode, MerklePath},
+    types::{BranchNode, LeafNode, LeafNodeData, MerklePath},
     utils::bits_decode_msb,
 };
 use bitvec::prelude::*;
@@ -31,41 +31,48 @@ pub(crate) fn open_merkle_db() -> MerkleDB {
     )
 }
 
-pub(crate) fn create_regular_leaf(state_key_bv: BitVec<u8, Msb0>, data: Vec<u8>) -> MerkleNode {
-    MerkleNode::Leaf(LeafNode::new(
+pub(crate) fn create_regular_leaf(state_key_bv: BitVec<u8, Msb0>, data: Vec<u8>) -> LeafNode {
+    LeafNode::new(
         state_key_bv,
         LeafNodeData::Regular(hash::<Blake2b256>(&data).unwrap()),
-    ))
+    )
 }
 
-pub(crate) fn create_embedded_leaf(state_key_bv: BitVec<u8, Msb0>, data: Vec<u8>) -> MerkleNode {
-    MerkleNode::Leaf(LeafNode::new(state_key_bv, LeafNodeData::Embedded(data)))
+pub(crate) fn create_embedded_leaf(state_key_bv: BitVec<u8, Msb0>, data: Vec<u8>) -> LeafNode {
+    LeafNode::new(state_key_bv, LeafNodeData::Embedded(data))
 }
 
-pub(crate) fn create_branch(left_hash: &NodeHash, right_hash: &NodeHash) -> MerkleNode {
-    MerkleNode::Branch(BranchNode::new(left_hash, right_hash))
+pub(crate) fn create_branch(left_hash: &NodeHash, right_hash: &NodeHash) -> BranchNode {
+    BranchNode::new(left_hash, right_hash)
 }
 
-pub(crate) fn create_dummy_embedded_leaf(seed: u8) -> MerkleNode {
+pub(crate) fn create_dummy_embedded_leaf(seed: u8) -> LeafNode {
     let state_key_bv = bitvec![u8, Msb0; 0, 1, 1, 1];
     let data = vec![seed; 32];
-    MerkleNode::Leaf(LeafNode::new(state_key_bv, LeafNodeData::Embedded(data)))
+    LeafNode::new(state_key_bv, LeafNodeData::Embedded(data))
 }
 
-pub(crate) fn create_dummy_regular_leaf(seed: u8) -> MerkleNode {
+pub(crate) fn create_dummy_regular_leaf(seed: u8) -> LeafNode {
     let state_key_bv = bitvec![u8, Msb0; 0, 1, 1, 1];
     let data = vec![seed; 32];
-    MerkleNode::Leaf(LeafNode::new(
+    LeafNode::new(
         state_key_bv,
         LeafNodeData::Regular(hash::<Blake2b256>(&data).unwrap()),
-    ))
+    )
 }
 
-pub(crate) fn create_dummy_branch(seed: u8) -> MerkleNode {
-    MerkleNode::Branch(BranchNode::new(
+pub(crate) fn create_dummy_branch(seed: u8) -> BranchNode {
+    BranchNode::new(
         &NodeHash::from_slice(&[seed; 32]).unwrap(),
         &NodeHash::from_slice(&[seed; 32]).unwrap(),
-    ))
+    )
+}
+
+pub(crate) fn create_dummy_single_child_branch(seed: u8) -> BranchNode {
+    BranchNode::new(
+        &NodeHash::from_slice(&[0; 32]).unwrap(),
+        &NodeHash::from_slice(&[seed; 32]).unwrap(),
+    )
 }
 
 pub(crate) fn create_state_key_from_path_prefix(path_prefix: MerklePath) -> StateKey {
