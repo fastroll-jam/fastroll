@@ -22,6 +22,31 @@ impl MerkleManager {
         }
     }
 
+    /// Finds the longest Merkle path in the `MerkleCache` and the `MerkleDB`
+    /// that is a prefix of a given state key.
+    async fn find_longest_prefix(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<MerklePath, StateMerkleError> {
+        let state_key_as_merkle_path = MerklePath(bits_encode_msb(state_key.as_slice()));
+
+        let longest_prefix_from_db = self.merkle_db.find_longest_prefix(state_key).await?;
+        let mut longest_prefix = longest_prefix_from_db;
+
+        // Iterate on all merkle paths in the `MerkleCache` and look for a merkle path with longer
+        // common prefix with the state key
+        for merkle_path_in_cache in self.merkle_cache.nodes.keys() {
+            if state_key_as_merkle_path
+                .0
+                .starts_with(&merkle_path_in_cache.0)
+                && merkle_path_in_cache.0.len() > longest_prefix.0.len()
+            {
+                longest_prefix = merkle_path_in_cache.clone();
+            }
+        }
+        Ok(longest_prefix)
+    }
+
     /// Gets a node at the given merkle path from the `MerkleCache`, then falls back to
     /// `MerkleDB` search if not found.
     ///
@@ -63,11 +88,7 @@ impl MerkleManager {
         &self,
         state_key: &StateKey,
     ) -> Result<(MerkleNode, MerklePath), StateMerkleError> {
-        let lcp_path = self
-            .merkle_db
-            .find_longest_prefix(state_key)
-            .await?
-            .ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
+        let lcp_path = self.find_longest_prefix(state_key).await?;
         let lcp_node = self
             .get_node(&lcp_path)
             .await?

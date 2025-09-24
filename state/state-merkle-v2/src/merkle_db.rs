@@ -3,6 +3,7 @@ use crate::{
     types::{LeafNode, MerkleNode, MerklePath, StateMerkleError},
     utils::bits_encode_msb,
 };
+use bitvec::vec::BitVec;
 use fr_common::{MerkleRoot, StateKey};
 use fr_db::{
     core::{
@@ -37,7 +38,7 @@ impl MerkleDB {
     pub(crate) async fn find_longest_prefix(
         &self,
         state_key: &StateKey,
-    ) -> Result<Option<MerklePath>, StateMerkleError> {
+    ) -> Result<MerklePath, StateMerkleError> {
         let core_db = self.nodes.core.clone();
         let nodes_cf_handle = self.nodes.cf_name;
 
@@ -46,11 +47,6 @@ impl MerkleDB {
         let search_path = MerklePath(bits_encode_msb(state_key.as_slice()));
         let search_db_key = search_path.as_db_key().into_owned().into_boxed_slice();
 
-        // Invalid state key
-        if search_path.0.is_empty() {
-            return Ok(None);
-        }
-
         // Create a merkle path with the first bit of `search_path` to initialize
         // `longest_prefix` variable below. We start iterating DB keys from this path.
         let start_key = MerklePath(search_path.0[0..1].to_bitvec())
@@ -58,7 +54,7 @@ impl MerkleDB {
             .into_owned();
 
         tokio::task::spawn_blocking(move || -> Result<_, StateMerkleError> {
-            let mut longest_prefix: Option<MerklePath> = None;
+            let mut longest_prefix = MerklePath(BitVec::new());
 
             let mut iter = core_db.iterator_cf(
                 nodes_cf_handle,
@@ -76,7 +72,7 @@ impl MerkleDB {
 
                 if search_path.0.starts_with(&candidate_path.0) {
                     // Found a longer prefix; update `longest_prefix`
-                    longest_prefix = Some(candidate_path);
+                    longest_prefix = candidate_path;
                 }
             }
 
