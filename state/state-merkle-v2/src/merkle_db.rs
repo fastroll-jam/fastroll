@@ -1,4 +1,5 @@
 use crate::{
+    merkle_cache::MerkleDBWriteBatch,
     types::{LeafNode, MerkleNode, MerklePath, StateMerkleError},
     utils::bits_encode_msb,
 };
@@ -8,7 +9,7 @@ use fr_db::{
         cached_db::{CachedDB, DBKey},
         core_db::CoreDB,
     },
-    Direction, IteratorMode, WriteBatch,
+    Direction, IteratorMode,
 };
 use std::sync::Arc;
 
@@ -150,11 +151,10 @@ impl MerkleDB {
     /// Commit write batches for node entries and leaf node entries into the MerkleDB.
     pub async fn commit_write_batch(
         &self,
-        nodes_batch: WriteBatch,
-        leaf_paths_batch: WriteBatch,
+        batch: MerkleDBWriteBatch,
     ) -> Result<(), StateMerkleError> {
-        self.nodes.commit_write_batch(nodes_batch).await?;
-        self.leaf_paths.commit_write_batch(leaf_paths_batch).await?;
+        self.nodes.commit_write_batch(batch.nodes).await?;
+        self.leaf_paths.commit_write_batch(batch.leaf_paths).await?;
         Ok(())
     }
 }

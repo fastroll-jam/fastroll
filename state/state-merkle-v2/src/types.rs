@@ -24,6 +24,8 @@ pub enum StateMerkleError {
     CoreDBError(#[from] CoreDBError),
     #[error("CachedDBError: {0}")]
     CachedDBError(#[from] CachedDBError),
+    #[error("CacheItemCodecError: {0}")]
+    CacheItemCodecError(#[from] CacheItemCodecError),
     #[error("tokio JoinError: {0}")]
     JoinError(#[from] JoinError),
     #[error("Invalid node type with hash")]

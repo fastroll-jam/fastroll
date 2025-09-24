@@ -1,5 +1,9 @@
-use crate::types::{MerkleNode, MerklePath};
+use crate::types::{MerkleNode, MerklePath, StateMerkleError};
 use fr_common::{StateHash, StateKey};
+use fr_db::{
+    core::cached_db::{CacheItem, DBKey},
+    ColumnFamily, WriteBatch,
+};
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
@@ -9,11 +13,56 @@ pub(crate) type StateDBWrite = (StateHash, Vec<u8>);
 pub(crate) type MerkleDBNodesWrite = (MerklePath, Option<MerkleNode>);
 pub(crate) type MerkleDBLeafPathsWrite = (StateKey, Option<MerklePath>);
 
+pub(crate) struct MerkleDBWriteBatch {
+    pub(crate) nodes: WriteBatch,
+    pub(crate) leaf_paths: WriteBatch,
+}
+
 #[derive(Default)]
 pub(crate) struct DBWriteSet {
     pub(crate) state_db_write_set: Vec<StateDBWrite>,
     pub(crate) merkle_db_nodes_write_set: Vec<MerkleDBNodesWrite>,
     pub(crate) merkle_db_leaf_paths_write_set: Vec<MerkleDBLeafPathsWrite>,
+}
+
+impl DBWriteSet {
+    fn append_write_entries_to_write_batch<K: DBKey, V: CacheItem>(
+        cf_handle: &ColumnFamily,
+        batch: &mut WriteBatch,
+        write_set: &[(K, Option<V>)],
+    ) -> Result<(), StateMerkleError> {
+        for (k, v) in write_set {
+            match v {
+                Some(val) => {
+                    batch.put_cf(cf_handle, k.as_db_key(), val.clone().into_db_value()?);
+                }
+                None => batch.delete_cf(cf_handle, k.as_db_key()),
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn generate_merkle_db_write_batch(
+        &self,
+        merkle_nodes_cf: &ColumnFamily,
+        merkle_leaf_paths_cf: &ColumnFamily,
+    ) -> Result<MerkleDBWriteBatch, StateMerkleError> {
+        let mut nodes = WriteBatch::default();
+        let mut leaf_paths = WriteBatch::default();
+
+        Self::append_write_entries_to_write_batch(
+            merkle_nodes_cf,
+            &mut nodes,
+            &self.merkle_db_nodes_write_set,
+        )?;
+        Self::append_write_entries_to_write_batch(
+            merkle_leaf_paths_cf,
+            &mut leaf_paths,
+            &self.merkle_db_leaf_paths_write_set,
+        )?;
+
+        Ok(MerkleDBWriteBatch { nodes, leaf_paths })
+    }
 }
 
 #[derive(Default)]
