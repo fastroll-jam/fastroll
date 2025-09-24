@@ -6,8 +6,8 @@ use std::{
 };
 
 pub(crate) type StateDBWrite = (StateHash, Vec<u8>);
-pub(crate) type MerkleDBNodesWrite = (MerklePath, MerkleNode);
-pub(crate) type MerkleDBLeafPathsWrite = (StateKey, MerklePath);
+pub(crate) type MerkleDBNodesWrite = (MerklePath, Option<MerkleNode>);
+pub(crate) type MerkleDBLeafPathsWrite = (StateKey, Option<MerklePath>);
 
 #[derive(Default)]
 pub(crate) struct DBWriteSet {
@@ -18,7 +18,7 @@ pub(crate) struct DBWriteSet {
 
 #[derive(Default)]
 pub(crate) struct MerkleCache {
-    /// Represents posterior state of merkle nodes after commiting dirty cache entries.
+    /// Represents the posterior state of merkle nodes after commiting dirty cache entries.
     pub(crate) map: HashMap<MerklePath, Option<MerkleNode>>,
     /// A set of merkle paths that are affected by dirty cache commitment.
     pub(crate) affected_paths: HashSet<MerklePath>,
