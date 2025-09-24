@@ -2,10 +2,10 @@ use crate::{
     merkle_cache::{MerkleCache, StateDBWrite},
     merkle_db::MerkleDB,
     types::{LeafNode, LeafNodeData, MerkleNode, MerklePath, StateMerkleError},
-    utils::{bits_encode_msb, derive_final_leaf_paths},
+    utils::{bits_decode_msb, bits_encode_msb, derive_final_leaf_paths},
 };
 use fr_codec::prelude::*;
-use fr_common::{StateKey, HASH_SIZE};
+use fr_common::{ByteEncodable, StateKey, HASH_SIZE};
 use fr_crypto::{hash, Blake2b256};
 use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
 
@@ -91,7 +91,11 @@ impl MerkleManager {
 
                             // Adds 1 merkle node entry to the MerkleCache
                             self.merkle_cache
-                                .insert(leaf_path, Some(MerkleNode::Leaf(leaf)));
+                                .insert_node(leaf_path.clone(), Some(MerkleNode::Leaf(leaf)));
+
+                            // Insert the added leaf path to the MerkleCache
+                            self.merkle_cache
+                                .insert_leaf_path(state_key.clone(), Some(leaf_path));
 
                             if let Some(state_db_write) = maybe_state_db_write {
                                 self.merkle_cache.insert_state_db_write(state_db_write);
@@ -111,7 +115,7 @@ impl MerkleManager {
                             let sibling_state_key_bv = sibling_candidate.state_key_bv.clone();
                             let new_leaf_state_key_bv = bits_encode_msb(state_key.as_slice());
                             let (sibling_path, new_leaf_path) = derive_final_leaf_paths(
-                                sibling_state_key_bv,
+                                sibling_state_key_bv.clone(),
                                 new_leaf_state_key_bv,
                             );
                             self.merkle_cache.extend_affected_paths(&new_leaf_path);
@@ -120,9 +124,22 @@ impl MerkleManager {
 
                             // Adds 2 merkle node entries to the MerkleCache
                             self.merkle_cache
-                                .insert(new_leaf_path, Some(MerkleNode::Leaf(leaf)));
+                                .insert_node(new_leaf_path.clone(), Some(MerkleNode::Leaf(leaf)));
+                            self.merkle_cache.insert_node(
+                                sibling_path.clone(),
+                                Some(MerkleNode::Leaf(sibling_candidate)),
+                            );
+
+                            // Insert the added leaf paths to the MerkleCache
+                            // The original LCP node (sibling candidate) leaf path will simply be updated
                             self.merkle_cache
-                                .insert(sibling_path, Some(MerkleNode::Leaf(sibling_candidate)));
+                                .insert_leaf_path(state_key.clone(), Some(new_leaf_path));
+                            self.merkle_cache.insert_leaf_path(
+                                StateKey::from_slice(
+                                    bits_decode_msb(sibling_state_key_bv).as_slice(),
+                                )?,
+                                Some(sibling_path),
+                            );
 
                             if let Some(state_db_write) = maybe_state_db_write {
                                 self.merkle_cache.insert_state_db_write(state_db_write);
@@ -143,7 +160,10 @@ impl MerkleManager {
                     self.merkle_cache.extend_affected_paths(&leaf_path);
                     let _ = self
                         .merkle_cache
-                        .insert(leaf_path, Some(MerkleNode::Leaf(leaf)));
+                        .insert_node(leaf_path, Some(MerkleNode::Leaf(leaf)));
+                    // Note: the leaf path doesn't change.
+                    // No need to insert to `MerkleCache.leaf_paths`
+
                     if let Some(state_db_write) = maybe_state_db_write {
                         self.merkle_cache.insert_state_db_write(state_db_write);
                     }
@@ -168,7 +188,10 @@ impl MerkleManager {
                             // Sibling of the removing leaf is branch
                             // Simply mark the leaf node as removed in the StateCache
                             self.merkle_cache.extend_affected_paths(&leaf_path);
-                            let _ = self.merkle_cache.insert(leaf_path, None);
+                            let _ = self.merkle_cache.insert_node(leaf_path, None);
+
+                            // Mark the (state key -> leaf path) pair as removed in the StateCache
+                            self.merkle_cache.insert_leaf_path(state_key.clone(), None);
                         }
                         MerkleNode::Leaf(leaf) => {
                             // Sibling of the removing leaf is leaf
@@ -208,22 +231,32 @@ impl MerkleManager {
 
                             // Mark the original leaf for removal
                             self.merkle_cache.extend_affected_paths(&leaf_path);
-                            let _ = self.merkle_cache.insert(leaf_path, None);
+                            let _ = self.merkle_cache.insert_node(leaf_path, None);
+                            // Mark the removed node's (state key -> leaf path) pair as removed in the StateCache
+                            self.merkle_cache.insert_leaf_path(state_key.clone(), None);
 
                             // Mark the sibling at its original path for removal
                             self.merkle_cache
                                 .insert_to_affected_paths(sibling_path.clone());
-                            let _ = self.merkle_cache.insert(sibling_path, None);
+                            let _ = self.merkle_cache.insert_node(sibling_path.clone(), None);
+                            // Update the sibling's (state key -> leaf path) pair in the StateCache
+                            let sibling_state_key_bv = leaf.state_key_bv.clone();
+                            self.merkle_cache.insert_leaf_path(
+                                StateKey::from_slice(
+                                    bits_decode_msb(sibling_state_key_bv).as_slice(),
+                                )?,
+                                Some(sibling_path),
+                            );
 
                             // Mark all the collapsed intermediate branches for removal
                             for path in collapsed_branch_paths {
-                                let _ = self.merkle_cache.insert(path, None);
+                                let _ = self.merkle_cache.insert_node(path, None);
                             }
 
                             // Insert the sibling leaf with its final merkle path
                             let _ = self
                                 .merkle_cache
-                                .insert(post_sibling_path, Some(MerkleNode::Leaf(leaf)));
+                                .insert_node(post_sibling_path, Some(MerkleNode::Leaf(leaf)));
                             return Ok(());
                         }
                     }
@@ -337,7 +370,7 @@ mod tests {
             // Check `MerkleCache.map`
             let entry = merkle_manager
                 .merkle_cache
-                .map
+                .nodes
                 .get(&expected_added_leaf_merkle_path)
                 .unwrap();
             assert_eq!(*entry, Some(expected_added_leaf_node));
@@ -371,7 +404,8 @@ mod tests {
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
 
             // LCP node path: 1100_0011_0000
-            let lcp_node_state_key = merkle_path![1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0];
+            let mut lcp_node_state_key = merkle_path![1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0];
+            lcp_node_state_key.0.resize(248, false);
             let lcp_node_data = vec![255u8; 20];
             let lcp_node = MerkleNode::Leaf(LeafNode::new(
                 lcp_node_state_key.0,
@@ -410,13 +444,13 @@ mod tests {
             // Check `MerkleCache.map`
             let entry = merkle_manager
                 .merkle_cache
-                .map
+                .nodes
                 .get(&expected_added_leaf_merkle_path)
                 .unwrap();
             assert_eq!(*entry, Some(expected_added_leaf_node));
             let entry = merkle_manager
                 .merkle_cache
-                .map
+                .nodes
                 .get(&expected_lcp_node_final_merkle_path)
                 .unwrap();
             assert_eq!(*entry, Some(lcp_node));
@@ -488,7 +522,7 @@ mod tests {
             // Check `MerkleCache.map`
             let entry = merkle_manager
                 .merkle_cache
-                .map
+                .nodes
                 .get(&updated_leaf_merkle_path)
                 .unwrap();
             assert_eq!(*entry, Some(expected_updated_leaf_node));
@@ -554,7 +588,7 @@ mod tests {
             // Check `MerkleCache.map`
             let entry = merkle_manager
                 .merkle_cache
-                .map
+                .nodes
                 .get(&removed_leaf_merkle_path)
                 .unwrap();
             assert!(entry.is_none()); // Should be marked as `None`
@@ -630,7 +664,7 @@ mod tests {
             // Check `MerkleCache.map`
             let entry = merkle_manager
                 .merkle_cache
-                .map
+                .nodes
                 .get(&removed_leaf_merkle_path)
                 .unwrap();
             assert!(entry.is_none()); // Should be marked as `None`

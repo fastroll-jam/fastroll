@@ -67,9 +67,10 @@ impl DBWriteSet {
 
 #[derive(Default)]
 pub(crate) struct MerkleCache {
-    // TODO: rename to `nodes`
-    /// Represents the posterior state of merkle nodes after commiting dirty cache entries.
-    pub(crate) map: HashMap<MerklePath, Option<MerkleNode>>,
+    /// Represents the intermediate state of merkle nodes while processing dirty state cache entries.
+    pub(crate) nodes: HashMap<MerklePath, Option<MerkleNode>>,
+    /// Represents the intermediate state of merkle leaf paths while processing dirty state cache entries.
+    pub(crate) leaf_paths: HashMap<StateKey, Option<MerklePath>>,
     /// A set of merkle paths that are affected by dirty cache commitment.
     pub(crate) affected_paths: HashSet<MerklePath>,
     pub(crate) db_write_set: DBWriteSet,
@@ -77,15 +78,27 @@ pub(crate) struct MerkleCache {
 
 impl MerkleCache {
     pub(crate) fn get_node(&self, merkle_path: &MerklePath) -> Option<Option<MerkleNode>> {
-        self.map.get(merkle_path).cloned()
+        self.nodes.get(merkle_path).cloned()
     }
 
-    pub(crate) fn insert(
+    pub(crate) fn insert_node(
         &mut self,
         merkle_path: MerklePath,
         node: Option<MerkleNode>,
     ) -> Option<MerkleNode> {
-        self.map.insert(merkle_path, node).flatten()
+        self.nodes.insert(merkle_path, node).flatten()
+    }
+
+    pub(crate) fn get_leaf_path(&self, state_key: &StateKey) -> Option<Option<MerklePath>> {
+        self.leaf_paths.get(state_key).cloned()
+    }
+
+    pub(crate) fn insert_leaf_path(
+        &mut self,
+        state_key: StateKey,
+        leaf_path: Option<MerklePath>,
+    ) -> Option<MerklePath> {
+        self.leaf_paths.insert(state_key, leaf_path).flatten()
     }
 
     /// Extends `affected_paths` set with all paths that are affected by mutating
@@ -100,7 +113,7 @@ impl MerkleCache {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.map.clear();
+        self.nodes.clear();
         self.affected_paths.clear();
     }
 
@@ -166,7 +179,8 @@ mod tests {
         ]);
 
         let merkle_cache = MerkleCache {
-            map: HashMap::new(),
+            nodes: HashMap::new(),
+            leaf_paths: HashMap::new(),
             affected_paths: paths,
             db_write_set: DBWriteSet::default(),
         };

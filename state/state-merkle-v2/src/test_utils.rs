@@ -47,13 +47,13 @@ pub(crate) fn create_branch(left_hash: &NodeHash, right_hash: &NodeHash) -> Bran
 }
 
 pub(crate) fn create_dummy_embedded_leaf(seed: u8) -> LeafNode {
-    let state_key_bv = bitvec![u8, Msb0; 0, 1, 1, 1];
+    let state_key_bv = bitvec![u8, Msb0; 1; 248];
     let data = vec![seed; 32];
     LeafNode::new(state_key_bv, LeafNodeData::Embedded(data))
 }
 
 pub(crate) fn create_dummy_regular_leaf(seed: u8) -> LeafNode {
-    let state_key_bv = bitvec![u8, Msb0; 0, 1, 1, 1];
+    let state_key_bv = bitvec![u8, Msb0; 1; 248];
     let data = vec![seed; 32];
     LeafNode::new(
         state_key_bv,
@@ -76,9 +76,9 @@ pub(crate) fn create_dummy_single_child_branch(seed: u8) -> BranchNode {
 }
 
 pub(crate) fn create_state_key_from_path_prefix(path_prefix: MerklePath) -> StateKey {
-    let mut state_key_bv = bits_decode_msb(path_prefix.0);
-    state_key_bv.resize(STATE_KEY_SIZE, 0);
-    StateKey::new(state_key_bv.try_into().unwrap())
+    let mut state_key_decoded = bits_decode_msb(path_prefix.0);
+    state_key_decoded.resize(STATE_KEY_SIZE, 0);
+    StateKey::new(state_key_decoded.try_into().unwrap())
 }
 
 #[macro_export]

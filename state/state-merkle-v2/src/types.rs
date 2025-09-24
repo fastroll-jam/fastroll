@@ -1,7 +1,7 @@
 use crate::utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash, slice_bitvec};
 use bitvec::prelude::*;
 use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, Hash32, NodeHash};
+use fr_common::{ByteEncodable, CommonTypeError, Hash32, NodeHash};
 use fr_crypto::{error::CryptoError, hash, Blake2b256};
 use fr_db::core::{
     cached_db::{CacheItem, CacheItemCodecError, CachedDBError, DBKey},
@@ -18,6 +18,8 @@ pub const NODE_SIZE_BITS: usize = 512;
 pub enum StateMerkleError {
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("CommonTypeError: {0}")]
+    CommonTypeError(#[from] CommonTypeError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
     #[error("CoreDBError: {0}")]
