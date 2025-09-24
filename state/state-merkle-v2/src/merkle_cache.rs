@@ -67,6 +67,7 @@ impl DBWriteSet {
 
 #[derive(Default)]
 pub(crate) struct MerkleCache {
+    // TODO: rename to `nodes`
     /// Represents the posterior state of merkle nodes after commiting dirty cache entries.
     pub(crate) map: HashMap<MerklePath, Option<MerkleNode>>,
     /// A set of merkle paths that are affected by dirty cache commitment.
@@ -75,6 +76,10 @@ pub(crate) struct MerkleCache {
 }
 
 impl MerkleCache {
+    pub(crate) fn get_node(&self, merkle_path: &MerklePath) -> Option<Option<MerkleNode>> {
+        self.map.get(merkle_path).cloned()
+    }
+
     pub(crate) fn insert(
         &mut self,
         merkle_path: MerklePath,

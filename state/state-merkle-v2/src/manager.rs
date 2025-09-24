@@ -62,17 +62,6 @@ impl MerkleManager {
         }
     }
 
-    async fn insert_dirty_cache_entries_as_leaf_writes(
-        &mut self,
-        dirty_entries: &[(StateKey, CacheEntry)],
-    ) -> Result<(), StateMerkleError> {
-        for (state_key, entry) in dirty_entries {
-            self.insert_dirty_cache_entry_as_leaf_writes(state_key, entry)
-                .await?;
-        }
-        Ok(())
-    }
-
     async fn insert_dirty_cache_entry_as_leaf_writes(
         &mut self,
         state_key: &StateKey,
@@ -240,6 +229,17 @@ impl MerkleManager {
                     }
                 }
             }
+        }
+        Ok(())
+    }
+
+    async fn insert_dirty_cache_entries_as_leaf_writes(
+        &mut self,
+        dirty_entries: &[(StateKey, CacheEntry)],
+    ) -> Result<(), StateMerkleError> {
+        for (state_key, entry) in dirty_entries {
+            self.insert_dirty_cache_entry_as_leaf_writes(state_key, entry)
+                .await?;
         }
         Ok(())
     }

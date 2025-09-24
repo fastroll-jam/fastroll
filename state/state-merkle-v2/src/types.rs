@@ -2,7 +2,7 @@ use crate::utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash, slice_bitve
 use bitvec::prelude::*;
 use fr_codec::prelude::*;
 use fr_common::{ByteEncodable, Hash32, NodeHash};
-use fr_crypto::error::CryptoError;
+use fr_crypto::{error::CryptoError, hash, Blake2b256};
 use fr_db::core::{
     cached_db::{CacheItem, CacheItemCodecError, CachedDBError, DBKey},
     core_db::CoreDBError,
@@ -40,6 +40,11 @@ pub enum StateMerkleError {
     MerklePathUnknownForStateKey(String),
     #[error("Merkle trie is not initialized yet")]
     MerkleTrieNotInitialized,
+    #[error("A node that corresponds to the given merkle path is not found either from MerkleDB or MerkleCache"
+    )]
+    InvalidAffectedMerklePath,
+    #[error("Affected leaf node is not found from the MerkleCache")]
+    AffectedLeafNotFoundFromMerkleCache,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -131,9 +136,9 @@ impl LeafNode {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct BranchNode {
     /// 255-bit left child node hash value, with the first bit dropped.
-    left_lossy: BitVec<u8, Msb0>,
+    pub(crate) left_lossy: BitVec<u8, Msb0>,
     /// The right child node hash value.
-    right: BitVec<u8, Msb0>,
+    pub(crate) right: BitVec<u8, Msb0>,
 }
 
 impl BranchNode {
@@ -146,6 +151,17 @@ impl BranchNode {
                 .to_bitvec(),
             right: right_bv,
         }
+    }
+
+    pub(crate) fn update_left(&mut self, left: &NodeHash) {
+        let left_bv = bits_encode_msb(left.as_slice());
+        self.left_lossy = slice_bitvec(&left_bv, 1..)
+            .expect("Has 256 bits")
+            .to_bitvec();
+    }
+
+    pub(crate) fn update_right(&mut self, right: &NodeHash) {
+        self.right = bits_encode_msb(right.as_slice());
     }
 
     pub(crate) fn has_single_child(&self) -> bool {
@@ -224,6 +240,19 @@ impl CacheItem for MerkleNode {
                 panic!("Invalid node data")
             }
         }
+    }
+}
+
+impl MerkleNode {
+    fn encode(&self) -> Result<Vec<u8>, StateMerkleError> {
+        match self {
+            Self::Branch(branch) => branch.encode(),
+            Self::Leaf(leaf) => leaf.encode(),
+        }
+    }
+
+    pub(crate) fn hash(&self) -> Result<NodeHash, StateMerkleError> {
+        Ok(hash::<Blake2b256>(self.encode()?.as_slice())?)
     }
 }
 
