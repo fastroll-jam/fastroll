@@ -93,7 +93,7 @@ impl MerkleDB {
         self.root = new_root;
     }
 
-    pub(crate) async fn get(
+    pub(crate) async fn get_node(
         &self,
         merkle_path: &MerklePath,
     ) -> Result<Option<MerkleNode>, StateMerkleError> {
@@ -112,14 +112,14 @@ impl MerkleDB {
         state_key: &StateKey,
     ) -> Result<Option<LeafNode>, StateMerkleError> {
         if let Some(leaf_merkle_path) = self.get_leaf_path(state_key).await? {
-            if let Some(MerkleNode::Leaf(leaf)) = self.get(&leaf_merkle_path).await? {
+            if let Some(MerkleNode::Leaf(leaf)) = self.get_node(&leaf_merkle_path).await? {
                 return Ok(Some(leaf));
             }
         }
         Ok(None)
     }
 
-    pub(crate) async fn put(
+    pub(crate) async fn insert_node(
         &self,
         merkle_path: &MerklePath,
         node: MerkleNode,
@@ -127,7 +127,7 @@ impl MerkleDB {
         Ok(self.nodes.put_entry(merkle_path, node).await?)
     }
 
-    async fn put_leaf_path(
+    async fn insert_leaf_path(
         &self,
         state_key: &StateKey,
         leaf_path: MerklePath,
@@ -135,7 +135,7 @@ impl MerkleDB {
         Ok(self.leaf_paths.put_entry(state_key, leaf_path).await?)
     }
 
-    pub(crate) async fn put_leaf(
+    pub(crate) async fn insert_leaf(
         &self,
         state_key: &StateKey,
         leaf_path: MerklePath,
@@ -176,18 +176,18 @@ mod tests {
         let merkle_db = open_merkle_db();
         let merkle_path = merkle_path![0, 0, 1];
 
-        assert_eq!(merkle_db.get(&merkle_path).await.unwrap(), None);
+        assert_eq!(merkle_db.get_node(&merkle_path).await.unwrap(), None);
 
         let branch_node = MerkleNode::Branch(create_branch(
             &NodeHash::from_slice(&[0xAA; 32]).unwrap(),
             &NodeHash::from_slice(&[0xBB; 32]).unwrap(),
         ));
         merkle_db
-            .put(&merkle_path, branch_node.clone())
+            .insert_node(&merkle_path, branch_node.clone())
             .await
             .unwrap();
         assert_eq!(
-            merkle_db.get(&merkle_path).await.unwrap(),
+            merkle_db.get_node(&merkle_path).await.unwrap(),
             Some(branch_node)
         );
     }
@@ -204,7 +204,7 @@ mod tests {
         assert_eq!(merkle_db.get_leaf(&state_key).await.unwrap(), None);
 
         merkle_db
-            .put_leaf(&state_key, leaf_path, leaf_node.clone())
+            .insert_leaf(&state_key, leaf_path, leaf_node.clone())
             .await
             .unwrap();
 

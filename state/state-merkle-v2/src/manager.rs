@@ -22,6 +22,42 @@ impl MerkleManager {
         }
     }
 
+    /// Gets a node at the given merkle path from the `MerkleCache`, then falls back to
+    /// `MerkleDB` search if not found.
+    ///
+    /// `None` return value implies either it was removed from the `MerkleCache` while processing
+    /// dirty state cache entries, or it never existed at the `MerkleDB`.
+    async fn get_node(
+        &self,
+        merkle_path: &MerklePath,
+    ) -> Result<Option<MerkleNode>, StateMerkleError> {
+        // Get from the MerkleCache
+        if let Some(node_from_cache) = self.merkle_cache.get_node(merkle_path) {
+            Ok(node_from_cache)
+        } else {
+            // Fallback to MerkleDB search
+            Ok(self.merkle_db.get_node(merkle_path).await?)
+        }
+    }
+
+    /// Gets a leaf node merkle path that corresponds to the given state key from the `MerkleCache`,
+    /// then falls back to `MerkleDB` search if not found.
+    ///
+    /// `None` return value implies either it was removed from the `MerkleCache` while processing
+    /// dirty state cache entries, or it never existed at the `MerkleDB`.
+    async fn get_leaf_path(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<Option<MerklePath>, StateMerkleError> {
+        // Get from the MerkleCache
+        if let Some(leaf_path_from_cache) = self.merkle_cache.get_leaf_path(state_key) {
+            Ok(leaf_path_from_cache)
+        } else {
+            // Fallback to MerkleDB search
+            Ok(self.merkle_db.get_leaf_path(state_key).await?)
+        }
+    }
+
     /// Gets a merkle node with the longest common path with the given state key found from the MerkleDB.
     async fn get_longest_common_path_node(
         &self,
@@ -33,8 +69,7 @@ impl MerkleManager {
             .await?
             .ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
         let lcp_node = self
-            .merkle_db
-            .get(&lcp_path)
+            .get_node(&lcp_path)
             .await?
             .ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
         Ok((lcp_node, lcp_path))
@@ -71,7 +106,6 @@ impl MerkleManager {
             match state_mut {
                 StateMut::Add => {
                     let (lcp_node, lcp_path) = self.get_longest_common_path_node(state_key).await?;
-                    println!(">>> lcp_node: {lcp_node:?}, lcp_path: {lcp_path:?}");
                     match lcp_node {
                         MerkleNode::Branch(_) => {
                             // New leaf is extending the single-child branch node
@@ -102,7 +136,6 @@ impl MerkleManager {
                             }
                         }
                         MerkleNode::Leaf(sibling_candidate) => {
-                            println!(">>> sibling_candidate (lcp node): {sibling_candidate:?}");
                             // New leaf is extending the leaf node, which will be its sibling in the post state
                             let (leaf, maybe_state_db_write) =
                                 Self::cache_entry_to_leaf_node_and_state_db_write_set(
@@ -148,7 +181,7 @@ impl MerkleManager {
                     }
                 }
                 StateMut::Update => {
-                    let leaf_path = self.merkle_db.get_leaf_path(state_key).await?.ok_or(
+                    let leaf_path = self.get_leaf_path(state_key).await?.ok_or(
                         StateMerkleError::MerklePathUnknownForStateKey(format!("{state_key}")),
                     )?;
                     let (leaf, maybe_state_db_write) =
@@ -169,7 +202,7 @@ impl MerkleManager {
                     }
                 }
                 StateMut::Remove => {
-                    let leaf_path = self.merkle_db.get_leaf_path(state_key).await?.ok_or(
+                    let leaf_path = self.get_leaf_path(state_key).await?.ok_or(
                         StateMerkleError::MerklePathUnknownForStateKey(format!("{state_key}")),
                     )?;
                     // Find sibling of the leaf node to be removed
@@ -178,8 +211,7 @@ impl MerkleManager {
                         .sibling()
                         .ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
                     let sibling = self
-                        .merkle_db
-                        .get(&sibling_path)
+                        .get_node(&sibling_path)
                         .await?
                         .ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
 
@@ -212,7 +244,7 @@ impl MerkleManager {
 
                                 // If the parent branch node has a single child, promote once again
                                 if let Some(MerkleNode::Branch(parent_branch)) =
-                                    self.merkle_db.get(&parent_merkle_path).await?
+                                    self.get_node(&parent_merkle_path).await?
                                 {
                                     if parent_branch.has_single_child() {
                                         // The parent is also a single-child branch, so it gets collapsed
@@ -238,14 +270,14 @@ impl MerkleManager {
                             // Mark the sibling at its original path for removal
                             self.merkle_cache
                                 .insert_to_affected_paths(sibling_path.clone());
-                            let _ = self.merkle_cache.insert_node(sibling_path.clone(), None);
+                            let _ = self.merkle_cache.insert_node(sibling_path, None);
                             // Update the sibling's (state key -> leaf path) pair in the StateCache
                             let sibling_state_key_bv = leaf.state_key_bv.clone();
                             self.merkle_cache.insert_leaf_path(
                                 StateKey::from_slice(
                                     bits_decode_msb(sibling_state_key_bv).as_slice(),
                                 )?,
-                                Some(sibling_path),
+                                Some(post_sibling_path.clone()),
                             );
 
                             // Mark all the collapsed intermediate branches for removal
@@ -302,11 +334,26 @@ mod tests {
 
         let test_node = MerkleNode::Branch(create_dummy_branch(1));
 
-        merkle_db.put(&path_1, test_node.clone()).await.unwrap();
-        merkle_db.put(&path_2, test_node.clone()).await.unwrap();
-        merkle_db.put(&path_3, test_node.clone()).await.unwrap();
-        merkle_db.put(&path_4, test_node.clone()).await.unwrap();
-        merkle_db.put(&path_5, test_node.clone()).await.unwrap();
+        merkle_db
+            .insert_node(&path_1, test_node.clone())
+            .await
+            .unwrap();
+        merkle_db
+            .insert_node(&path_2, test_node.clone())
+            .await
+            .unwrap();
+        merkle_db
+            .insert_node(&path_3, test_node.clone())
+            .await
+            .unwrap();
+        merkle_db
+            .insert_node(&path_4, test_node.clone())
+            .await
+            .unwrap();
+        merkle_db
+            .insert_node(&path_5, test_node.clone())
+            .await
+            .unwrap();
 
         let merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
 
@@ -344,11 +391,17 @@ mod tests {
                 &NodeHash::default(), // no right child
             ));
 
-            merkle_db.put(&path_0, dummy_leaf.clone()).await.unwrap();
-            merkle_db.put(&path_1, lcp_node).await.unwrap();
-            merkle_db.put(&path_10, dummy_branch).await.unwrap();
-            merkle_db.put(&path_100, dummy_leaf.clone()).await.unwrap();
-            merkle_db.put(&path_101, dummy_leaf).await.unwrap();
+            merkle_db
+                .insert_node(&path_0, dummy_leaf.clone())
+                .await
+                .unwrap();
+            merkle_db.insert_node(&path_1, lcp_node).await.unwrap();
+            merkle_db.insert_node(&path_10, dummy_branch).await.unwrap();
+            merkle_db
+                .insert_node(&path_100, dummy_leaf.clone())
+                .await
+                .unwrap();
+            merkle_db.insert_node(&path_101, dummy_leaf).await.unwrap();
 
             let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
 
@@ -413,10 +466,16 @@ mod tests {
                 LeafNodeData::Embedded(lcp_node_data),
             ));
 
-            merkle_db.put(&path_0, dummy_leaf.clone()).await.unwrap();
-            merkle_db.put(&path_1, dummy_branch).await.unwrap();
-            merkle_db.put(&path_10, dummy_leaf).await.unwrap();
-            merkle_db.put(&path_11, lcp_node.clone()).await.unwrap();
+            merkle_db
+                .insert_node(&path_0, dummy_leaf.clone())
+                .await
+                .unwrap();
+            merkle_db.insert_node(&path_1, dummy_branch).await.unwrap();
+            merkle_db.insert_node(&path_10, dummy_leaf).await.unwrap();
+            merkle_db
+                .insert_node(&path_11, lcp_node.clone())
+                .await
+                .unwrap();
 
             let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
 
@@ -490,15 +549,21 @@ mod tests {
             let dummy_branch = MerkleNode::Branch(create_dummy_branch(1));
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
 
-            merkle_db.put(&path_0, dummy_leaf.clone()).await.unwrap();
-            merkle_db.put(&path_1, dummy_branch).await.unwrap();
-            merkle_db.put(&path_10, dummy_leaf.clone()).await.unwrap();
+            merkle_db
+                .insert_node(&path_0, dummy_leaf.clone())
+                .await
+                .unwrap();
+            merkle_db.insert_node(&path_1, dummy_branch).await.unwrap();
+            merkle_db
+                .insert_node(&path_10, dummy_leaf.clone())
+                .await
+                .unwrap();
 
             // State key of the updated entry: 11... (248 bits)
             let state_key = create_state_key_from_path_prefix(merkle_path![1, 1]);
             let original_leaf = create_dummy_regular_leaf(1);
             merkle_db
-                .put_leaf(&state_key, path_11, original_leaf)
+                .insert_leaf(&state_key, path_11, original_leaf)
                 .await
                 .unwrap();
 
@@ -558,17 +623,26 @@ mod tests {
             let dummy_branch = MerkleNode::Branch(create_dummy_branch(1));
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
 
-            merkle_db.put(&path_0, dummy_leaf.clone()).await.unwrap();
-            merkle_db.put(&path_1, dummy_branch.clone()).await.unwrap();
-            merkle_db.put(&path_10, dummy_branch).await.unwrap();
-            merkle_db.put(&path_100, dummy_leaf.clone()).await.unwrap();
-            merkle_db.put(&path_101, dummy_leaf).await.unwrap();
+            merkle_db
+                .insert_node(&path_0, dummy_leaf.clone())
+                .await
+                .unwrap();
+            merkle_db
+                .insert_node(&path_1, dummy_branch.clone())
+                .await
+                .unwrap();
+            merkle_db.insert_node(&path_10, dummy_branch).await.unwrap();
+            merkle_db
+                .insert_node(&path_100, dummy_leaf.clone())
+                .await
+                .unwrap();
+            merkle_db.insert_node(&path_101, dummy_leaf).await.unwrap();
 
             // State key of the updated entry: 11... (248 bits)
             let state_key = create_state_key_from_path_prefix(merkle_path![1, 1]);
             let original_leaf = create_dummy_regular_leaf(1);
             merkle_db
-                .put_leaf(&state_key, path_11, original_leaf)
+                .insert_leaf(&state_key, path_11, original_leaf)
                 .await
                 .unwrap();
 
@@ -626,23 +700,32 @@ mod tests {
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
             let sibling = MerkleNode::Leaf(create_dummy_regular_leaf(255));
 
-            merkle_db.put(&path_0, dummy_leaf.clone()).await.unwrap();
             merkle_db
-                .put(&path_1, dummy_single_child_branch.clone())
+                .insert_node(&path_0, dummy_leaf.clone())
                 .await
                 .unwrap();
             merkle_db
-                .put(&path_10, dummy_single_child_branch.clone())
+                .insert_node(&path_1, dummy_single_child_branch.clone())
                 .await
                 .unwrap();
-            merkle_db.put(&path_101, dummy_branch).await.unwrap();
-            merkle_db.put(&path_1010, sibling.clone()).await.unwrap();
+            merkle_db
+                .insert_node(&path_10, dummy_single_child_branch.clone())
+                .await
+                .unwrap();
+            merkle_db
+                .insert_node(&path_101, dummy_branch)
+                .await
+                .unwrap();
+            merkle_db
+                .insert_node(&path_1010, sibling.clone())
+                .await
+                .unwrap();
 
             // State key of the removed entry: 1011... (248 bits)
             let state_key = create_state_key_from_path_prefix(merkle_path![1, 0, 1, 1]);
             let original_leaf = create_dummy_regular_leaf(1);
             merkle_db
-                .put_leaf(&state_key, path_1011, original_leaf)
+                .insert_leaf(&state_key, path_1011, original_leaf)
                 .await
                 .unwrap();
 
@@ -735,32 +818,49 @@ mod tests {
             let dummy_single_child_branch = MerkleNode::Branch(create_dummy_single_child_branch(1));
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
 
-            merkle_db.put(&path_0, dummy_branch.clone()).await.unwrap();
             merkle_db
-                .put(&path_1, dummy_single_child_branch.clone())
+                .insert_node(&path_0, dummy_branch.clone())
                 .await
                 .unwrap();
-            merkle_db.put(&path_00, dummy_leaf.clone()).await.unwrap();
-            merkle_db.put(&path_01, dummy_leaf.clone()).await.unwrap();
             merkle_db
-                .put(&path_10, dummy_single_child_branch.clone())
+                .insert_node(&path_1, dummy_single_child_branch.clone())
                 .await
                 .unwrap();
-            merkle_db.put(&path_101, dummy_leaf.clone()).await.unwrap();
+            merkle_db
+                .insert_node(&path_00, dummy_leaf.clone())
+                .await
+                .unwrap();
+            merkle_db
+                .insert_node(&path_01, dummy_leaf.clone())
+                .await
+                .unwrap();
+            merkle_db
+                .insert_node(&path_10, dummy_single_child_branch.clone())
+                .await
+                .unwrap();
+            merkle_db
+                .insert_node(&path_101, dummy_leaf.clone())
+                .await
+                .unwrap();
 
             // State key of the removed entry #1: 1011... (248 bits)
             let state_key_1011 = create_state_key_from_path_prefix(merkle_path![1, 0, 1, 1]);
-            let original_leaf_1011 = create_dummy_regular_leaf(2);
+            let state_key_1011_bv = bits_encode_msb(state_key_1011.as_slice());
+            let original_leaf_1011 =
+                LeafNode::new(state_key_1011_bv, LeafNodeData::Embedded(vec![254u8; 10]));
             merkle_db
-                .put_leaf(&state_key_1011, path_1011, original_leaf_1011)
+                .insert_leaf(&state_key_1011, path_1011, original_leaf_1011)
                 .await
                 .unwrap();
 
-            // State key of the removed entry #1: 1010... (248 bits)
+            // State key of the removed entry #2: 1010... (248 bits)
             let state_key_1010 = create_state_key_from_path_prefix(merkle_path![1, 0, 1, 0]);
-            let original_leaf_1010 = create_dummy_regular_leaf(3);
+            let state_key_1010_bv = bits_encode_msb(state_key_1010.as_slice());
+            let original_leaf_1010 =
+                LeafNode::new(state_key_1010_bv, LeafNodeData::Embedded(vec![255u8; 10]));
+
             merkle_db
-                .put_leaf(&state_key_1010, path_1010, original_leaf_1010)
+                .insert_leaf(&state_key_1010, path_1010, original_leaf_1010)
                 .await
                 .unwrap();
 
@@ -796,7 +896,7 @@ mod tests {
                 .nodes
                 .get(&merkle_path![1])
                 .unwrap()
-                .is_none()); // FIXME: This should be none
+                .is_none());
             assert!(merkle_manager
                 .merkle_cache
                 .nodes
