@@ -9,7 +9,7 @@ use fr_common::{ByteEncodable, NodeHash, StateKey, HASH_SIZE};
 use fr_crypto::{hash, Blake2b256};
 use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
 
-pub(crate) struct MerkleManager {
+pub struct MerkleManager {
     merkle_db: MerkleDB,
     merkle_cache: MerkleCache,
 }
@@ -438,8 +438,6 @@ impl MerkleManager {
         Ok(())
     }
 
-    // TODO: Check: this is a blocking operation
-    //
     /// Copies updated (state key -> leaf path) relationships from `MerkleCache.leaf_paths` into
     /// `MerkleCache.db_write_set.merkle_db_leaf_paths_write_set`, so that it can be later
     /// committed to `MerkleDB.leaf_paths`.
@@ -466,6 +464,7 @@ impl MerkleManager {
         Ok(())
     }
 
+    /// Generates a write batch for `MerkleDB` from the write set.
     fn generate_merkle_db_write_batch_from_write_set(
         &self,
     ) -> Result<MerkleDBWriteBatch, StateMerkleError> {
@@ -475,6 +474,25 @@ impl MerkleManager {
                 self.merkle_db.nodes_cf_handle()?,
                 self.merkle_db.leaf_paths_cf_handle()?,
             )
+    }
+
+    /// Commits the provided write batch into the `MerkleDB`.
+    async fn commit_write_batch(&self, batch: MerkleDBWriteBatch) -> Result<(), StateMerkleError> {
+        self.merkle_db.commit_write_batch(batch).await
+    }
+
+    /// Processes the provided dirty state cache entries to change internal structure of the
+    /// state merkle trie and commits the changes into the `MerkleDB`.
+    pub async fn commit_dirty_state_cache_to_merkle_db(
+        &mut self,
+        dirty_entries: &[(StateKey, CacheEntry)],
+    ) -> Result<(), StateMerkleError> {
+        self.insert_dirty_cache_entries_as_leaf_writes(dirty_entries)
+            .await?;
+        self.prepare_merkle_db_writes().await?;
+        let merkle_db_write_batch = self.generate_merkle_db_write_batch_from_write_set()?;
+        self.commit_write_batch(merkle_db_write_batch).await?;
+        Ok(())
     }
 }
 

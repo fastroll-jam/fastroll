@@ -153,7 +153,7 @@ impl MerkleDB {
     }
 
     /// Commit write batches for node entries and leaf node entries into the MerkleDB.
-    pub async fn commit_write_batch(
+    pub(crate) async fn commit_write_batch(
         &self,
         batch: MerkleDBWriteBatch,
     ) -> Result<(), StateMerkleError> {
