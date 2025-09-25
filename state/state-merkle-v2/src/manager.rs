@@ -367,14 +367,103 @@ impl MerkleManager {
     }
 
     /// Recalculates hashes for affected branch nodes and populates the `DBWriteSet`
-    /// with all changes to be committed to the `MerkleDB`.
-    async fn prepare_db_writes(&self) -> Result<(), StateMerkleError> {
+    /// with all changes to be committed to the `MerkleDB.nodes`.
+    async fn prepare_merkle_db_node_writes(&mut self) -> Result<(), StateMerkleError> {
         let affected_paths_sorted = self.merkle_cache.affected_paths_as_sorted_vec();
 
         // Iterate on affected merkle nodes from the deepest merkle path up toward the root,
-        // producing DB write set.
-        for _affected_path in affected_paths_sorted {}
-        unimplemented!()
+        // populating DB write set entries.
+        for affected_path in affected_paths_sorted {
+            // Attempt to get node at the given path from the `MerkleCache`
+            if let Some(affected_node_write) = self.merkle_cache.get_node(&affected_path) {
+                self.merkle_cache
+                    .insert_merkle_db_nodes_write((affected_path, affected_node_write));
+            } else {
+                // Node at the path is not found from the `MerkleCache`, so get the node from the `MerkleDB`.
+                // This should be branch type, since all mutated leaf nodes must be already present
+                // at the `MerkleCache`.
+                if let Some(affected_node) = self.merkle_db.get_node(&affected_path).await? {
+                    if let MerkleNode::Branch(mut affected_branch) = affected_node {
+                        // If any of its children is mutated and found in the `StateCache`, update
+                        // the child node hash value and then push to the DB write set.
+                        let left_child_path = affected_path
+                            .clone()
+                            .left_child()
+                            .expect("Affected path length should not exceed NODE_SIZE_BITS");
+                        let right_child_path = affected_path
+                            .clone()
+                            .right_child()
+                            .expect("Affected path length should not exceed NODE_SIZE_BITS");
+
+                        if let Some(left_child_write) = self.merkle_cache.get_node(&left_child_path)
+                        {
+                            match left_child_write {
+                                Some(left_child_mutated) => {
+                                    affected_branch.update_left(&left_child_mutated.hash()?);
+                                }
+                                None => {
+                                    // Replace with zero hash for empty (removed) child
+                                    affected_branch.update_left(&NodeHash::default());
+                                }
+                            }
+                        }
+                        if let Some(right_child_write) =
+                            self.merkle_cache.get_node(&right_child_path)
+                        {
+                            match right_child_write {
+                                Some(right_child_mutated) => {
+                                    affected_branch.update_right(&right_child_mutated.hash()?);
+                                }
+                                None => {
+                                    // Replace with zero hash for empty (removed) child
+                                    affected_branch.update_right(&NodeHash::default());
+                                }
+                            }
+                        }
+
+                        // Insert the updated branch node to the DB write set
+                        self.merkle_cache.insert_merkle_db_nodes_write((
+                            affected_path,
+                            Some(MerkleNode::Branch(affected_branch)),
+                        ));
+                    } else {
+                        return Err(StateMerkleError::AffectedLeafNotFoundFromMerkleCache);
+                    }
+                } else {
+                    return Err(StateMerkleError::InvalidAffectedMerklePath);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    // TODO: Check: this is a blocking operation
+    //
+    /// Copies updated (state key -> leaf path) relationships from `MerkleCache.leaf_paths` into
+    /// `MerkleCache.db_write_set.merkle_db_leaf_paths_write_set`, so that it can be later
+    /// committed to `MerkleDB.leaf_paths`.
+    ///
+    /// Unlike `StateDB` write set which directly stores the write entries into the write set,
+    /// this should be first staged at `MerkleCache.leaf_paths` since
+    /// this staged mapping is used during the `insert_dirty_cache_entry_as_leaf_writes` call.
+    fn prepare_merkle_db_leaf_paths_writes(&mut self) {
+        for (state_key, merkle_path_write) in self.merkle_cache.leaf_paths.clone() {
+            self.merkle_cache
+                .insert_merkle_db_leaf_paths_write((state_key, merkle_path_write));
+        }
+    }
+
+    /// Prepares write set for `MerkleDB` from the `MerkleCache` entries and stores it into
+    /// `MerkleCache.db_write_set`. This should be then transformed to `WriteBatch` for DB batch commitment.
+    async fn prepare_merkle_db_writes(&mut self) -> Result<(), StateMerkleError> {
+        // Prepares `MerkleCache.db_write_set.merkle_db_nodes_write_set`
+        self.prepare_merkle_db_node_writes().await?;
+
+        // Prepares `MerkleCache.db_write_set.merkle_db_leaf_paths_write_set`
+        self.prepare_merkle_db_leaf_paths_writes();
+
+        Ok(())
     }
 
     fn generate_merkle_db_write_batch(&self) -> Result<MerkleDBWriteBatch, StateMerkleError> {
