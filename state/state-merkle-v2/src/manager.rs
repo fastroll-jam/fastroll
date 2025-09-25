@@ -31,20 +31,19 @@ impl MerkleManager {
         let state_key_as_merkle_path = MerklePath(bits_encode_msb(state_key.as_slice()));
 
         let longest_prefix_from_db = self.merkle_db.find_longest_prefix(state_key).await?;
-        let mut longest_prefix = longest_prefix_from_db;
+        let longest_prefix_from_cache = self
+            .merkle_cache
+            .nodes
+            .keys()
+            .filter(|&key_in_cache| state_key_as_merkle_path.0.starts_with(&key_in_cache.0))
+            .max_by_key(|key_in_cache| key_in_cache.0.len());
 
-        // Iterate on all merkle paths in the `MerkleCache` and look for a merkle path with longer
-        // common prefix with the state key
-        for merkle_path_in_cache in self.merkle_cache.nodes.keys() {
-            if state_key_as_merkle_path
-                .0
-                .starts_with(&merkle_path_in_cache.0)
-                && merkle_path_in_cache.0.len() > longest_prefix.0.len()
-            {
-                longest_prefix = merkle_path_in_cache.clone();
+        if let Some(longest_prefix_from_cache) = longest_prefix_from_cache {
+            if longest_prefix_from_cache.0.len() > longest_prefix_from_db.0.len() {
+                return Ok(longest_prefix_from_cache.clone());
             }
         }
-        Ok(longest_prefix)
+        Ok(longest_prefix_from_db)
     }
 
     /// Gets a node at the given merkle path from the `MerkleCache`, then falls back to
