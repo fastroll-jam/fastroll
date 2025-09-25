@@ -466,9 +466,15 @@ impl MerkleManager {
         Ok(())
     }
 
-    fn generate_merkle_db_write_batch(&self) -> Result<MerkleDBWriteBatch, StateMerkleError> {
-        // We can call `DBWriteSet::generate_merkle_db_write_batch`
-        unimplemented!()
+    fn generate_merkle_db_write_batch_from_write_set(
+        &self,
+    ) -> Result<MerkleDBWriteBatch, StateMerkleError> {
+        self.merkle_cache
+            .db_write_set
+            .generate_merkle_db_write_batch(
+                self.merkle_db.nodes_cf_handle()?,
+                self.merkle_db.leaf_paths_cf_handle()?,
+            )
     }
 }
 

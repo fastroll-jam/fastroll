@@ -10,7 +10,7 @@ use fr_db::{
         cached_db::{CachedDB, DBKey},
         core_db::CoreDB,
     },
-    Direction, IteratorMode,
+    ColumnFamily, Direction, IteratorMode,
 };
 use std::sync::Arc;
 
@@ -32,6 +32,14 @@ impl MerkleDB {
             leaf_paths: CachedDB::new(core.clone(), leaf_paths_cf_name, cache_size),
             root: MerkleRoot::default(),
         }
+    }
+
+    pub(crate) fn nodes_cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
+        Ok(self.nodes.cf_handle()?)
+    }
+
+    pub(crate) fn leaf_paths_cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
+        Ok(self.leaf_paths.cf_handle()?)
     }
 
     /// Finds the longest Merkle path in the `MerkleDB` that is a prefix of a given state key.
