@@ -129,7 +129,7 @@ impl MerkleManager {
                     let (lcp_node, lcp_path) = self.get_longest_common_path_node(state_key).await?;
                     match lcp_node {
                         MerkleNode::Branch(_) => {
-                            // New leaf is extending the single-child branch node
+                            // Add case 1. New leaf is extending the single-child branch node.
                             let (leaf, maybe_state_db_write) =
                                 Self::cache_entry_to_leaf_node_and_state_db_write_set(
                                     state_key,
@@ -157,8 +157,8 @@ impl MerkleManager {
                             }
                         }
                         MerkleNode::Leaf(sibling_candidate) => {
-                            println!("\n\n----------- LCP node is Leaf. path: {}", lcp_path.0);
-                            // New leaf is extending the leaf node, which will be its sibling in the post state
+                            // Add case 2. New leaf is extending the leaf node,
+                            // which will be its sibling after the processing.
                             let (leaf, maybe_state_db_write) =
                                 Self::cache_entry_to_leaf_node_and_state_db_write_set(
                                     state_key,
@@ -215,8 +215,7 @@ impl MerkleManager {
                         )?;
                     // `StateMut::Update` case updates 1 merkle node entry
                     self.merkle_cache.extend_affected_paths(&leaf_path);
-                    let _ = self
-                        .merkle_cache
+                    self.merkle_cache
                         .insert_node(leaf_path, Some(MerkleNode::Leaf(leaf)));
                     // Note: the leaf path doesn't change.
                     // No need to insert to `MerkleCache.leaf_paths`
@@ -241,17 +240,17 @@ impl MerkleManager {
 
                     match sibling {
                         MerkleNode::Branch(_) => {
-                            // Sibling of the removing leaf is branch
-                            // Simply mark the leaf node as removed in the StateCache
+                            // Remove case 1. Sibling of the removing leaf is branch.
+                            // Simply mark the leaf node as removed in the StateCache.
                             self.merkle_cache.extend_affected_paths(&leaf_path);
-                            let _ = self.merkle_cache.insert_node(leaf_path, None);
+                            self.merkle_cache.insert_node(leaf_path, None);
 
                             // Mark the (state key -> leaf path) pair as removed in the StateCache
                             self.merkle_cache.insert_leaf_path(state_key.clone(), None);
                         }
                         MerkleNode::Leaf(leaf) => {
-                            // Sibling of the removing leaf is leaf
-                            // Iteratively find the final merkle path of the leaf sibling after the removal
+                            // Remove case 2. Sibling of the removing leaf is leaf.
+                            // Iteratively find the final merkle path of the leaf sibling after the removal.
 
                             let mut post_sibling_path = sibling_path.clone();
                             post_sibling_path.0.pop();
@@ -287,14 +286,14 @@ impl MerkleManager {
 
                             // Mark the original leaf for removal
                             self.merkle_cache.extend_affected_paths(&leaf_path);
-                            let _ = self.merkle_cache.insert_node(leaf_path, None);
+                            self.merkle_cache.insert_node(leaf_path, None);
                             // Mark the removed node's (state key -> leaf path) pair as removed in the StateCache
                             self.merkle_cache.insert_leaf_path(state_key.clone(), None);
 
                             // Mark the sibling at its original path for removal
                             self.merkle_cache
                                 .insert_to_affected_paths(sibling_path.clone());
-                            let _ = self.merkle_cache.insert_node(sibling_path, None);
+                            self.merkle_cache.insert_node(sibling_path, None);
                             // Update the sibling's (state key -> leaf path) pair in the StateCache
                             let sibling_state_key_bv = leaf.state_key_bv.clone();
                             self.merkle_cache.insert_leaf_path(
@@ -306,12 +305,11 @@ impl MerkleManager {
 
                             // Mark all the collapsed intermediate branches for removal
                             for path in collapsed_branch_paths {
-                                let _ = self.merkle_cache.insert_node(path, None);
+                                self.merkle_cache.insert_node(path, None);
                             }
 
                             // Insert the sibling leaf with its final merkle path
-                            let _ = self
-                                .merkle_cache
+                            self.merkle_cache
                                 .insert_node(post_sibling_path, Some(MerkleNode::Leaf(leaf)));
                             return Ok(());
                         }
@@ -335,6 +333,7 @@ impl MerkleManager {
 }
 
 // TODO: check `MerkleCache.leaf_paths`
+// TODO: check `DBWriteSet` with regular leaves
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -548,7 +547,6 @@ mod tests {
             assert!(affected_paths.contains(&merkle_path![1, 1, 0, 0, 0, 0]));
             assert!(affected_paths.contains(&merkle_path![1, 1, 0, 0, 0, 1]));
 
-            // TODO: test with regular leaves
             // Check `MerkleCache.db_write_set`
             // Embedded leaf; no db write set
             assert!(merkle_manager
