@@ -246,6 +246,14 @@ impl CacheItem for MerkleNode {
 }
 
 impl MerkleNode {
+    pub(crate) fn is_branch(&self) -> bool {
+        matches!(self, Self::Branch(_))
+    }
+
+    pub(crate) fn is_leaf(&self) -> bool {
+        matches!(self, Self::Leaf(_))
+    }
+
     fn encode(&self) -> Result<Vec<u8>, StateMerkleError> {
         match self {
             Self::Branch(branch) => branch.encode(),

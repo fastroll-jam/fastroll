@@ -1,11 +1,11 @@
 use crate::{
-    merkle_cache::{MerkleCache, StateDBWrite},
+    merkle_cache::{MerkleCache, MerkleDBWriteBatch, StateDBWrite},
     merkle_db::MerkleDB,
-    types::{LeafNode, LeafNodeData, MerkleNode, MerklePath, StateMerkleError},
+    types::{BranchNode, LeafNode, LeafNodeData, MerkleNode, MerklePath, StateMerkleError},
     utils::{bits_decode_msb, bits_encode_msb, derive_final_leaf_paths},
 };
 use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, StateKey, HASH_SIZE};
+use fr_common::{ByteEncodable, NodeHash, StateKey, HASH_SIZE};
 use fr_crypto::{hash, Blake2b256};
 use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
 
@@ -166,26 +166,61 @@ impl MerkleManager {
                                 )?;
 
                             // Compare state keys of the new leaf node and its sibling candidate
-                            // to determine merkle path of those two leaves in the post state.
+                            // to determine the final merkle path of those two leaves after processing.
                             let sibling_state_key_bv = sibling_candidate.state_key_bv.clone();
                             let new_leaf_state_key_bv = bits_encode_msb(state_key.as_slice());
                             let (sibling_path, new_leaf_path) = derive_final_leaf_paths(
                                 sibling_state_key_bv.clone(),
                                 new_leaf_state_key_bv,
                             );
-                            println!(">>> sibling_path: {}", sibling_path.0);
-                            println!(">>> new_leaf_path: {}", new_leaf_path.0);
                             self.merkle_cache.extend_affected_paths(&new_leaf_path);
                             self.merkle_cache
                                 .insert_to_affected_paths(sibling_path.clone());
 
                             // Adds 2 merkle node entries to the MerkleCache
+                            let new_leaf_node = MerkleNode::Leaf(leaf.clone());
+                            let new_leaf_node_hash = new_leaf_node.hash()?;
                             self.merkle_cache
-                                .insert_node(new_leaf_path.clone(), Some(MerkleNode::Leaf(leaf)));
-                            self.merkle_cache.insert_node(
-                                sibling_path.clone(),
-                                Some(MerkleNode::Leaf(sibling_candidate)),
-                            );
+                                .insert_node(new_leaf_path.clone(), Some(new_leaf_node));
+                            let sibling_node = MerkleNode::Leaf(sibling_candidate.clone());
+                            let sibling_node_hash = sibling_node.hash()?;
+                            self.merkle_cache
+                                .insert_node(sibling_path.clone(), Some(sibling_node));
+
+                            // Add all new branch node entries to the MerkleCache, from the parent
+                            // node of the new leaf and it sibling all the way up to the `lcp_node`.
+
+                            // Initialize
+                            let mut branch_path = new_leaf_path.clone();
+                            let new_leaf_side = branch_path
+                                .0
+                                .pop()
+                                .expect("New leaf path should not be empty");
+
+                            let (mut left_hash, mut right_hash) = if new_leaf_side {
+                                (sibling_node_hash, new_leaf_node_hash)
+                            } else {
+                                (new_leaf_node_hash, sibling_node_hash)
+                            };
+
+                            while branch_path.0.len() >= lcp_path.0.len() {
+                                let branch_node =
+                                    MerkleNode::Branch(BranchNode::new(&left_hash, &right_hash));
+                                let branch_node_hash = branch_node.hash()?;
+                                self.merkle_cache
+                                    .insert_node(branch_path.clone(), Some(branch_node));
+
+                                // Update branch_path, left_hash and right_hash for the next loop
+                                let branch_side = branch_path
+                                    .0
+                                    .pop()
+                                    .expect("Branch path checked to be longer than LCP path");
+                                (left_hash, right_hash) = if branch_side {
+                                    (NodeHash::default(), branch_node_hash)
+                                } else {
+                                    (branch_node_hash, NodeHash::default())
+                                };
+                            }
 
                             // Insert the added leaf paths to the MerkleCache
                             // The original LCP node (sibling candidate) leaf path will simply be updated
@@ -329,6 +364,22 @@ impl MerkleManager {
                 .await?;
         }
         Ok(())
+    }
+
+    /// Recalculates hashes for affected branch nodes and populates the `DBWriteSet`
+    /// with all changes to be committed to the `MerkleDB`.
+    async fn prepare_db_writes(&self) -> Result<(), StateMerkleError> {
+        let affected_paths_sorted = self.merkle_cache.affected_paths_as_sorted_vec();
+
+        // Iterate on affected merkle nodes from the deepest merkle path up toward the root,
+        // producing DB write set.
+        for _affected_path in affected_paths_sorted {}
+        unimplemented!()
+    }
+
+    fn generate_merkle_db_write_batch(&self) -> Result<MerkleDBWriteBatch, StateMerkleError> {
+        // We can call `DBWriteSet::generate_merkle_db_write_batch`
+        unimplemented!()
     }
 }
 
@@ -534,6 +585,32 @@ mod tests {
                 .get_node(&expected_lcp_node_final_merkle_path)
                 .unwrap();
             assert_eq!(entry, Some(lcp_node));
+
+            // Check new branch nodes are added to `MerkleCache`
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1, 0, 0, 0])
+                .unwrap()
+                .unwrap()
+                .is_branch());
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1, 0, 0])
+                .unwrap()
+                .unwrap()
+                .is_branch());
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1, 0])
+                .unwrap()
+                .unwrap()
+                .is_branch());
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1])
+                .unwrap()
+                .unwrap()
+                .is_branch());
 
             // Check `MerkleCache.affected_paths`
             // affected paths should be: [1, 11, 110, 1100, 11000, 110000, 110001]
@@ -1043,6 +1120,44 @@ mod tests {
                 .get_node(&lcp_node_merkle_path)
                 .unwrap();
             assert_eq!(lcp_node_from_cache, Some(lcp_node));
+
+            // Check new branch nodes are added to `MerkleCache`
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1, 0, 0, 0, 1, 1])
+                .unwrap()
+                .unwrap()
+                .is_branch());
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1, 0, 0, 0, 1])
+                .unwrap()
+                .unwrap()
+                .is_branch());
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1, 0, 0, 0])
+                .unwrap()
+                .unwrap()
+                .is_branch());
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1, 0, 0])
+                .unwrap()
+                .unwrap()
+                .is_branch());
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1, 0])
+                .unwrap()
+                .unwrap()
+                .is_branch());
+            assert!(merkle_manager
+                .merkle_cache
+                .get_node(&merkle_path![1, 1])
+                .unwrap()
+                .unwrap()
+                .is_branch());
 
             // Check added / updated leaf paths
             assert_eq!(
