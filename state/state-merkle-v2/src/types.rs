@@ -311,6 +311,10 @@ impl CacheItem for MerklePath {
 }
 
 impl MerklePath {
+    pub(crate) fn root() -> Self {
+        Self(BitVec::new())
+    }
+
     pub(crate) fn sibling(&self) -> Option<Self> {
         if self.0.is_empty() {
             return None;
@@ -343,14 +347,16 @@ impl MerklePath {
     }
 
     /// Returns the given merkle path and all its parent paths.
-    /// For example, an input of `1011` will return `[1011, 101, 10, 1]`.
+    /// For example, an input of `1011` will return `[1011, 101, 10, 1, root]`.
     pub(crate) fn all_paths_to_root(&self) -> Vec<MerklePath> {
         let mut merkle_path = self.clone();
-        let mut result = Vec::with_capacity(merkle_path.0.len());
+        let mut result = Vec::with_capacity(merkle_path.0.len() + 1);
         while !merkle_path.0.is_empty() {
             result.push(merkle_path.clone());
             merkle_path.0.pop();
         }
+        // Empty MerklePath represents the root node
+        result.push(Self::root());
         result
     }
 }
@@ -388,11 +394,12 @@ mod tests {
     fn test_all_paths_to_root() {
         let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
         let all_paths_to_root = path.all_paths_to_root();
-        assert_eq!(all_paths_to_root.len(), 4);
+        assert_eq!(all_paths_to_root.len(), 5);
         assert!(all_paths_to_root.contains(&MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1])));
         assert!(all_paths_to_root.contains(&MerklePath(bitvec![u8, Msb0; 1, 0, 1])));
         assert!(all_paths_to_root.contains(&MerklePath(bitvec![u8, Msb0; 1, 0])));
         assert!(all_paths_to_root.contains(&MerklePath(bitvec![u8, Msb0; 1])));
+        assert!(all_paths_to_root.contains(&MerklePath::root()));
     }
 
     #[test]

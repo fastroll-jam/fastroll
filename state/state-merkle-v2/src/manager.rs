@@ -5,7 +5,7 @@ use crate::{
     utils::{bits_decode_msb, bits_encode_msb, derive_final_leaf_paths},
 };
 use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, NodeHash, StateKey, HASH_SIZE};
+use fr_common::{ByteEncodable, MerkleRoot, NodeHash, StateKey, HASH_SIZE};
 use fr_crypto::{hash, Blake2b256};
 use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
 
@@ -367,8 +367,16 @@ impl MerkleManager {
 
     /// Recalculates hashes for affected branch nodes and populates the `DBWriteSet`
     /// with all changes to be committed to the `MerkleDB.nodes`.
-    async fn prepare_merkle_db_node_writes(&mut self) -> Result<(), StateMerkleError> {
+    ///
+    /// Returns updated merkle root.
+    async fn prepare_merkle_db_node_writes(
+        &mut self,
+    ) -> Result<Option<MerkleRoot>, StateMerkleError> {
         let affected_paths_sorted = self.merkle_cache.affected_paths_as_sorted_vec();
+        // No affected merkle paths; merkle root remains unchanged.
+        if affected_paths_sorted.is_empty() {
+            return Ok(None);
+        }
 
         // Iterate on affected merkle nodes from the deepest merkle path up toward the root,
         // populating DB write set entries.
@@ -434,7 +442,15 @@ impl MerkleManager {
             }
         }
 
-        Ok(())
+        // Get the new merkle root with an empty MerklePath as key
+        let new_merkle_root = self
+            .merkle_cache
+            .get_node(&MerklePath::root())
+            .expect("Merkle root is always affected unless the merkle trie is unchanged")
+            .expect("Merkle root should not be removed")
+            .hash()?;
+
+        Ok(Some(new_merkle_root))
     }
 
     /// Takes all updated (state key -> leaf path) relationships from `MerkleCache.leaf_paths` and
@@ -460,14 +476,14 @@ impl MerkleManager {
 
     /// Prepares write set for `MerkleDB` from the `MerkleCache` entries and stores it into
     /// `MerkleCache.db_write_set`. This should be then transformed to `WriteBatch` for DB batch commitment.
-    async fn prepare_merkle_db_writes(&mut self) -> Result<(), StateMerkleError> {
+    async fn prepare_merkle_db_writes(&mut self) -> Result<Option<MerkleRoot>, StateMerkleError> {
         // Prepares `MerkleCache.db_write_set.merkle_db_nodes_write_set`
-        self.prepare_merkle_db_node_writes().await?;
+        let new_merkle_root = self.prepare_merkle_db_node_writes().await?;
 
         // Prepares `MerkleCache.db_write_set.merkle_db_leaf_paths_write_set`
         self.prepare_merkle_db_leaf_paths_writes();
 
-        Ok(())
+        Ok(new_merkle_root)
     }
 
     /// Generates a write batch for `MerkleDB` from the write set.
@@ -494,9 +510,20 @@ impl MerkleManager {
         &mut self,
         dirty_entries: &[(StateKey, CacheEntry)],
     ) -> Result<Vec<StateDBWrite>, StateMerkleError> {
+        if dirty_entries.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Update nodes in `MerkleCache`
         self.insert_dirty_cache_entries_as_leaf_writes(dirty_entries)
             .await?;
-        self.prepare_merkle_db_writes().await?;
+        let Some(new_merkle_root) = self.prepare_merkle_db_writes().await? else {
+            return Ok(vec![]);
+        };
+
+        // Update the merkle root
+        self.merkle_db.update_root(new_merkle_root);
+
         let merkle_db_write_batch = self.generate_merkle_db_write_batch_from_write_set()?;
         self.commit_write_batch(merkle_db_write_batch).await?;
 
@@ -578,6 +605,7 @@ mod tests {
         async fn test_add_lcp_node_is_branch() {
             let merkle_db = open_merkle_db();
 
+            let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
             let path_1 = merkle_path![1]; // LCP node; single-child branch
             let path_10 = merkle_path![1, 0];
@@ -591,6 +619,10 @@ mod tests {
                 &NodeHash::default(), // no right child
             ));
 
+            merkle_db
+                .insert_node(&root_path, dummy_branch.clone())
+                .await
+                .unwrap();
             merkle_db
                 .insert_node(&path_0, dummy_leaf.clone())
                 .await
@@ -629,9 +661,10 @@ mod tests {
             assert_eq!(entry, Some(expected_added_leaf_node));
 
             // Check `MerkleCache.affected_paths`
-            // affected paths should be: [1, 10]
+            // affected paths should be: [root, 1, 10]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
-            assert_eq!(affected_paths.len(), 2);
+            assert_eq!(affected_paths.len(), 3);
+            assert!(affected_paths.contains(&root_path));
             assert!(affected_paths.contains(&path_1));
             assert!(affected_paths.contains(&expected_added_leaf_merkle_path));
 
@@ -648,6 +681,7 @@ mod tests {
         async fn test_add_lcp_node_is_leaf() {
             let merkle_db = open_merkle_db();
 
+            let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
             let path_1 = merkle_path![1];
             let path_10 = merkle_path![1, 0];
@@ -665,6 +699,10 @@ mod tests {
                 LeafNodeData::Embedded(lcp_node_data),
             ));
 
+            merkle_db
+                .insert_node(&root_path, dummy_branch.clone())
+                .await
+                .unwrap();
             merkle_db
                 .insert_node(&path_0, dummy_leaf.clone())
                 .await
@@ -739,9 +777,10 @@ mod tests {
                 .is_branch());
 
             // Check `MerkleCache.affected_paths`
-            // affected paths should be: [1, 11, 110, 1100, 11000, 110000, 110001]
+            // affected paths should be: [root, 1, 11, 110, 1100, 11000, 110000, 110001]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
-            assert_eq!(affected_paths.len(), 7);
+            assert_eq!(affected_paths.len(), 8);
+            assert!(affected_paths.contains(&root_path));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
             assert!(affected_paths.contains(&merkle_path![1, 1, 0]));
@@ -763,6 +802,7 @@ mod tests {
         async fn test_update() {
             let merkle_db = open_merkle_db();
 
+            let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
             let path_1 = merkle_path![1];
             let path_10 = merkle_path![1, 0];
@@ -771,6 +811,10 @@ mod tests {
             let dummy_branch = MerkleNode::Branch(create_dummy_branch(1));
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
 
+            merkle_db
+                .insert_node(&root_path, dummy_branch.clone())
+                .await
+                .unwrap();
             merkle_db
                 .insert_node(&path_0, dummy_leaf.clone())
                 .await
@@ -815,9 +859,10 @@ mod tests {
             assert_eq!(entry, Some(expected_updated_leaf_node));
 
             // Check `MerkleCache.affected_paths`
-            // affected paths should be: [1, 11]
+            // affected paths should be: [root, 1, 11]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
-            assert_eq!(affected_paths.len(), 2);
+            assert_eq!(affected_paths.len(), 3);
+            assert!(affected_paths.contains(&root_path));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
 
@@ -834,6 +879,7 @@ mod tests {
         async fn test_remove_sibling_is_branch() {
             let merkle_db = open_merkle_db();
 
+            let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
             let path_1 = merkle_path![1];
             let path_10 = merkle_path![1, 0];
@@ -844,6 +890,10 @@ mod tests {
             let dummy_branch = MerkleNode::Branch(create_dummy_branch(1));
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
 
+            merkle_db
+                .insert_node(&root_path, dummy_branch.clone())
+                .await
+                .unwrap();
             merkle_db
                 .insert_node(&path_0, dummy_leaf.clone())
                 .await
@@ -889,9 +939,10 @@ mod tests {
             assert!(entry.is_none()); // Should be marked as `None`
 
             // Check `MerkleCache.affected_paths`
-            // affected paths should be: [1, 11]
+            // affected paths should be: [root, 1, 11]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
-            assert_eq!(affected_paths.len(), 2);
+            assert_eq!(affected_paths.len(), 3);
+            assert!(affected_paths.contains(&root_path));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
 
@@ -908,6 +959,7 @@ mod tests {
         async fn test_remove_sibling_is_leaf() {
             let merkle_db = open_merkle_db();
 
+            let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
             let path_1 = merkle_path![1];
             let path_10 = merkle_path![1, 0];
@@ -920,6 +972,10 @@ mod tests {
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
             let sibling = MerkleNode::Leaf(create_dummy_regular_leaf(255));
 
+            merkle_db
+                .insert_node(&root_path, dummy_branch.clone())
+                .await
+                .unwrap();
             merkle_db
                 .insert_node(&path_0, dummy_leaf.clone())
                 .await
@@ -997,9 +1053,10 @@ mod tests {
             );
 
             // Check `MerkleCache.affected_paths`
-            // affected paths should be: [1, 10, 101, 1010, 1011]
+            // affected paths should be: [root, 1, 10, 101, 1010, 1011]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
-            assert_eq!(affected_paths.len(), 5);
+            assert_eq!(affected_paths.len(), 6);
+            assert!(affected_paths.contains(&root_path));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 0]));
             assert!(affected_paths.contains(&merkle_path![1, 0, 1]));
@@ -1019,6 +1076,7 @@ mod tests {
         async fn test_remove_two_adjacent_leaves() {
             let merkle_db = open_merkle_db();
 
+            let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
             let path_1 = merkle_path![1];
             let path_00 = merkle_path![0, 0];
@@ -1032,6 +1090,10 @@ mod tests {
             let dummy_single_child_branch = MerkleNode::Branch(create_dummy_single_child_branch(1));
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
 
+            merkle_db
+                .insert_node(&root_path, dummy_branch.clone())
+                .await
+                .unwrap();
             merkle_db
                 .insert_node(&path_0, dummy_branch.clone())
                 .await
@@ -1133,9 +1195,10 @@ mod tests {
                 .is_none());
 
             // Check `MerkleCache.affected_paths`
-            // affected paths should be: [1, 10, 101, 1010, 1011]
+            // affected paths should be: [root, 1, 10, 101, 1010, 1011]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
-            assert_eq!(affected_paths.len(), 5);
+            assert_eq!(affected_paths.len(), 6);
+            assert!(affected_paths.contains(&root_path));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 0]));
             assert!(affected_paths.contains(&merkle_path![1, 0, 1]));
@@ -1155,6 +1218,7 @@ mod tests {
         async fn test_add_two_adjacent_leaves() {
             let merkle_db = open_merkle_db();
 
+            let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
             let path_1 = merkle_path![1];
             let path_10 = merkle_path![1, 0];
@@ -1176,6 +1240,10 @@ mod tests {
                 LeafNodeData::Embedded(lcp_node_data),
             ));
 
+            merkle_db
+                .insert_node(&root_path, dummy_branch.clone())
+                .await
+                .unwrap();
             merkle_db
                 .insert_node(&path_0, dummy_leaf.clone())
                 .await
@@ -1309,9 +1377,10 @@ mod tests {
             );
 
             // Check `MerkleCache.affected_paths`
-            // affected paths should be: [1, 11, 110, 1100, 11000, 110000, 110001, 1100011, 1100_0110, 1100_0111]
+            // affected paths should be: [root, 1, 11, 110, 1100, 11000, 110000, 110001, 1100011, 1100_0110, 1100_0111]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
-            assert_eq!(affected_paths.len(), 10);
+            assert_eq!(affected_paths.len(), 11);
+            assert!(affected_paths.contains(&root_path));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
             assert!(affected_paths.contains(&merkle_path![1, 1, 0]));
