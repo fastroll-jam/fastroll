@@ -34,16 +34,18 @@ impl MerkleManager {
         let state_key_as_merkle_path = MerklePath(bits_encode_msb(state_key.as_slice()));
 
         let longest_prefix_from_db = self.merkle_db.find_longest_prefix(state_key).await?;
-        let longest_prefix_from_cache = self
+        let longest_prefix_from_change_set = self
             .merkle_change_set
             .nodes
             .keys()
-            .filter(|&key_in_cache| state_key_as_merkle_path.0.starts_with(&key_in_cache.0))
-            .max_by_key(|key_in_cache| key_in_cache.0.len());
+            .filter(|&key_in_change_set| {
+                state_key_as_merkle_path.0.starts_with(&key_in_change_set.0)
+            })
+            .max_by_key(|key_in_change_set| key_in_change_set.0.len());
 
-        if let Some(longest_prefix_from_cache) = longest_prefix_from_cache {
-            if longest_prefix_from_cache.0.len() > longest_prefix_from_db.0.len() {
-                return Ok(longest_prefix_from_cache.clone());
+        if let Some(longest_prefix_from_change_set) = longest_prefix_from_change_set {
+            if longest_prefix_from_change_set.0.len() > longest_prefix_from_db.0.len() {
+                return Ok(longest_prefix_from_change_set.clone());
             }
         }
         Ok(longest_prefix_from_db)
@@ -59,8 +61,8 @@ impl MerkleManager {
         merkle_path: &MerklePath,
     ) -> Result<Option<MerkleNode>, StateMerkleError> {
         // Get from the MerkleChangeSet
-        if let Some(node_from_cache) = self.merkle_change_set.get_node(merkle_path) {
-            Ok(node_from_cache)
+        if let Some(node_from_change_set) = self.merkle_change_set.get_node(merkle_path) {
+            Ok(node_from_change_set)
         } else {
             // Fallback to MerkleDB search
             Ok(self.merkle_db.get_node(merkle_path).await?)
@@ -77,8 +79,8 @@ impl MerkleManager {
         state_key: &StateKey,
     ) -> Result<Option<MerklePath>, StateMerkleError> {
         // Get from the MerkleChangeSet
-        if let Some(leaf_path_from_cache) = self.merkle_change_set.get_leaf_path(state_key) {
-            Ok(leaf_path_from_cache)
+        if let Some(leaf_path_from_change_set) = self.merkle_change_set.get_leaf_path(state_key) {
+            Ok(leaf_path_from_change_set)
         } else {
             // Fallback to MerkleDB search
             Ok(self.merkle_db.get_leaf_path(state_key).await?)
@@ -629,7 +631,7 @@ mod tests {
         assert_eq!(lcp_path, expected_path);
     }
 
-    mod dirty_cache_entry_tests {
+    mod merkle_commit_tests {
         use super::*;
         use crate::{test_utils::*, types::*};
         use fr_state::{state_utils::StateEntryType, types::Timeslot};
@@ -1601,23 +1603,29 @@ mod tests {
             let lcp_node_merkle_path = merkle_path![1, 1, 0, 0, 0, 0];
 
             // Check `MerkleChangeSet.nodes`
-            let added_leaf_1_from_cache = merkle_manager
+            let added_leaf_1_from_change_set = merkle_manager
                 .merkle_change_set
                 .get_node(&added_leaf_1_merkle_path)
                 .unwrap();
-            assert_eq!(added_leaf_1_from_cache, Some(expected_added_leaf_node_1));
+            assert_eq!(
+                added_leaf_1_from_change_set,
+                Some(expected_added_leaf_node_1)
+            );
 
-            let added_leaf_2_from_cache = merkle_manager
+            let added_leaf_2_from_change_set = merkle_manager
                 .merkle_change_set
                 .get_node(&added_leaf_2_merkle_path)
                 .unwrap();
-            assert_eq!(added_leaf_2_from_cache, Some(expected_added_leaf_node_2));
+            assert_eq!(
+                added_leaf_2_from_change_set,
+                Some(expected_added_leaf_node_2)
+            );
 
-            let lcp_node_from_cache = merkle_manager
+            let lcp_node_from_change_set = merkle_manager
                 .merkle_change_set
                 .get_node(&lcp_node_merkle_path)
                 .unwrap();
-            assert_eq!(lcp_node_from_cache, Some(lcp_node));
+            assert_eq!(lcp_node_from_change_set, Some(lcp_node));
 
             // Check new branch nodes are added to `MerkleChangeSet`
             assert!(merkle_manager
