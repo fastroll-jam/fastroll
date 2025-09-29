@@ -1317,8 +1317,8 @@ mod tests {
             assert_eq!(updated_sibling, Some(sibling));
         }
 
-        #[tokio::test]
-        async fn test_remove_two_adjacent_leaves() {
+        async fn setup_remove_two_adjacent_leaves_tests() -> (MerkleDB, Vec<(StateKey, CacheEntry)>)
+        {
             let merkle_db = open_merkle_db();
 
             let root_path = MerklePath::root();
@@ -1385,8 +1385,6 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
-
             let mut dirty_cache_entry_1011 =
                 CacheEntry::new(StateEntryType::Timeslot(Timeslot::new(2)));
             dirty_cache_entry_1011.status = CacheEntryStatus::Dirty(StateMut::Remove);
@@ -1399,6 +1397,14 @@ mod tests {
                 (state_key_1011, dirty_cache_entry_1011),
                 (state_key_1010, dirty_cache_entry_1010),
             ];
+
+            (merkle_db, dirty_cache_entries)
+        }
+
+        #[tokio::test]
+        async fn test_remove_two_adjacent_leaves_cache() {
+            let (merkle_db, dirty_cache_entries) = setup_remove_two_adjacent_leaves_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
 
             merkle_manager
                 .insert_dirty_cache_entries_as_leaf_writes(&dirty_cache_entries)
@@ -1443,7 +1449,7 @@ mod tests {
             // affected paths should be: [root, 1, 10, 101, 1010, 1011]
             let affected_paths = merkle_manager.merkle_change_set.affected_paths;
             assert_eq!(affected_paths.len(), 6);
-            assert!(affected_paths.contains(&root_path));
+            assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 0]));
             assert!(affected_paths.contains(&merkle_path![1, 0, 1]));
@@ -1457,6 +1463,59 @@ mod tests {
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
+        }
+
+        #[tokio::test]
+        async fn test_remove_two_adjacent_leaves_db_commit() {
+            let (merkle_db, dirty_cache_entries) = setup_remove_two_adjacent_leaves_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+
+            let state_db_writes = merkle_manager
+                .commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set(
+                    &dirty_cache_entries,
+                )
+                .await
+                .unwrap();
+
+            assert!(state_db_writes.is_empty()); // No state db writes
+
+            // Check removed leaves
+            let state_key_1011 = create_state_key_from_path_prefix(merkle_path![1, 0, 1, 1]);
+            let state_key_1010 = create_state_key_from_path_prefix(merkle_path![1, 0, 1, 0]);
+
+            let removed_1011 = merkle_manager
+                .merkle_db
+                .get_leaf(&state_key_1011)
+                .await
+                .unwrap();
+            let removed_1010 = merkle_manager
+                .merkle_db
+                .get_leaf(&state_key_1010)
+                .await
+                .unwrap();
+
+            assert!(removed_1011.is_none());
+            assert!(removed_1010.is_none());
+
+            // Check removed branches
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1])
+                .await
+                .unwrap()
+                .is_none());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1, 0])
+                .await
+                .unwrap()
+                .is_none());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1, 0, 1])
+                .await
+                .unwrap()
+                .is_none());
         }
 
         #[tokio::test]
