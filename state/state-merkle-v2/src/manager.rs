@@ -696,7 +696,6 @@ mod tests {
             let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
-            // Test `commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set`
             let state_db_writes = merkle_manager
                 .commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set(
                     &dirty_cache_entries,
@@ -717,8 +716,7 @@ mod tests {
             );
         }
 
-        #[tokio::test]
-        async fn test_add_lcp_leaf() {
+        async fn setup_add_lcp_leaf_tests() -> (MerkleDB, StateKey, CacheEntry) {
             let merkle_db = open_merkle_db();
 
             let root_path = MerklePath::root();
@@ -754,8 +752,6 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
-
             // Added state key: 1100_0110_1000_0...0 (248 bits)
             let state_key =
                 create_state_key_from_path_prefix(merkle_path![1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0]);
@@ -763,8 +759,17 @@ mod tests {
                 CacheEntry::new(StateEntryType::Timeslot(Timeslot::default()));
             dirty_cache_entry.status = CacheEntryStatus::Dirty(StateMut::Add);
 
+            (merkle_db, state_key, dirty_cache_entry)
+        }
+
+        #[tokio::test]
+        async fn test_add_lcp_leaf_cache() {
+            let (merkle_db, state_key, dirty_cache_entry) = setup_add_lcp_leaf_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
+
             merkle_manager
-                .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
+                .insert_dirty_cache_entries_as_leaf_writes(&dirty_cache_entries)
                 .await
                 .unwrap();
 
@@ -788,6 +793,14 @@ mod tests {
                 .merkle_cache
                 .get_node(&expected_lcp_node_final_merkle_path)
                 .unwrap();
+            // LCP node path: 1100_0011_00...0
+            let mut lcp_node_state_key = merkle_path![1, 1, 0, 0, 0, 0, 1, 1, 0, 0];
+            lcp_node_state_key.0.resize(248, false);
+            let lcp_node_data = vec![255u8; 20];
+            let lcp_node = MerkleNode::Leaf(LeafNode::new(
+                lcp_node_state_key.0,
+                LeafNodeData::Embedded(lcp_node_data),
+            ));
             assert_eq!(entry, Some(lcp_node));
 
             // Check new branch nodes are added to `MerkleCache`
@@ -820,7 +833,7 @@ mod tests {
             // affected paths should be: [root, 1, 11, 110, 1100, 11000, 110000, 110001]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
             assert_eq!(affected_paths.len(), 8);
-            assert!(affected_paths.contains(&root_path));
+            assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
             assert!(affected_paths.contains(&merkle_path![1, 1, 0]));
@@ -836,6 +849,71 @@ mod tests {
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
+        }
+
+        #[tokio::test]
+        async fn test_add_lcp_leaf_db_commit() {
+            let (merkle_db, state_key, dirty_cache_entry) = setup_add_lcp_leaf_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
+
+            let state_db_writes = merkle_manager
+                .commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set(
+                    &dirty_cache_entries,
+                )
+                .await
+                .unwrap();
+
+            assert!(state_db_writes.is_empty()); // No state db writes
+
+            // Check added leaf
+            let added_leaf = merkle_manager.merkle_db.get_leaf(&state_key).await.unwrap();
+            assert_eq!(
+                added_leaf,
+                Some(LeafNode::new(
+                    bits_encode_msb(state_key.as_slice()),
+                    LeafNodeData::Embedded(dirty_cache_entry.value.encode().unwrap()),
+                ))
+            );
+
+            // Check updated LCP node
+            let original_lcp_path = merkle_path![1, 1];
+            let updated_lcp_path = merkle_path![1, 1, 0, 0, 0, 0];
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&original_lcp_path)
+                .await
+                .unwrap()
+                .is_some());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&updated_lcp_path)
+                .await
+                .unwrap()
+                .is_some());
+
+            // Check added branch nodes
+            let path_110 = merkle_path![1, 1, 0];
+            let path_1100 = merkle_path![1, 1, 0, 0];
+            let path_11000 = merkle_path![1, 1, 0, 0, 0];
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&path_110)
+                .await
+                .unwrap()
+                .is_some());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&path_1100)
+                .await
+                .unwrap()
+                .is_some());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&path_11000)
+                .await
+                .unwrap()
+                .is_some());
         }
 
         #[tokio::test]
