@@ -152,8 +152,28 @@ where
         Ok(())
     }
 
+    // FIXME: Deprecate (use `commit_write_batch_and_update_cache` instead)
     /// Commit a write batch to the state column family.
     pub async fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), CachedDBError> {
         Ok(self.core.commit_write_batch(batch).await?)
+    }
+
+    pub async fn commit_write_batch_and_sync_cache(
+        &self,
+        batch: WriteBatch,
+        writes: &[(K, Option<V>)],
+    ) -> Result<(), CachedDBError> {
+        self.core.commit_write_batch(batch).await?;
+
+        for (key, val) in writes {
+            match val {
+                Some(val) => {
+                    self.cache.insert(key.clone(), Arc::new(val.clone()));
+                }
+                None => self.cache.invalidate(key),
+            }
+        }
+
+        Ok(())
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    merkle_cache::MerkleDBWriteBatch,
+    merkle_cache::{MerkleDBLeafPathsWrite, MerkleDBNodesWrite, MerkleDBWriteBatch},
     types::{LeafNode, MerkleNode, MerklePath, StateMerkleError},
     utils::bits_encode_msb,
 };
@@ -156,9 +156,15 @@ impl MerkleDB {
     pub(crate) async fn commit_write_batch(
         &self,
         batch: MerkleDBWriteBatch,
+        nodes_writes: &[MerkleDBNodesWrite],
+        leaf_paths_writes: &[MerkleDBLeafPathsWrite],
     ) -> Result<(), StateMerkleError> {
-        self.nodes.commit_write_batch(batch.nodes).await?;
-        self.leaf_paths.commit_write_batch(batch.leaf_paths).await?;
+        self.nodes
+            .commit_write_batch_and_sync_cache(batch.nodes, nodes_writes)
+            .await?;
+        self.leaf_paths
+            .commit_write_batch_and_sync_cache(batch.leaf_paths, leaf_paths_writes)
+            .await?;
         Ok(())
     }
 }

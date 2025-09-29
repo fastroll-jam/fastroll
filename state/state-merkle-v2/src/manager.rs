@@ -1,5 +1,7 @@
 use crate::{
-    merkle_cache::{MerkleCache, MerkleDBWriteBatch, StateDBWrite},
+    merkle_cache::{
+        MerkleCache, MerkleDBLeafPathsWrite, MerkleDBNodesWrite, MerkleDBWriteBatch, StateDBWrite,
+    },
     merkle_db::MerkleDB,
     types::{BranchNode, LeafNode, LeafNodeData, MerkleNode, MerklePath, StateMerkleError},
     utils::{bits_decode_msb, bits_encode_msb, derive_final_leaf_paths},
@@ -506,8 +508,15 @@ impl MerkleManager {
     }
 
     /// Commits the provided write batch into the `MerkleDB`.
-    async fn commit_write_batch(&self, batch: MerkleDBWriteBatch) -> Result<(), StateMerkleError> {
-        self.merkle_db.commit_write_batch(batch).await
+    async fn commit_write_batch(
+        &self,
+        batch: MerkleDBWriteBatch,
+        nodes_writes: &[MerkleDBNodesWrite],
+        leaf_paths_writes: &[MerkleDBLeafPathsWrite],
+    ) -> Result<(), StateMerkleError> {
+        self.merkle_db
+            .commit_write_batch(batch, nodes_writes, leaf_paths_writes)
+            .await
     }
 
     /// Processes the provided dirty state cache entries to change internal structure of the
@@ -531,8 +540,21 @@ impl MerkleManager {
         // Update the merkle root
         self.merkle_db.update_root(new_merkle_root);
 
+        // Clone and keep MerkleDB write set to pass as args to invalidate cache in of `CachedDB`
+        let nodes_changes = self
+            .merkle_cache
+            .db_write_set
+            .merkle_db_nodes_write_set
+            .clone();
+        let leaf_paths_changes = self
+            .merkle_cache
+            .db_write_set
+            .merkle_db_leaf_paths_write_set
+            .clone();
+
         let merkle_db_write_batch = self.generate_merkle_db_write_batch_from_write_set()?;
-        self.commit_write_batch(merkle_db_write_batch).await?;
+        self.commit_write_batch(merkle_db_write_batch, &nodes_changes, &leaf_paths_changes)
+            .await?;
 
         let state_db_write_set =
             std::mem::take(&mut self.merkle_cache.db_write_set.state_db_write_set);
@@ -653,10 +675,9 @@ mod tests {
         async fn test_add_lcp_branch_cache() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_lcp_branch_tests().await;
             let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
-            let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             merkle_manager
-                .insert_dirty_cache_entries_as_leaf_writes(&dirty_cache_entries)
+                .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
                 .await
                 .unwrap();
 
@@ -766,10 +787,9 @@ mod tests {
         async fn test_add_lcp_leaf_cache() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_lcp_leaf_tests().await;
             let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
-            let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             merkle_manager
-                .insert_dirty_cache_entries_as_leaf_writes(&dirty_cache_entries)
+                .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
                 .await
                 .unwrap();
 
@@ -916,8 +936,7 @@ mod tests {
                 .is_some());
         }
 
-        #[tokio::test]
-        async fn test_update() {
+        async fn setup_update_tests() -> (MerkleDB, StateKey, CacheEntry) {
             let merkle_db = open_merkle_db();
 
             let root_path = MerklePath::root();
@@ -951,15 +970,17 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
-
             let mut dirty_cache_entry =
                 CacheEntry::new(StateEntryType::Timeslot(Timeslot::default()));
             dirty_cache_entry.status = CacheEntryStatus::Dirty(StateMut::Update);
-            let expected_updated_leaf_node = MerkleNode::Leaf(LeafNode::new(
-                bits_encode_msb(state_key.as_slice()),
-                LeafNodeData::Embedded(dirty_cache_entry.value.encode().unwrap()),
-            ));
+
+            (merkle_db, state_key, dirty_cache_entry)
+        }
+
+        #[tokio::test]
+        async fn test_update_cache() {
+            let (merkle_db, state_key, dirty_cache_entry) = setup_update_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -974,13 +995,17 @@ mod tests {
                 .merkle_cache
                 .get_node(&updated_leaf_merkle_path)
                 .unwrap();
+            let expected_updated_leaf_node = MerkleNode::Leaf(LeafNode::new(
+                bits_encode_msb(state_key.as_slice()),
+                LeafNodeData::Embedded(dirty_cache_entry.value.encode().unwrap()),
+            ));
             assert_eq!(entry, Some(expected_updated_leaf_node));
 
             // Check `MerkleCache.affected_paths`
             // affected paths should be: [root, 1, 11]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
             assert_eq!(affected_paths.len(), 3);
-            assert!(affected_paths.contains(&root_path));
+            assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
 
@@ -994,7 +1019,32 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_remove_sibling_is_branch() {
+        async fn test_update_db_commit() {
+            let (merkle_db, state_key, dirty_cache_entry) = setup_update_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
+
+            let state_db_writes = merkle_manager
+                .commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set(
+                    &dirty_cache_entries,
+                )
+                .await
+                .unwrap();
+
+            assert!(state_db_writes.is_empty()); // No state db writes
+
+            // Check updated leaf
+            let updated_leaf = merkle_manager.merkle_db.get_leaf(&state_key).await.unwrap();
+            assert_eq!(
+                updated_leaf,
+                Some(LeafNode::new(
+                    bits_encode_msb(state_key.as_slice()),
+                    LeafNodeData::Embedded(dirty_cache_entry.value.encode().unwrap()),
+                ))
+            );
+        }
+
+        async fn setup_remove_sibling_is_branch_tests() -> (MerkleDB, StateKey, CacheEntry) {
             let merkle_db = open_merkle_db();
 
             let root_path = MerklePath::root();
@@ -1035,11 +1085,18 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
-
             let mut dirty_cache_entry =
                 CacheEntry::new(StateEntryType::Timeslot(Timeslot::default()));
             dirty_cache_entry.status = CacheEntryStatus::Dirty(StateMut::Remove);
+
+            (merkle_db, state_key, dirty_cache_entry)
+        }
+
+        #[tokio::test]
+        async fn test_remove_sibling_is_branch_cache() {
+            let (merkle_db, state_key, dirty_cache_entry) =
+                setup_remove_sibling_is_branch_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1060,7 +1117,7 @@ mod tests {
             // affected paths should be: [root, 1, 11]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
             assert_eq!(affected_paths.len(), 3);
-            assert!(affected_paths.contains(&root_path));
+            assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
 
@@ -1074,7 +1131,27 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_remove_sibling_is_leaf() {
+        async fn test_remove_sibling_is_branch_db_commit() {
+            let (merkle_db, state_key, dirty_cache_entry) =
+                setup_remove_sibling_is_branch_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
+
+            let state_db_writes = merkle_manager
+                .commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set(
+                    &dirty_cache_entries,
+                )
+                .await
+                .unwrap();
+
+            assert!(state_db_writes.is_empty()); // No state db writes
+
+            // Check removed leaf
+            let removed_leaf = merkle_manager.merkle_db.get_leaf(&state_key).await.unwrap();
+            assert!(removed_leaf.is_none());
+        }
+
+        async fn setup_remove_sibling_is_leaf_tests() -> (MerkleDB, StateKey, CacheEntry) {
             let merkle_db = open_merkle_db();
 
             let root_path = MerklePath::root();
@@ -1123,11 +1200,18 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
-
             let mut dirty_cache_entry =
                 CacheEntry::new(StateEntryType::Timeslot(Timeslot::default()));
             dirty_cache_entry.status = CacheEntryStatus::Dirty(StateMut::Remove);
+
+            (merkle_db, state_key, dirty_cache_entry)
+        }
+
+        #[tokio::test]
+        async fn test_remove_sibling_is_leaf_cache() {
+            let (merkle_db, state_key, dirty_cache_entry) =
+                setup_remove_sibling_is_leaf_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1162,6 +1246,7 @@ mod tests {
                 .is_none());
 
             // Check the updated path entry
+            let sibling = MerkleNode::Leaf(create_dummy_regular_leaf(255));
             assert_eq!(
                 merkle_manager
                     .merkle_cache
@@ -1174,7 +1259,7 @@ mod tests {
             // affected paths should be: [root, 1, 10, 101, 1010, 1011]
             let affected_paths = merkle_manager.merkle_cache.affected_paths;
             assert_eq!(affected_paths.len(), 6);
-            assert!(affected_paths.contains(&root_path));
+            assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 0]));
             assert!(affected_paths.contains(&merkle_path![1, 0, 1]));
@@ -1188,6 +1273,44 @@ mod tests {
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
+        }
+
+        #[tokio::test]
+        async fn test_remove_sibling_is_leaf_db_commit() {
+            let (merkle_db, state_key, dirty_cache_entry) =
+                setup_remove_sibling_is_leaf_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
+
+            let state_db_writes = merkle_manager
+                .commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set(
+                    &dirty_cache_entries,
+                )
+                .await
+                .unwrap();
+
+            assert!(state_db_writes.is_empty()); // No state db writes
+
+            // Check removed leaf
+            let removed_leaf = merkle_manager.merkle_db.get_leaf(&state_key).await.unwrap();
+            assert!(removed_leaf.is_none());
+
+            // A node at the original sibling path should be removed
+            let removed_original_sibling = merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1, 0, 1, 0])
+                .await
+                .unwrap();
+            assert!(removed_original_sibling.is_none());
+
+            // Updated sibling node
+            let updated_sibling = merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1])
+                .await
+                .unwrap();
+            let sibling = MerkleNode::Leaf(create_dummy_regular_leaf(255));
+            assert_eq!(updated_sibling, Some(sibling));
         }
 
         #[tokio::test]
