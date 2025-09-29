@@ -299,14 +299,31 @@ impl DBKey for MerklePath {
 
 impl CacheItem for MerklePath {
     fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
-        Ok(bits_decode_msb(self.0))
+        let val_string: String = self
+            .0
+            .iter()
+            .by_vals()
+            .map(|b| if b { '1' } else { '0' })
+            .collect();
+        Ok(val_string.into_bytes())
     }
 
     fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
     where
         Self: Sized,
     {
-        Ok(Self(bits_encode_msb(val.as_slice())))
+        let string_val =
+            String::from_utf8(val).map_err(|_| CacheItemCodecError::InvalidCacheItemValue)?;
+        let mut bv = BitVec::<u8, Msb0>::new();
+        for char in string_val.chars() {
+            match char {
+                '1' => bv.push(true),
+                '0' => bv.push(false),
+                _ => return Err(CacheItemCodecError::InvalidCacheItemValue),
+            }
+        }
+
+        Ok(Self(bv))
     }
 }
 
