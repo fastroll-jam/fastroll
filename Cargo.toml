@@ -92,7 +92,7 @@ reed-solomon-simd = "3.0.1"
 regex = "1.11.2"
 rcgen = "0.13.2"
 rocksdb = { version = "0.24.0", default-features = false, features = ["snappy"] }
-rustls = { version = "0.23.31", default-features = false, features = ["std"] }
+rustls = { version = "0.23.32", default-features = false, features = ["std"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
 sha3 = "0.10.8"
