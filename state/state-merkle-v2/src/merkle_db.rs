@@ -1,5 +1,5 @@
 use crate::{
-    merkle_cache::{MerkleDBLeafPathsWrite, MerkleDBNodesWrite, MerkleDBWriteBatch},
+    merkle_change_set::{MerkleDBLeafPathsWrite, MerkleDBNodesWrite, MerkleDBWriteBatch},
     types::{LeafNode, MerkleNode, MerklePath, StateMerkleError},
     utils::bits_encode_msb,
 };

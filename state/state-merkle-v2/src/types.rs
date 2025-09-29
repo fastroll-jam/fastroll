@@ -42,11 +42,11 @@ pub enum StateMerkleError {
     MerklePathUnknownForStateKey(String),
     #[error("Merkle trie is not initialized yet")]
     MerkleTrieNotInitialized,
-    #[error("A node that corresponds to the given merkle path is not found either from MerkleDB or MerkleCache"
+    #[error("A node that corresponds to the given merkle path is not found either from MerkleDB or MerkleChangeSet"
     )]
     InvalidAffectedMerklePath,
-    #[error("Affected leaf node is not found from the MerkleCache")]
-    AffectedLeafNotFoundFromMerkleCache,
+    #[error("Affected leaf node is not found from the MerkleChangeSet")]
+    AffectedLeafNotFoundFromMerkleChangeSet,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

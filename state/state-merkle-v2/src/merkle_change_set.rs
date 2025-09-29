@@ -66,7 +66,7 @@ impl DBWriteSet {
 }
 
 #[derive(Default)]
-pub(crate) struct MerkleCache {
+pub(crate) struct MerkleChangeSet {
     /// Represents the intermediate state of merkle nodes while processing dirty state cache entries.
     pub(crate) nodes: HashMap<MerklePath, Option<MerkleNode>>,
     /// Represents the intermediate state of merkle leaf paths while processing dirty state cache entries.
@@ -76,7 +76,7 @@ pub(crate) struct MerkleCache {
     pub(crate) db_write_set: DBWriteSet,
 }
 
-impl MerkleCache {
+impl MerkleChangeSet {
     pub(crate) fn get_node(&self, merkle_path: &MerklePath) -> Option<Option<MerkleNode>> {
         self.nodes.get(merkle_path).cloned()
     }
@@ -174,13 +174,13 @@ mod tests {
             merkle_path![1, 0],
         ]);
 
-        let mut merkle_cache = MerkleCache {
+        let mut merkle_change_set = MerkleChangeSet {
             nodes: HashMap::new(),
             leaf_paths: HashMap::new(),
             affected_paths: paths,
             db_write_set: DBWriteSet::default(),
         };
-        let paths_sorted = merkle_cache.affected_paths_as_sorted_vec();
+        let paths_sorted = merkle_change_set.affected_paths_as_sorted_vec();
 
         let paths_sorted_expected = vec![
             merkle_path![1, 0, 1, 1, 1],

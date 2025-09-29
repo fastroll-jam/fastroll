@@ -1,6 +1,7 @@
 use crate::{
-    merkle_cache::{
-        MerkleCache, MerkleDBLeafPathsWrite, MerkleDBNodesWrite, MerkleDBWriteBatch, StateDBWrite,
+    merkle_change_set::{
+        MerkleChangeSet, MerkleDBLeafPathsWrite, MerkleDBNodesWrite, MerkleDBWriteBatch,
+        StateDBWrite,
     },
     merkle_db::MerkleDB,
     types::{BranchNode, LeafNode, LeafNodeData, MerkleNode, MerklePath, StateMerkleError},
@@ -13,18 +14,18 @@ use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
 
 pub struct MerkleManager {
     merkle_db: MerkleDB,
-    merkle_cache: MerkleCache,
+    merkle_change_set: MerkleChangeSet,
 }
 
 impl MerkleManager {
-    pub fn new(merkle_db: MerkleDB, merkle_cache: MerkleCache) -> Self {
+    pub fn new(merkle_db: MerkleDB, merkle_change_set: MerkleChangeSet) -> Self {
         Self {
             merkle_db,
-            merkle_cache,
+            merkle_change_set,
         }
     }
 
-    /// Finds the longest Merkle path in the `MerkleCache` and the `MerkleDB`
+    /// Finds the longest Merkle path in the `MerkleChangeSet` and the `MerkleDB`
     /// that is a prefix of a given state key.
     async fn find_longest_prefix(
         &self,
@@ -34,7 +35,7 @@ impl MerkleManager {
 
         let longest_prefix_from_db = self.merkle_db.find_longest_prefix(state_key).await?;
         let longest_prefix_from_cache = self
-            .merkle_cache
+            .merkle_change_set
             .nodes
             .keys()
             .filter(|&key_in_cache| state_key_as_merkle_path.0.starts_with(&key_in_cache.0))
@@ -48,17 +49,17 @@ impl MerkleManager {
         Ok(longest_prefix_from_db)
     }
 
-    /// Gets a node at the given merkle path from the `MerkleCache`, then falls back to
+    /// Gets a node at the given merkle path from the `MerkleChangeSet`, then falls back to
     /// `MerkleDB` search if not found.
     ///
-    /// `None` return value implies either it was removed from the `MerkleCache` while processing
+    /// `None` return value implies either it was removed from the `MerkleChangeSet` while processing
     /// dirty state cache entries, or it never existed at the `MerkleDB`.
     async fn get_node(
         &self,
         merkle_path: &MerklePath,
     ) -> Result<Option<MerkleNode>, StateMerkleError> {
-        // Get from the MerkleCache
-        if let Some(node_from_cache) = self.merkle_cache.get_node(merkle_path) {
+        // Get from the MerkleChangeSet
+        if let Some(node_from_cache) = self.merkle_change_set.get_node(merkle_path) {
             Ok(node_from_cache)
         } else {
             // Fallback to MerkleDB search
@@ -66,17 +67,17 @@ impl MerkleManager {
         }
     }
 
-    /// Gets a leaf node merkle path that corresponds to the given state key from the `MerkleCache`,
+    /// Gets a leaf node merkle path that corresponds to the given state key from the `MerkleChangeSet`,
     /// then falls back to `MerkleDB` search if not found.
     ///
-    /// `None` return value implies either it was removed from the `MerkleCache` while processing
+    /// `None` return value implies either it was removed from the `MerkleChangeSet` while processing
     /// dirty state cache entries, or it never existed at the `MerkleDB`.
     async fn get_leaf_path(
         &self,
         state_key: &StateKey,
     ) -> Result<Option<MerklePath>, StateMerkleError> {
-        // Get from the MerkleCache
-        if let Some(leaf_path_from_cache) = self.merkle_cache.get_leaf_path(state_key) {
+        // Get from the MerkleChangeSet
+        if let Some(leaf_path_from_cache) = self.merkle_change_set.get_leaf_path(state_key) {
             Ok(leaf_path_from_cache)
         } else {
             // Fallback to MerkleDB search
@@ -143,18 +144,18 @@ impl MerkleManager {
                                     .to_bitvec(),
                             );
 
-                            self.merkle_cache.extend_affected_paths(&leaf_path);
+                            self.merkle_change_set.extend_affected_paths(&leaf_path);
 
-                            // Adds 1 merkle node entry to the MerkleCache
-                            self.merkle_cache
+                            // Adds 1 merkle node entry to the MerkleChangeSet
+                            self.merkle_change_set
                                 .insert_node(leaf_path.clone(), Some(MerkleNode::Leaf(leaf)));
 
-                            // Insert the added leaf path to the MerkleCache
-                            self.merkle_cache
+                            // Insert the added leaf path to the MerkleChangeSet
+                            self.merkle_change_set
                                 .insert_leaf_path(state_key.clone(), Some(leaf_path));
 
                             if let Some(state_db_write) = maybe_state_db_write {
-                                self.merkle_cache.insert_state_db_write(state_db_write);
+                                self.merkle_change_set.insert_state_db_write(state_db_write);
                             }
                         }
                         MerkleNode::Leaf(sibling_candidate) => {
@@ -174,21 +175,21 @@ impl MerkleManager {
                                 sibling_state_key_bv.clone(),
                                 new_leaf_state_key_bv,
                             );
-                            self.merkle_cache.extend_affected_paths(&new_leaf_path);
-                            self.merkle_cache
+                            self.merkle_change_set.extend_affected_paths(&new_leaf_path);
+                            self.merkle_change_set
                                 .insert_to_affected_paths(sibling_path.clone());
 
-                            // Adds 2 merkle node entries to the MerkleCache
+                            // Adds 2 merkle node entries to the MerkleChangeSet
                             let new_leaf_node = MerkleNode::Leaf(leaf.clone());
                             let new_leaf_node_hash = new_leaf_node.hash()?;
-                            self.merkle_cache
+                            self.merkle_change_set
                                 .insert_node(new_leaf_path.clone(), Some(new_leaf_node));
                             let sibling_node = MerkleNode::Leaf(sibling_candidate.clone());
                             let sibling_node_hash = sibling_node.hash()?;
-                            self.merkle_cache
+                            self.merkle_change_set
                                 .insert_node(sibling_path.clone(), Some(sibling_node));
 
-                            // Add all new branch node entries to the MerkleCache, from the parent
+                            // Add all new branch node entries to the MerkleChangeSet, from the parent
                             // node of the new leaf and it sibling all the way up to the `lcp_node`.
 
                             // Initialize
@@ -208,7 +209,7 @@ impl MerkleManager {
                                 let branch_node =
                                     MerkleNode::Branch(BranchNode::new(&left_hash, &right_hash));
                                 let branch_node_hash = branch_node.hash()?;
-                                self.merkle_cache
+                                self.merkle_change_set
                                     .insert_node(branch_path.clone(), Some(branch_node));
 
                                 // Update branch_path, left_hash and right_hash for the next loop
@@ -223,11 +224,11 @@ impl MerkleManager {
                                 };
                             }
 
-                            // Insert the added leaf paths to the MerkleCache
+                            // Insert the added leaf paths to the MerkleChangeSet
                             // The original LCP node (sibling candidate) leaf path will simply be updated
-                            self.merkle_cache
+                            self.merkle_change_set
                                 .insert_leaf_path(state_key.clone(), Some(new_leaf_path));
-                            self.merkle_cache.insert_leaf_path(
+                            self.merkle_change_set.insert_leaf_path(
                                 StateKey::from_slice(
                                     bits_decode_msb(sibling_state_key_bv).as_slice(),
                                 )?,
@@ -235,7 +236,7 @@ impl MerkleManager {
                             );
 
                             if let Some(state_db_write) = maybe_state_db_write {
-                                self.merkle_cache.insert_state_db_write(state_db_write);
+                                self.merkle_change_set.insert_state_db_write(state_db_write);
                             }
                         }
                     }
@@ -250,14 +251,14 @@ impl MerkleManager {
                             dirty_entry,
                         )?;
                     // `StateMut::Update` case updates 1 merkle node entry
-                    self.merkle_cache.extend_affected_paths(&leaf_path);
-                    self.merkle_cache
+                    self.merkle_change_set.extend_affected_paths(&leaf_path);
+                    self.merkle_change_set
                         .insert_node(leaf_path, Some(MerkleNode::Leaf(leaf)));
                     // Note: the leaf path doesn't change.
-                    // No need to insert to `MerkleCache.leaf_paths`
+                    // No need to insert to `MerkleChangeSet.leaf_paths`
 
                     if let Some(state_db_write) = maybe_state_db_write {
-                        self.merkle_cache.insert_state_db_write(state_db_write);
+                        self.merkle_change_set.insert_state_db_write(state_db_write);
                     }
                 }
                 StateMut::Remove => {
@@ -278,11 +279,12 @@ impl MerkleManager {
                         MerkleNode::Branch(_) => {
                             // Remove case 1. Sibling of the removing leaf is branch.
                             // Simply mark the leaf node as removed in the StateCache.
-                            self.merkle_cache.extend_affected_paths(&leaf_path);
-                            self.merkle_cache.insert_node(leaf_path, None);
+                            self.merkle_change_set.extend_affected_paths(&leaf_path);
+                            self.merkle_change_set.insert_node(leaf_path, None);
 
                             // Mark the (state key -> leaf path) pair as removed in the StateCache
-                            self.merkle_cache.insert_leaf_path(state_key.clone(), None);
+                            self.merkle_change_set
+                                .insert_leaf_path(state_key.clone(), None);
                         }
                         MerkleNode::Leaf(leaf) => {
                             // Remove case 2. Sibling of the removing leaf is leaf.
@@ -321,18 +323,19 @@ impl MerkleManager {
                             }
 
                             // Mark the original leaf for removal
-                            self.merkle_cache.extend_affected_paths(&leaf_path);
-                            self.merkle_cache.insert_node(leaf_path, None);
+                            self.merkle_change_set.extend_affected_paths(&leaf_path);
+                            self.merkle_change_set.insert_node(leaf_path, None);
                             // Mark the removed node's (state key -> leaf path) pair as removed in the StateCache
-                            self.merkle_cache.insert_leaf_path(state_key.clone(), None);
+                            self.merkle_change_set
+                                .insert_leaf_path(state_key.clone(), None);
 
                             // Mark the sibling at its original path for removal
-                            self.merkle_cache
+                            self.merkle_change_set
                                 .insert_to_affected_paths(sibling_path.clone());
-                            self.merkle_cache.insert_node(sibling_path, None);
+                            self.merkle_change_set.insert_node(sibling_path, None);
                             // Update the sibling's (state key -> leaf path) pair in the StateCache
                             let sibling_state_key_bv = leaf.state_key_bv.clone();
-                            self.merkle_cache.insert_leaf_path(
+                            self.merkle_change_set.insert_leaf_path(
                                 StateKey::from_slice(
                                     bits_decode_msb(sibling_state_key_bv).as_slice(),
                                 )?,
@@ -341,11 +344,11 @@ impl MerkleManager {
 
                             // Mark all the collapsed intermediate branches for removal
                             for path in collapsed_branch_paths {
-                                self.merkle_cache.insert_node(path, None);
+                                self.merkle_change_set.insert_node(path, None);
                             }
 
                             // Insert the sibling leaf with its final merkle path
-                            self.merkle_cache
+                            self.merkle_change_set
                                 .insert_node(post_sibling_path, Some(MerkleNode::Leaf(leaf)));
                             return Ok(());
                         }
@@ -374,7 +377,7 @@ impl MerkleManager {
     async fn prepare_merkle_db_node_writes(
         &mut self,
     ) -> Result<Option<MerkleRoot>, StateMerkleError> {
-        let affected_paths_sorted = self.merkle_cache.affected_paths_as_sorted_vec();
+        let affected_paths_sorted = self.merkle_change_set.affected_paths_as_sorted_vec();
         // No affected merkle paths; merkle root remains unchanged.
         if affected_paths_sorted.is_empty() {
             return Ok(None);
@@ -383,14 +386,14 @@ impl MerkleManager {
         // Iterate on affected merkle nodes from the deepest merkle path up toward the root,
         // populating DB write set entries.
         for affected_path in affected_paths_sorted {
-            // Attempt to get node at the given path from the `MerkleCache`
-            if let Some(affected_node_write) = self.merkle_cache.get_node(&affected_path) {
-                self.merkle_cache
+            // Attempt to get node at the given path from the `MerkleChangeSet`
+            if let Some(affected_node_write) = self.merkle_change_set.get_node(&affected_path) {
+                self.merkle_change_set
                     .insert_merkle_db_nodes_write((affected_path, affected_node_write));
             } else {
-                // Node at the path is not found from the `MerkleCache`, so get the node from the `MerkleDB`.
+                // Node at the path is not found from the `MerkleChangeSet`, so get the node from the `MerkleDB`.
                 // This should be branch type, since all mutated leaf nodes must be already present
-                // at the `MerkleCache`.
+                // at the `MerkleChangeSet`.
                 if let Some(affected_node) = self.merkle_db.get_node(&affected_path).await? {
                     if let MerkleNode::Branch(mut affected_branch) = affected_node {
                         // If any of its children is mutated and found in the `StateCache`, update
@@ -404,7 +407,8 @@ impl MerkleManager {
                             .right_child()
                             .expect("Affected path length should not exceed NODE_SIZE_BITS");
 
-                        if let Some(left_child_write) = self.merkle_cache.get_node(&left_child_path)
+                        if let Some(left_child_write) =
+                            self.merkle_change_set.get_node(&left_child_path)
                         {
                             match left_child_write {
                                 Some(left_child_mutated) => {
@@ -417,7 +421,7 @@ impl MerkleManager {
                             }
                         }
                         if let Some(right_child_write) =
-                            self.merkle_cache.get_node(&right_child_path)
+                            self.merkle_change_set.get_node(&right_child_path)
                         {
                             match right_child_write {
                                 Some(right_child_mutated) => {
@@ -430,20 +434,20 @@ impl MerkleManager {
                             }
                         }
 
-                        // Insert the updated branch node to the MerkleCache so parent nodes can
-                        // refer to updated versions of nodes from the MerkleCache.
-                        self.merkle_cache.insert_node(
+                        // Insert the updated branch node to the MerkleChangeSet so parent nodes can
+                        // refer to updated versions of nodes from the MerkleChangeSet.
+                        self.merkle_change_set.insert_node(
                             affected_path.clone(),
                             Some(MerkleNode::Branch(affected_branch.clone())),
                         );
 
                         // Insert the updated branch node to the DB write set
-                        self.merkle_cache.insert_merkle_db_nodes_write((
+                        self.merkle_change_set.insert_merkle_db_nodes_write((
                             affected_path.clone(),
                             Some(MerkleNode::Branch(affected_branch)),
                         ));
                     } else {
-                        return Err(StateMerkleError::AffectedLeafNotFoundFromMerkleCache);
+                        return Err(StateMerkleError::AffectedLeafNotFoundFromMerkleChangeSet);
                     }
                 } else {
                     return Err(StateMerkleError::InvalidAffectedMerklePath);
@@ -453,7 +457,7 @@ impl MerkleManager {
 
         // Get the new merkle root with an empty MerklePath as key
         let new_merkle_root = self
-            .merkle_cache
+            .merkle_change_set
             .get_node(&MerklePath::root())
             .expect("Merkle root is always affected unless the merkle trie is unchanged")
             .expect("Merkle root should not be removed")
@@ -462,34 +466,34 @@ impl MerkleManager {
         Ok(Some(new_merkle_root))
     }
 
-    /// Takes all updated (state key -> leaf path) relationships from `MerkleCache.leaf_paths` and
-    /// moves into `MerkleCache.db_write_set.merkle_db_leaf_paths_write_set`,
+    /// Takes all updated (state key -> leaf path) relationships from `MerkleChangeSet.leaf_paths` and
+    /// moves into `MerkleChangeSet.db_write_set.merkle_db_leaf_paths_write_set`,
     /// so that it can be later committed to `MerkleDB.leaf_paths`.
     ///
     /// Unlike `StateDB` write set which directly stores the write entries into the write set,
-    /// this should be first staged at `MerkleCache.leaf_paths` since
+    /// this should be first staged at `MerkleChangeSet.leaf_paths` since
     /// this staged mapping is used during the `insert_dirty_cache_entry_as_leaf_writes` call.
     fn prepare_merkle_db_leaf_paths_writes(&mut self) {
-        let leaf_paths_to_write = std::mem::take(&mut self.merkle_cache.leaf_paths);
+        let leaf_paths_to_write = std::mem::take(&mut self.merkle_change_set.leaf_paths);
 
-        self.merkle_cache
+        self.merkle_change_set
             .db_write_set
             .merkle_db_leaf_paths_write_set
             .reserve(leaf_paths_to_write.len());
 
-        self.merkle_cache
+        self.merkle_change_set
             .db_write_set
             .merkle_db_leaf_paths_write_set
             .extend(leaf_paths_to_write);
     }
 
-    /// Prepares write set for `MerkleDB` from the `MerkleCache` entries and stores it into
-    /// `MerkleCache.db_write_set`. This should be then transformed to `WriteBatch` for DB batch commitment.
+    /// Prepares write set for `MerkleDB` from the `MerkleChangeSet` entries and stores it into
+    /// `MerkleChangeSet.db_write_set`. This should be then transformed to `WriteBatch` for DB batch commitment.
     async fn prepare_merkle_db_writes(&mut self) -> Result<Option<MerkleRoot>, StateMerkleError> {
-        // Prepares `MerkleCache.db_write_set.merkle_db_nodes_write_set`
+        // Prepares `MerkleChangeSet.db_write_set.merkle_db_nodes_write_set`
         let new_merkle_root = self.prepare_merkle_db_node_writes().await?;
 
-        // Prepares `MerkleCache.db_write_set.merkle_db_leaf_paths_write_set`
+        // Prepares `MerkleChangeSet.db_write_set.merkle_db_leaf_paths_write_set`
         self.prepare_merkle_db_leaf_paths_writes();
 
         Ok(new_merkle_root)
@@ -499,7 +503,7 @@ impl MerkleManager {
     fn generate_merkle_db_write_batch_from_write_set(
         &mut self,
     ) -> Result<MerkleDBWriteBatch, StateMerkleError> {
-        self.merkle_cache
+        self.merkle_change_set
             .db_write_set
             .generate_merkle_db_write_batch(
                 self.merkle_db.nodes_cf_handle()?,
@@ -530,7 +534,7 @@ impl MerkleManager {
             return Ok(vec![]);
         }
 
-        // Update nodes in `MerkleCache`
+        // Update nodes in `MerkleChangeSet`
         self.insert_dirty_cache_entries_as_leaf_writes(dirty_entries)
             .await?;
         let Some(new_merkle_root) = self.prepare_merkle_db_writes().await? else {
@@ -542,12 +546,12 @@ impl MerkleManager {
 
         // Clone and keep MerkleDB write set to pass as args to invalidate cache in of `CachedDB`
         let nodes_changes = self
-            .merkle_cache
+            .merkle_change_set
             .db_write_set
             .merkle_db_nodes_write_set
             .clone();
         let leaf_paths_changes = self
-            .merkle_cache
+            .merkle_change_set
             .db_write_set
             .merkle_db_leaf_paths_write_set
             .clone();
@@ -557,15 +561,15 @@ impl MerkleManager {
             .await?;
 
         let state_db_write_set =
-            std::mem::take(&mut self.merkle_cache.db_write_set.state_db_write_set);
+            std::mem::take(&mut self.merkle_change_set.db_write_set.state_db_write_set);
 
-        // Clear the MerkleCache
-        self.merkle_cache.clear();
+        // Clear the MerkleChangeSet
+        self.merkle_change_set.clear();
         Ok(state_db_write_set)
     }
 }
 
-// TODO: check `MerkleCache.leaf_paths`
+// TODO: check `MerkleChangeSet.leaf_paths`
 // TODO: check `DBWriteSet` with regular leaves
 #[cfg(test)]
 mod tests {
@@ -611,7 +615,7 @@ mod tests {
             .await
             .unwrap();
 
-        let merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+        let merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
 
         let mut state_key_vec = bits_decode_msb(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 0, 1, 1, 1]);
         state_key_vec.resize(31, 0);
@@ -674,7 +678,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_lcp_branch_cache() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_lcp_branch_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -687,25 +691,25 @@ mod tests {
                 LeafNodeData::Embedded(dirty_cache_entry.value.encode().unwrap()),
             ));
 
-            // Check `MerkleCache.nodes`
+            // Check `MerkleChangeSet.nodes`
             let entry = merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&expected_added_leaf_merkle_path)
                 .unwrap();
             assert_eq!(entry, Some(expected_added_leaf_node.clone()));
 
-            // Check `MerkleCache.affected_paths`
+            // Check `MerkleChangeSet.affected_paths`
             // affected paths should be: [root, 1, 10]
-            let affected_paths = merkle_manager.merkle_cache.affected_paths;
+            let affected_paths = merkle_manager.merkle_change_set.affected_paths;
             assert_eq!(affected_paths.len(), 3);
             assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&expected_added_leaf_merkle_path));
 
-            // Check `MerkleCache.db_write_set`
+            // Check `MerkleChangeSet.db_write_set`
             // Embedded leaf; no db write set
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
@@ -714,7 +718,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_lcp_branch_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_lcp_branch_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -786,7 +790,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_lcp_leaf_cache() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_lcp_leaf_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -803,14 +807,14 @@ mod tests {
             // LCP node path should be updated to: 11_0000
             let expected_lcp_node_final_merkle_path = merkle_path![1, 1, 0, 0, 0, 0];
 
-            // Check `MerkleCache.nodes`
+            // Check `MerkleChangeSet.nodes`
             let entry = merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&expected_added_leaf_merkle_path)
                 .unwrap();
             assert_eq!(entry, Some(expected_added_leaf_node));
             let entry = merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&expected_lcp_node_final_merkle_path)
                 .unwrap();
             // LCP node path: 1100_0011_00...0
@@ -823,35 +827,35 @@ mod tests {
             ));
             assert_eq!(entry, Some(lcp_node));
 
-            // Check new branch nodes are added to `MerkleCache`
+            // Check new branch nodes are added to `MerkleChangeSet`
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1, 0, 0, 0])
                 .unwrap()
                 .unwrap()
                 .is_branch());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1, 0, 0])
                 .unwrap()
                 .unwrap()
                 .is_branch());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1, 0])
                 .unwrap()
                 .unwrap()
                 .is_branch());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1])
                 .unwrap()
                 .unwrap()
                 .is_branch());
 
-            // Check `MerkleCache.affected_paths`
+            // Check `MerkleChangeSet.affected_paths`
             // affected paths should be: [root, 1, 11, 110, 1100, 11000, 110000, 110001]
-            let affected_paths = merkle_manager.merkle_cache.affected_paths;
+            let affected_paths = merkle_manager.merkle_change_set.affected_paths;
             assert_eq!(affected_paths.len(), 8);
             assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
@@ -862,10 +866,10 @@ mod tests {
             assert!(affected_paths.contains(&merkle_path![1, 1, 0, 0, 0, 0]));
             assert!(affected_paths.contains(&merkle_path![1, 1, 0, 0, 0, 1]));
 
-            // Check `MerkleCache.db_write_set`
+            // Check `MerkleChangeSet.db_write_set`
             // Embedded leaf; no db write set
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
@@ -874,7 +878,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_lcp_leaf_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_lcp_leaf_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -980,7 +984,7 @@ mod tests {
         #[tokio::test]
         async fn test_update_cache() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_update_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -990,9 +994,9 @@ mod tests {
             // Updated leaf merkle path should be: 11
             let updated_leaf_merkle_path = merkle_path![1, 1];
 
-            // Check `MerkleCache.nodes`
+            // Check `MerkleChangeSet.nodes`
             let entry = merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&updated_leaf_merkle_path)
                 .unwrap();
             let expected_updated_leaf_node = MerkleNode::Leaf(LeafNode::new(
@@ -1001,18 +1005,18 @@ mod tests {
             ));
             assert_eq!(entry, Some(expected_updated_leaf_node));
 
-            // Check `MerkleCache.affected_paths`
+            // Check `MerkleChangeSet.affected_paths`
             // affected paths should be: [root, 1, 11]
-            let affected_paths = merkle_manager.merkle_cache.affected_paths;
+            let affected_paths = merkle_manager.merkle_change_set.affected_paths;
             assert_eq!(affected_paths.len(), 3);
             assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
 
-            // Check `MerkleCache.db_write_set`
+            // Check `MerkleChangeSet.db_write_set`
             // Embedded leaf; no db write set
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
@@ -1021,7 +1025,7 @@ mod tests {
         #[tokio::test]
         async fn test_update_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_update_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -1096,7 +1100,7 @@ mod tests {
         async fn test_remove_sibling_is_branch_cache() {
             let (merkle_db, state_key, dirty_cache_entry) =
                 setup_remove_sibling_is_branch_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1106,25 +1110,25 @@ mod tests {
             // Removed leaf merkle path should be: 11
             let removed_leaf_merkle_path = merkle_path![1, 1];
 
-            // Check `MerkleCache.nodes`
+            // Check `MerkleChangeSet.nodes`
             let entry = merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&removed_leaf_merkle_path)
                 .unwrap();
             assert!(entry.is_none()); // Should be marked as `None`
 
-            // Check `MerkleCache.affected_paths`
+            // Check `MerkleChangeSet.affected_paths`
             // affected paths should be: [root, 1, 11]
-            let affected_paths = merkle_manager.merkle_cache.affected_paths;
+            let affected_paths = merkle_manager.merkle_change_set.affected_paths;
             assert_eq!(affected_paths.len(), 3);
             assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
 
-            // Check `MerkleCache.db_write_set`
+            // Check `MerkleChangeSet.db_write_set`
             // No db write set
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
@@ -1134,7 +1138,7 @@ mod tests {
         async fn test_remove_sibling_is_branch_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) =
                 setup_remove_sibling_is_branch_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -1211,7 +1215,7 @@ mod tests {
         async fn test_remove_sibling_is_leaf_cache() {
             let (merkle_db, state_key, dirty_cache_entry) =
                 setup_remove_sibling_is_leaf_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1221,26 +1225,26 @@ mod tests {
             // Removed leaf merkle path should be: 1011
             let removed_leaf_merkle_path = merkle_path![1, 0, 1, 1];
 
-            // Check `MerkleCache.nodes`
+            // Check `MerkleChangeSet.nodes`
             let entry = merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&removed_leaf_merkle_path)
                 .unwrap();
             assert!(entry.is_none()); // Should be marked as `None`
 
             // Check removed node entries
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 0])
                 .unwrap()
                 .is_none());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 0, 1])
                 .unwrap()
                 .is_none());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 0, 1, 0])
                 .unwrap()
                 .is_none());
@@ -1249,15 +1253,15 @@ mod tests {
             let sibling = MerkleNode::Leaf(create_dummy_regular_leaf(255));
             assert_eq!(
                 merkle_manager
-                    .merkle_cache
+                    .merkle_change_set
                     .get_node(&merkle_path![1])
                     .unwrap(),
                 Some(sibling)
             );
 
-            // Check `MerkleCache.affected_paths`
+            // Check `MerkleChangeSet.affected_paths`
             // affected paths should be: [root, 1, 10, 101, 1010, 1011]
-            let affected_paths = merkle_manager.merkle_cache.affected_paths;
+            let affected_paths = merkle_manager.merkle_change_set.affected_paths;
             assert_eq!(affected_paths.len(), 6);
             assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
@@ -1266,10 +1270,10 @@ mod tests {
             assert!(affected_paths.contains(&merkle_path![1, 0, 1, 0]));
             assert!(affected_paths.contains(&merkle_path![1, 0, 1, 1]));
 
-            // Check `MerkleCache.db_write_set`
+            // Check `MerkleChangeSet.db_write_set`
             // No db write set
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
@@ -1279,7 +1283,7 @@ mod tests {
         async fn test_remove_sibling_is_leaf_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) =
                 setup_remove_sibling_is_leaf_tests().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -1381,7 +1385,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
 
             let mut dirty_cache_entry_1011 =
                 CacheEntry::new(StateEntryType::Timeslot(Timeslot::new(2)));
@@ -1406,38 +1410,38 @@ mod tests {
             // Removed leaf merkle path #2 should be: 1010
             let removed_leaf_merkle_path_1010 = merkle_path![1, 0, 1, 0];
 
-            // Check `MerkleCache.nodes`
+            // Check `MerkleChangeSet.nodes`
             // Check removed node entries
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1])
                 .unwrap()
                 .is_none());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 0])
                 .unwrap()
                 .is_none());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 0, 1])
                 .unwrap()
                 .is_none());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&removed_leaf_merkle_path_1011)
                 .unwrap()
                 .is_none());
 
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&removed_leaf_merkle_path_1010)
                 .unwrap()
                 .is_none());
 
-            // Check `MerkleCache.affected_paths`
+            // Check `MerkleChangeSet.affected_paths`
             // affected paths should be: [root, 1, 10, 101, 1010, 1011]
-            let affected_paths = merkle_manager.merkle_cache.affected_paths;
+            let affected_paths = merkle_manager.merkle_change_set.affected_paths;
             assert_eq!(affected_paths.len(), 6);
             assert!(affected_paths.contains(&root_path));
             assert!(affected_paths.contains(&merkle_path![1]));
@@ -1446,10 +1450,10 @@ mod tests {
             assert!(affected_paths.contains(&merkle_path![1, 0, 1, 0]));
             assert!(affected_paths.contains(&merkle_path![1, 0, 1, 1]));
 
-            // Check `MerkleCache.db_write_set`
+            // Check `MerkleChangeSet.db_write_set`
             // No db write set
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
@@ -1496,7 +1500,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleCache::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
 
             // Added state key #1: 1100_0110_10...0 (248 bits)
             let added_state_key_1 =
@@ -1537,58 +1541,58 @@ mod tests {
             // LCP node merkle path should be: 110000
             let lcp_node_merkle_path = merkle_path![1, 1, 0, 0, 0, 0];
 
-            // Check `MerkleCache.nodes`
+            // Check `MerkleChangeSet.nodes`
             let added_leaf_1_from_cache = merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&added_leaf_1_merkle_path)
                 .unwrap();
             assert_eq!(added_leaf_1_from_cache, Some(expected_added_leaf_node_1));
 
             let added_leaf_2_from_cache = merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&added_leaf_2_merkle_path)
                 .unwrap();
             assert_eq!(added_leaf_2_from_cache, Some(expected_added_leaf_node_2));
 
             let lcp_node_from_cache = merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&lcp_node_merkle_path)
                 .unwrap();
             assert_eq!(lcp_node_from_cache, Some(lcp_node));
 
-            // Check new branch nodes are added to `MerkleCache`
+            // Check new branch nodes are added to `MerkleChangeSet`
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1, 0, 0, 0, 1, 1])
                 .unwrap()
                 .unwrap()
                 .is_branch());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1, 0, 0, 0, 1])
                 .unwrap()
                 .unwrap()
                 .is_branch());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1, 0, 0, 0])
                 .unwrap()
                 .unwrap()
                 .is_branch());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1, 0, 0])
                 .unwrap()
                 .unwrap()
                 .is_branch());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1, 0])
                 .unwrap()
                 .unwrap()
                 .is_branch());
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .get_node(&merkle_path![1, 1])
                 .unwrap()
                 .unwrap()
@@ -1597,29 +1601,29 @@ mod tests {
             // Check added / updated leaf paths
             assert_eq!(
                 merkle_manager
-                    .merkle_cache
+                    .merkle_change_set
                     .get_leaf_path(&added_state_key_1)
                     .unwrap(),
                 Some(added_leaf_1_merkle_path)
             );
             assert_eq!(
                 merkle_manager
-                    .merkle_cache
+                    .merkle_change_set
                     .get_leaf_path(&added_state_key_2)
                     .unwrap(),
                 Some(added_leaf_2_merkle_path)
             );
             assert_eq!(
                 merkle_manager
-                    .merkle_cache
+                    .merkle_change_set
                     .get_leaf_path(&lcp_node_state_key)
                     .unwrap(),
                 Some(lcp_node_merkle_path)
             );
 
-            // Check `MerkleCache.affected_paths`
+            // Check `MerkleChangeSet.affected_paths`
             // affected paths should be: [root, 1, 11, 110, 1100, 11000, 110000, 110001, 1100011, 1100_0110, 1100_0111]
-            let affected_paths = merkle_manager.merkle_cache.affected_paths;
+            let affected_paths = merkle_manager.merkle_change_set.affected_paths;
             assert_eq!(affected_paths.len(), 11);
             assert!(affected_paths.contains(&root_path));
             assert!(affected_paths.contains(&merkle_path![1]));
@@ -1633,10 +1637,10 @@ mod tests {
             assert!(affected_paths.contains(&merkle_path![1, 1, 0, 0, 0, 1, 1, 0]));
             assert!(affected_paths.contains(&merkle_path![1, 1, 0, 0, 0, 1, 1, 1]));
 
-            // Check `MerkleCache.db_write_set`
+            // Check `MerkleChangeSet.db_write_set`
             // No db write set
             assert!(merkle_manager
-                .merkle_cache
+                .merkle_change_set
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
