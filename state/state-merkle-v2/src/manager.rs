@@ -1520,8 +1520,7 @@ mod tests {
                 .is_none());
         }
 
-        #[tokio::test]
-        async fn test_add_two_adjacent_leaves() {
+        async fn setup_add_two_adjacent_leaves_tests() -> (MerkleDB, Vec<(StateKey, CacheEntry)>) {
             let merkle_db = open_merkle_db();
 
             let root_path = MerklePath::root();
@@ -1536,10 +1535,6 @@ mod tests {
             // LCP node path: 1100_0011_00...
             let mut lcp_node_state_key_merkle_path = merkle_path![1, 1, 0, 0, 0, 0, 1, 1, 0, 0];
             lcp_node_state_key_merkle_path.0.resize(248, false);
-            let lcp_node_state_key = StateKey::from_slice(
-                bits_decode_msb(lcp_node_state_key_merkle_path.0.clone()).as_slice(),
-            )
-            .unwrap();
             let lcp_node_data = vec![255u8; 20];
             let lcp_node = MerkleNode::Leaf(LeafNode::new(
                 lcp_node_state_key_merkle_path.0,
@@ -1561,18 +1556,12 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
-
             // Added state key #1: 1100_0110_10...0 (248 bits)
             let added_state_key_1 =
                 create_state_key_from_path_prefix(merkle_path![1, 1, 0, 0, 0, 1, 1, 0, 1, 0]);
             let mut dirty_cache_entry_1 =
                 CacheEntry::new(StateEntryType::Timeslot(Timeslot::new(1)));
             dirty_cache_entry_1.status = CacheEntryStatus::Dirty(StateMut::Add);
-            let expected_added_leaf_node_1 = MerkleNode::Leaf(LeafNode::new(
-                bits_encode_msb(added_state_key_1.as_slice()),
-                LeafNodeData::Embedded(dirty_cache_entry_1.value.encode().unwrap()),
-            ));
 
             // Added state key #2: 1100_0111_00...0 (248 bits)
             let added_state_key_2 =
@@ -1580,15 +1569,46 @@ mod tests {
             let mut dirty_cache_entry_2 =
                 CacheEntry::new(StateEntryType::Timeslot(Timeslot::new(2)));
             dirty_cache_entry_2.status = CacheEntryStatus::Dirty(StateMut::Add);
-            let expected_added_leaf_node_2 = MerkleNode::Leaf(LeafNode::new(
-                bits_encode_msb(added_state_key_2.as_slice()),
-                LeafNodeData::Embedded(dirty_cache_entry_2.value.encode().unwrap()),
-            ));
 
             let dirty_cache_entries = vec![
                 (added_state_key_1.clone(), dirty_cache_entry_1),
                 (added_state_key_2.clone(), dirty_cache_entry_2),
             ];
+
+            (merkle_db, dirty_cache_entries)
+        }
+
+        #[tokio::test]
+        async fn test_add_two_adjacent_leaves_cache() {
+            let (merkle_db, dirty_cache_entries) = setup_add_two_adjacent_leaves_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+
+            let added_state_key_1 = dirty_cache_entries[0].0.clone();
+            let dirty_cache_entry_1 = dirty_cache_entries[0].1.clone();
+            let expected_added_leaf_node_1 = MerkleNode::Leaf(LeafNode::new(
+                bits_encode_msb(added_state_key_1.as_slice()),
+                LeafNodeData::Embedded(dirty_cache_entry_1.value.encode().unwrap()),
+            ));
+
+            let added_state_key_2 = dirty_cache_entries[1].0.clone();
+            let dirty_cache_entry_2 = dirty_cache_entries[1].1.clone();
+            let expected_added_leaf_node_2 = MerkleNode::Leaf(LeafNode::new(
+                bits_encode_msb(added_state_key_2.as_slice()),
+                LeafNodeData::Embedded(dirty_cache_entry_2.value.encode().unwrap()),
+            ));
+
+            // LCP node path: 1100_0011_00...
+            let mut lcp_node_state_key_merkle_path = merkle_path![1, 1, 0, 0, 0, 0, 1, 1, 0, 0];
+            lcp_node_state_key_merkle_path.0.resize(248, false);
+            let lcp_node_state_key = StateKey::from_slice(
+                bits_decode_msb(lcp_node_state_key_merkle_path.0.clone()).as_slice(),
+            )
+            .unwrap();
+            let lcp_node_data = vec![255u8; 20];
+            let lcp_node = MerkleNode::Leaf(LeafNode::new(
+                lcp_node_state_key_merkle_path.0,
+                LeafNodeData::Embedded(lcp_node_data),
+            ));
 
             merkle_manager
                 .insert_dirty_cache_entries_as_leaf_writes(&dirty_cache_entries)
@@ -1692,7 +1712,7 @@ mod tests {
             // affected paths should be: [root, 1, 11, 110, 1100, 11000, 110000, 110001, 1100011, 1100_0110, 1100_0111]
             let affected_paths = merkle_manager.merkle_change_set.affected_paths;
             assert_eq!(affected_paths.len(), 11);
-            assert!(affected_paths.contains(&root_path));
+            assert!(affected_paths.contains(&MerklePath::root()));
             assert!(affected_paths.contains(&merkle_path![1]));
             assert!(affected_paths.contains(&merkle_path![1, 1]));
             assert!(affected_paths.contains(&merkle_path![1, 1, 0]));
@@ -1711,6 +1731,107 @@ mod tests {
                 .db_write_set
                 .state_db_write_set
                 .is_empty());
+        }
+
+        #[tokio::test]
+        async fn test_add_two_adjacent_leaves_db_commit() {
+            let (merkle_db, dirty_cache_entries) = setup_add_two_adjacent_leaves_tests().await;
+            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+
+            let added_state_key_1 = dirty_cache_entries[0].0.clone();
+            let dirty_cache_entry_1 = dirty_cache_entries[0].1.clone();
+            let expected_added_leaf_1 = LeafNode::new(
+                bits_encode_msb(added_state_key_1.as_slice()),
+                LeafNodeData::Embedded(dirty_cache_entry_1.value.encode().unwrap()),
+            );
+
+            let added_state_key_2 = dirty_cache_entries[1].0.clone();
+            let dirty_cache_entry_2 = dirty_cache_entries[1].1.clone();
+            let expected_added_leaf_2 = LeafNode::new(
+                bits_encode_msb(added_state_key_2.as_slice()),
+                LeafNodeData::Embedded(dirty_cache_entry_2.value.encode().unwrap()),
+            );
+
+            // LCP node path: 1100_0011_00...
+            let mut lcp_node_state_key_merkle_path = merkle_path![1, 1, 0, 0, 0, 0, 1, 1, 0, 0];
+            lcp_node_state_key_merkle_path.0.resize(248, false);
+            let lcp_node_state_key = StateKey::from_slice(
+                bits_decode_msb(lcp_node_state_key_merkle_path.0.clone()).as_slice(),
+            )
+            .unwrap();
+            let lcp_node_data = vec![255u8; 20];
+            let expected_lcp_leaf = LeafNode::new(
+                lcp_node_state_key_merkle_path.0,
+                LeafNodeData::Embedded(lcp_node_data),
+            );
+
+            let state_db_writes = merkle_manager
+                .commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set(
+                    &dirty_cache_entries,
+                )
+                .await
+                .unwrap();
+
+            assert!(state_db_writes.is_empty()); // No state db writes
+
+            // Check added leaves
+            let added_leaf_1 = merkle_manager
+                .merkle_db
+                .get_leaf(&added_state_key_1)
+                .await
+                .unwrap();
+            let added_leaf_2 = merkle_manager
+                .merkle_db
+                .get_leaf(&added_state_key_2)
+                .await
+                .unwrap();
+            let lcp_leaf = merkle_manager
+                .merkle_db
+                .get_leaf(&lcp_node_state_key)
+                .await
+                .unwrap();
+
+            assert_eq!(added_leaf_1, Some(expected_added_leaf_1));
+            assert_eq!(added_leaf_2, Some(expected_added_leaf_2));
+            assert_eq!(lcp_leaf, Some(expected_lcp_leaf));
+
+            // Check added branches
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1, 1])
+                .await
+                .unwrap()
+                .is_some());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1, 1, 0])
+                .await
+                .unwrap()
+                .is_some());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1, 1, 0, 0])
+                .await
+                .unwrap()
+                .is_some());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1, 1, 0, 0, 0])
+                .await
+                .unwrap()
+                .is_some());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1, 1, 0, 0, 0, 1])
+                .await
+                .unwrap()
+                .is_some());
+            assert!(merkle_manager
+                .merkle_db
+                .get_node(&merkle_path![1, 1, 0, 0, 0, 1, 1])
+                .await
+                .unwrap()
+                .is_some());
         }
     }
 }
