@@ -1,2 +1,2 @@
-pub mod merkle_actor;
-pub mod merkle_manager;
+pub mod actor;
+pub mod manager;

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use crate::{
-    cache::CacheEntry, error::StateManagerError, merkle_interface::merkle_manager::MerkleManager,
+    cache::CacheEntry, error::StateManagerError, merkle_interface::manager::MerkleManager,
 };
 use fr_common::{MerkleRoot, StateKey};
 use fr_state_merkle_v2::{

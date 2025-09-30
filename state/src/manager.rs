@@ -3,8 +3,8 @@ use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
     error::StateManagerError,
     merkle_interface::{
-        merkle_actor::{MerkleActor, MerkleCommand, MerkleManagerHandle},
-        merkle_manager::MerkleManager,
+        actor::{MerkleActor, MerkleCommand, MerkleManagerHandle},
+        manager::MerkleManager,
     },
     provider::HostStateProvider,
     state_db::StateDB,
