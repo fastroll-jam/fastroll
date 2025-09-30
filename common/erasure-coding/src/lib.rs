@@ -78,7 +78,7 @@ impl ErasureCodec {
     }
 
     pub fn zero_pad_data(data: &[u8], msg_chunks: usize) -> Vec<u8> {
-        if data.len() % (msg_chunks * 2) == 0 {
+        if data.len().is_multiple_of(msg_chunks * 2) {
             data.to_vec()
         } else {
             let mut padded_data = data.to_vec();
