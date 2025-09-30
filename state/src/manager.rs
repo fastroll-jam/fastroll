@@ -2,7 +2,10 @@
 use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
     error::StateManagerError,
-    merkle_manager::MerkleManager,
+    merkle_interface::{
+        merkle_actor::{MerkleActor, MerkleCommand, MerkleManagerHandle},
+        merkle_manager::MerkleManager,
+    },
     provider::HostStateProvider,
     state_db::StateDB,
     state_utils::{
@@ -31,12 +34,13 @@ use std::{
     future::Future,
     sync::{Arc, RwLock},
 };
+use tokio::sync::mpsc;
 use tracing::instrument;
 
 pub struct StateManager {
     state_db: StateDB,
     cache: StateCache,
-    merkle_manager: MerkleManager,
+    merkle_manager: MerkleManagerHandle,
     ring_vrf_verifier_cache: RwLock<Option<(EpochIndex, RingVrfVerifier)>>,
 }
 
@@ -153,10 +157,19 @@ impl StateManager {
     }
 
     pub fn new(state_db: StateDB, merkle_db: MerkleDB, cache: StateCache) -> Self {
+        // Open a mpsc channel to be used for communication between StateManager and MerkleActor.
+        const CHANNEL_SIZE: usize = 10;
+        let (merkle_mpsc_send, merkle_mpsc_recv) = mpsc::channel::<MerkleCommand>(CHANNEL_SIZE);
+        let merkle_actor = MerkleActor::new(MerkleManager::new(merkle_db), merkle_mpsc_recv);
+
+        tokio::spawn(merkle_actor.run());
+
         Self {
             state_db,
             cache,
-            merkle_manager: MerkleManager::new(merkle_db),
+            merkle_manager: MerkleManagerHandle {
+                sender: merkle_mpsc_send,
+            },
             ring_vrf_verifier_cache: RwLock::new(None),
         }
     }
@@ -313,8 +326,8 @@ impl StateManager {
         self.cache.invalidate_all();
     }
 
-    pub fn merkle_root(&self) -> MerkleRoot {
-        self.merkle_manager.merkle_root().clone()
+    pub async fn merkle_root(&self) -> Result<MerkleRoot, StateManagerError> {
+        self.merkle_manager.get_merkle_root().await
     }
 
     pub async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
@@ -447,7 +460,11 @@ impl StateManager {
         &self,
         state_key: &StateKey,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        let leaf_node_data = match self.merkle_manager.retrieve(state_key).await? {
+        let leaf_node_data = match self
+            .merkle_manager
+            .retrieve_state(state_key.clone())
+            .await?
+        {
             Some(retrieved) => retrieved,
             None => return Ok(None),
         };

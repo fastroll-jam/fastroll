@@ -492,6 +492,9 @@ impl BlockImporter {
             output.account_state_changes
         };
         storage.state_manager().commit_dirty_cache().await?;
-        Ok((storage.state_manager().merkle_root(), account_state_changes))
+        Ok((
+            storage.state_manager().merkle_root().await?,
+            account_state_changes,
+        ))
     }
 }

@@ -177,7 +177,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
         .await?;
     tracing::info!(
         "--- DB Commit Done. Merkle Root: {}",
-        state_manager.merkle_root()
+        state_manager.merkle_root().await?
     );
 
     // Retrieve the entry from the DB (not gating the state cache)
@@ -205,7 +205,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
         .await?;
     tracing::info!(
         "--- DB Commit Done. Merkle Root: {}",
-        state_manager.merkle_root()
+        state_manager.merkle_root().await?
     );
 
     // Retrieve the entry from the DB (not gating the state cache)
@@ -240,7 +240,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
         .await?;
     tracing::info!(
         "--- DB Commit Done. Merkle Root: {}",
-        state_manager.merkle_root()
+        state_manager.merkle_root().await?
     );
 
     let auth_pool_state_data = state_manager
@@ -263,7 +263,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
         .await?;
     tracing::info!(
         "--- DB Commit Done. Merkle Root: {}",
-        state_manager.merkle_root()
+        state_manager.merkle_root().await?
     );
     // Retrieval of a removed entry must return `None`
     let auth_pool_state_data_result = state_manager

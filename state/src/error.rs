@@ -22,6 +22,8 @@ pub enum StateManagerError {
     WrongStateMutType,
     #[error("State Entry with the state key already exists")]
     StateEntryAlreadyExists,
+    #[error("MerkleActor is closed")]
+    MerkleActorClosed,
     #[error("Crypto error: {0}")]
     CryptoError(#[from] CryptoError),
     #[error("StateMerkle error: {0}")]

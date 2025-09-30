@@ -36,7 +36,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
     state_manager.commit_dirty_cache().await?;
 
     // Commit posterior state root of the genesis block
-    let post_state_root = state_manager.merkle_root();
+    let post_state_root = state_manager.merkle_root().await?;
     storage
         .post_state_root_db()
         .set_post_state_root(&genesis_header_hash, post_state_root)

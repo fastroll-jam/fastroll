@@ -24,7 +24,7 @@ pub(crate) enum CacheEntryStatus {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct CacheEntry {
+pub struct CacheEntry {
     /// Cached snapshot of clean state entry, synchronized with the DB.
     pub(crate) clean_snapshot: Arc<StateEntryType>,
     /// Latest state cache entry value.

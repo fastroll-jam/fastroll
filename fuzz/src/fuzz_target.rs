@@ -231,7 +231,7 @@ impl FuzzTargetRunner {
                     self.latest_state_keys.insert_state_key(kv.key);
                 }
                 state_manager.commit_dirty_cache().await?;
-                let state_root = state_manager.merkle_root();
+                let state_root = state_manager.merkle_root().await?;
 
                 // Initialize `BlockHeaderDB` & `PostStateRootDB`
                 storage.header_db().set_best_header(parent_header);
