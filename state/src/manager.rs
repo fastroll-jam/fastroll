@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
     error::StateManagerError,
@@ -18,27 +19,20 @@ use crate::{
 use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
-    CodeHash, EpochIndex, Hash32, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId,
-    StateKey, StorageKey, TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
+    CodeHash, EpochIndex, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey,
+    StorageKey, TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_config::StorageConfig;
 use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
-use fr_state_merkle::{
-    merkle_db::MerkleDB,
-    types::nodes::LeafType,
-    write_set::{DBWriteSet, MerkleDBWriteSet, StateDBWriteSet},
-};
 use std::{
-    collections::HashMap,
     future::Future,
     sync::{Arc, RwLock},
 };
-use tracing::{debug_span, instrument};
+use tracing::instrument;
 
 pub struct StateManager {
     state_db: StateDB,
-    merkle_db: MerkleDB,
     cache: StateCache,
     ring_vrf_verifier_cache: RwLock<Option<(EpochIndex, RingVrfVerifier)>>,
 }
@@ -144,19 +138,13 @@ impl StateManager {
                 cfg.cfs.state_db.cf_name,
                 cfg.cfs.state_db.cache_size,
             ),
-            MerkleDB::new(
-                core_db,
-                cfg.cfs.merkle_db.cf_name,
-                cfg.cfs.merkle_db.cache_size,
-            ),
             StateCache::new(cfg.state_cache_size),
         )
     }
 
-    pub fn new(state_db: StateDB, merkle_db: MerkleDB, cache: StateCache) -> Self {
+    pub fn new(state_db: StateDB, cache: StateCache) -> Self {
         Self {
             state_db,
-            merkle_db,
             cache,
             ring_vrf_verifier_cache: RwLock::new(None),
         }
@@ -315,7 +303,7 @@ impl StateManager {
     }
 
     pub fn merkle_root(&self) -> MerkleRoot {
-        self.merkle_db.root()
+        unimplemented!()
     }
 
     pub async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
@@ -446,134 +434,17 @@ impl StateManager {
 
     pub async fn retrieve_state_encoded(
         &self,
-        state_key: &StateKey,
+        _state_key: &StateKey,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        let retrieved = match self.merkle_db.retrieve(state_key).await {
-            Ok(val) => val,
-            Err(_) => return Ok(None),
-        };
-
-        let Some((leaf_type, state_data_or_hash)) = retrieved else {
-            return Ok(None);
-        };
-
-        let state_data = match leaf_type {
-            LeafType::Embedded => state_data_or_hash,
-            LeafType::Regular => {
-                let hash = Hash32::decode(&mut state_data_or_hash.as_slice())?;
-                // The state data hash is used as the key in the StateDB
-                let Some(entry) = self.state_db.get_entry(&hash).await? else {
-                    return Ok(None);
-                };
-                entry
-            }
-        };
-
-        Ok(Some(state_data))
-    }
-
-    fn append_to_merkle_db_write_batch(
-        &self,
-        batch: &mut WriteBatch,
-        write_set: &MerkleDBWriteSet,
-    ) -> Result<(), StateManagerError> {
-        let merkle_cf = self.merkle_db.cf_handle()?;
-        for (k, v) in write_set.entries() {
-            batch.put_cf(&merkle_cf, k.as_slice(), v);
-        }
-        Ok(())
-    }
-
-    fn append_to_state_db_write_batch(
-        &self,
-        batch: &mut WriteBatch,
-        write_set: &StateDBWriteSet,
-    ) -> Result<(), StateManagerError> {
-        let state_cf = self.state_db.cf_handle()?;
-        for (k, v) in write_set.entries() {
-            batch.put_cf(&state_cf, k.as_slice(), v);
-        }
-        Ok(())
+        unimplemented!()
     }
 
     /// Commits a single dirty cache entry into `MerkleDB` and `StateDB`.
     pub async fn commit_single_dirty_cache(
         &self,
-        state_key: &StateKey,
+        _state_key: &StateKey,
     ) -> Result<(), StateManagerError> {
-        let entry_status = self
-            .cache
-            .get_entry_status(state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let CacheEntryStatus::Clean = entry_status {
-            return Err(StateManagerError::NotDirtyCache);
-        }
-        let write_op = self.cache.get_entry_as_merkle_write_op(state_key)?;
-
-        // Case 1: Trie is empty
-        if self.merkle_db.root() == MerkleRoot::default() {
-            // Initialize the empty merkle trie by committing the first entry.
-            // This adds the first entry to the `MerkleDB`.
-            // Additionally, it also adds the first entry to the `StateDB`
-            // if the first entry of the merkle trie is the regular leaf node type.
-            let (new_root, maybe_state_db_write) =
-                self.merkle_db.commit_to_empty_trie(&write_op).await?;
-
-            // Update the merkle root of the MerkleDB
-            self.merkle_db.update_root(new_root);
-
-            // Add new entries to the StateDB (if exists)
-            if let Some(state_db_write) = maybe_state_db_write {
-                let state_db_write_set =
-                    StateDBWriteSet::new(HashMap::from([state_db_write.clone()]));
-                let mut state_db_write_batch_single = WriteBatch::default();
-                self.append_to_state_db_write_batch(
-                    &mut state_db_write_batch_single,
-                    &state_db_write_set,
-                )?;
-                self.commit_to_state_db(state_db_write_batch_single).await?;
-            }
-
-            // Mark committed entry as clean
-            self.cache.mark_entry_clean_and_snapshot(state_key)?;
-            return Ok(());
-        }
-
-        // Case 2: Trie is not empty
-        let DBWriteSet {
-            merkle_db_write_set,
-            state_db_write_set,
-        } = self
-            .merkle_db
-            .collect_write_set(state_key, write_op)
-            .await?;
-
-        // Debugging
-        tracing::trace!("MerkleDBWriteSet: {}", &merkle_db_write_set);
-        tracing::trace!("StateDBWriteSet: {}", &state_db_write_set);
-
-        // Commit the write batch to the MerkleDB
-        let mut merkle_db_wb = WriteBatch::default();
-        self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
-        self.commit_to_merkle_db(merkle_db_wb).await?;
-
-        // Commit the write batch to the StateDB
-        let mut state_db_wb = WriteBatch::default();
-        self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
-        self.commit_to_state_db(state_db_wb).await?;
-
-        // Update the merkle root of the MerkleDB
-        self.merkle_db
-            .update_root(merkle_db_write_set.get_new_root().clone());
-        tracing::trace!(
-            "Merkle root updated: {}",
-            &merkle_db_write_set.get_new_root()
-        );
-
-        // Mark committed entry as clean
-        self.cache.mark_entry_clean_and_snapshot(state_key)?;
-        Ok(())
+        unimplemented!()
     }
 
     /// Collects all dirty cache entries after state transition, then commit them into
@@ -581,88 +452,7 @@ impl StateManager {
     /// After committing to the databases, marks the committed cache entries as clean.
     #[instrument(level = "debug", skip(self), name = "commit_cache")]
     pub async fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
-        let mut dirty_entries = self.cache.collect_dirty();
-        tracing::debug!("committing {} dirty cache entries", dirty_entries.len());
-        if dirty_entries.is_empty() {
-            return Ok(());
-        }
-
-        // If the trie is empty, process one dirty cache entry by calling `commit_single_dirty_cache`
-        // to initialize the trie.
-        if self.merkle_db.root() == MerkleRoot::default() {
-            let (state_key, _entry) = dirty_entries.pop().expect("should not be empty");
-            self.commit_single_dirty_cache(&state_key).await?;
-            if dirty_entries.is_empty() {
-                return Ok(());
-            }
-        };
-
-        let mut merkle_db_wb = WriteBatch::default();
-        let mut state_db_wb = WriteBatch::default();
-
-        {
-            let span = debug_span!("write_set");
-            let _e = span.enter();
-
-            tracing::debug!("Collecting {} dirty entries", dirty_entries.len());
-            for (state_key, entry) in &dirty_entries {
-                // Convert dirty cache entries into write batch and commit to the MerkleDB
-                let DBWriteSet {
-                    merkle_db_write_set,
-                    state_db_write_set,
-                } = self
-                    .merkle_db
-                    .collect_write_set(state_key, entry.as_merkle_write_op(state_key)?)
-                    .await?;
-
-                self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
-                self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
-
-                // Copy MerkleDBWriteSet entries to the WorkingSet
-                merkle_db_write_set
-                    .iter()
-                    .for_each(|(_node_hash, node_write)| {
-                        self.merkle_db
-                            .working_set
-                            .insert_node(node_write.clone().into());
-                    });
-
-                // Update the WorkingSet root
-                self.merkle_db
-                    .update_root(merkle_db_write_set.get_new_root().clone());
-                tracing::trace!(
-                    "Merkle root updated: {}",
-                    &merkle_db_write_set.get_new_root()
-                );
-            }
-        }
-        {
-            let span = debug_span!("commit_and_sync");
-            let _e = span.enter();
-
-            // Commit the write batch to the MerkleDB
-            self.commit_to_merkle_db(merkle_db_wb).await?;
-
-            // Commit the write batch to the StateDB
-            self.commit_to_state_db(state_db_wb).await?;
-
-            // Update the merkle root of the MerkleDB
-            let new_root = self.merkle_db.root_with_working_set();
-            self.merkle_db.update_root(new_root);
-
-            // Clear the WorkingSet
-            self.merkle_db.clear_working_set();
-
-            // Sync up the state cache with the global state.
-            self.cache.sync_cache_status(&dirty_entries);
-        }
-
-        Ok(())
-    }
-
-    async fn commit_to_merkle_db(&self, batch: WriteBatch) -> Result<(), StateManagerError> {
-        self.merkle_db.commit_write_batch(batch).await?;
-        Ok(())
+        unimplemented!()
     }
 
     async fn commit_to_state_db(&self, batch: WriteBatch) -> Result<(), StateManagerError> {

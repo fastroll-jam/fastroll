@@ -1267,7 +1267,6 @@ dependencies = [
  "fr-limited-vec",
  "fr-merkle",
  "fr-pvm-types",
- "fr-state-merkle",
  "fr-state-merkle-v2",
  "mini-moka",
  "paste",

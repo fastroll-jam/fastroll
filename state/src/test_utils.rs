@@ -1,11 +1,10 @@
 use crate::{cache::StateCache, manager::StateManager, state_db::StateDB};
 use fr_block::header_db::BlockHeaderDB;
 use fr_config::{
-    StorageConfig, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, MERKLE_CF_NAME, MERKLE_DB_CACHE_SIZE,
-    STATE_CACHE_SIZE, STATE_CF_NAME, STATE_DB_CACHE_SIZE,
+    StorageConfig, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, STATE_CACHE_SIZE, STATE_CF_NAME,
+    STATE_DB_CACHE_SIZE,
 };
 use fr_db::core::core_db::CoreDB;
-use fr_state_merkle::merkle_db::MerkleDB;
 use std::sync::Arc;
 use tempfile::tempdir;
 
@@ -24,10 +23,9 @@ fn init_header_db(core_db: Arc<CoreDB>) -> BlockHeaderDB {
 }
 
 fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
-    let merkle_db = MerkleDB::new(core_db.clone(), MERKLE_CF_NAME, MERKLE_DB_CACHE_SIZE);
     let state_db = StateDB::new(core_db, STATE_CF_NAME, STATE_DB_CACHE_SIZE);
     let state_cache = StateCache::new(STATE_CACHE_SIZE);
-    StateManager::new(state_db, merkle_db, state_cache)
+    StateManager::new(state_db, state_cache)
 }
 
 pub fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {

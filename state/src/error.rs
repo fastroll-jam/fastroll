@@ -3,7 +3,7 @@ use fr_codec::JamCodecError;
 use fr_crypto::error::CryptoError;
 use fr_db::core::cached_db::CachedDBError;
 use fr_merkle::common::MerkleError;
-use fr_state_merkle::error::StateMerkleError;
+use fr_state_merkle_v2::types::StateMerkleError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
