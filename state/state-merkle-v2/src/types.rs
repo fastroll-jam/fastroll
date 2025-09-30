@@ -58,7 +58,7 @@ pub enum LeafNodeData {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LeafNode {
     pub state_key_bv: BitVec<u8, Msb0>,
-    data: LeafNodeData,
+    pub data: LeafNodeData,
 }
 
 impl LeafNode {

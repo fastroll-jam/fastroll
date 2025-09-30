@@ -26,6 +26,39 @@ impl MerkleManager {
         }
     }
 
+    pub fn merkle_root(&self) -> &MerkleRoot {
+        self.merkle_db.root()
+    }
+
+    /// Retrieves the data of a leaf node at a given Merkle path, representing the encoded state data.
+    ///
+    /// # Leaf Node Types
+    /// The function handles retrieving two types of leaf nodes:
+    ///
+    /// ## Embedded Leaf Node
+    /// - The state data is encoded directly as part of the leaf node itself.
+    /// - Used for smaller state values that can fit within the node structure (<= 32 bytes).
+    ///
+    /// ## Regular Leaf Node
+    /// - The leaf node contains a `Blake2b-256` hash of the state data.
+    /// - This hash serves as a key for fetching the actual state data from the `StateDB`.
+    /// - The state data is encoded using `JamCodec` and stored separately.
+    /// - Used for larger state values (> 32 bytes), with no size limit on the encoded data in the `StateDB`.
+    ///
+    /// # Note
+    /// For `Regular` leaf nodes, additional steps are required to fetch the actual state data
+    /// from the `StateDB` using the returned hash.
+    pub async fn retrieve(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<Option<LeafNodeData>, StateMerkleError> {
+        Ok(self
+            .merkle_db
+            .get_leaf(state_key)
+            .await?
+            .map(|leaf| leaf.data))
+    }
+
     /// Finds the longest Merkle path in the `MerkleChangeSet` and the `MerkleDB`
     /// that is a prefix of a given state key.
     async fn find_longest_prefix(

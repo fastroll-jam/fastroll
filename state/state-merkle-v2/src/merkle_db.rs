@@ -90,8 +90,7 @@ impl MerkleDB {
         .await?
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn root(&self) -> &MerkleRoot {
+    pub fn root(&self) -> &MerkleRoot {
         &self.root
     }
 

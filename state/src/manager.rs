@@ -26,7 +26,7 @@ use fr_common::{
 use fr_config::StorageConfig;
 use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
-use fr_state_merkle_v2::merkle_db::MerkleDB;
+use fr_state_merkle_v2::{merkle_db::MerkleDB, types::LeafNodeData};
 use std::{
     future::Future,
     sync::{Arc, RwLock},
@@ -314,7 +314,7 @@ impl StateManager {
     }
 
     pub fn merkle_root(&self) -> MerkleRoot {
-        unimplemented!()
+        self.merkle_manager.merkle_root().clone()
     }
 
     pub async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
@@ -445,9 +445,24 @@ impl StateManager {
 
     pub async fn retrieve_state_encoded(
         &self,
-        _state_key: &StateKey,
+        state_key: &StateKey,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        unimplemented!()
+        let leaf_node_data = match self.merkle_manager.retrieve(state_key).await? {
+            Some(retrieved) => retrieved,
+            None => return Ok(None),
+        };
+
+        let state_encoded = match leaf_node_data {
+            LeafNodeData::Embedded(data) => data,
+            LeafNodeData::Regular(data_hash) => {
+                let Some(entry) = self.state_db.get_entry(&data_hash).await? else {
+                    return Ok(None);
+                };
+                entry
+            }
+        };
+
+        Ok(Some(state_encoded))
     }
 
     /// Commits a single dirty cache entry into `MerkleDB` and `StateDB`.
