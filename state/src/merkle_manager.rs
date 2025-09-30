@@ -19,10 +19,10 @@ pub struct MerkleManager {
 }
 
 impl MerkleManager {
-    pub fn new(merkle_db: MerkleDB, merkle_change_set: MerkleChangeSet) -> Self {
+    pub fn new(merkle_db: MerkleDB) -> Self {
         Self {
             merkle_db,
-            merkle_change_set,
+            merkle_change_set: MerkleChangeSet::default(),
         }
     }
 
@@ -615,7 +615,7 @@ mod tests {
             .await
             .unwrap();
 
-        let merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+        let merkle_manager = MerkleManager::new(merkle_db);
 
         let mut state_key_vec = bits_decode_msb(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 0, 1, 1, 1]);
         state_key_vec.resize(31, 0);
@@ -681,7 +681,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_with_lcp_branch_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_with_lcp_branch().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -721,7 +721,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_with_lcp_branch_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_with_lcp_branch().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -793,7 +793,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_with_lcp_leaf_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_with_lcp_leaf().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -881,7 +881,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_with_lcp_leaf_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_with_lcp_leaf().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -987,7 +987,7 @@ mod tests {
         #[tokio::test]
         async fn test_update_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_update().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1028,7 +1028,7 @@ mod tests {
         #[tokio::test]
         async fn test_update_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_update().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -1103,7 +1103,7 @@ mod tests {
         async fn test_remove_with_branch_sibling_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) =
                 setup_remove_with_branch_sibling().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1141,7 +1141,7 @@ mod tests {
         async fn test_remove_with_branch_sibling_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) =
                 setup_remove_with_branch_sibling().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -1217,7 +1217,7 @@ mod tests {
         #[tokio::test]
         async fn test_remove_with_leaf_sibling_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_remove_with_leaf_sibling().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1284,7 +1284,7 @@ mod tests {
         #[tokio::test]
         async fn test_remove_with_leaf_sibling_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_remove_with_leaf_sibling().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -1404,7 +1404,7 @@ mod tests {
         #[tokio::test]
         async fn test_remove_two_adjacent_leaves_change_set() {
             let (merkle_db, dirty_cache_entries) = setup_remove_two_adjacent_leaves().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entries_as_leaf_writes(&dirty_cache_entries)
@@ -1468,7 +1468,7 @@ mod tests {
         #[tokio::test]
         async fn test_remove_two_adjacent_leaves_db_commit() {
             let (merkle_db, dirty_cache_entries) = setup_remove_two_adjacent_leaves().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             let state_db_writes = merkle_manager
                 .commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set(
@@ -1579,7 +1579,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_two_adjacent_leaves_change_set() {
             let (merkle_db, dirty_cache_entries) = setup_add_two_adjacent_leaves().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             let added_state_key_1 = dirty_cache_entries[0].0.clone();
             let dirty_cache_entry_1 = dirty_cache_entries[0].1.clone();
@@ -1734,7 +1734,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_two_adjacent_leaves_db_commit() {
             let (merkle_db, dirty_cache_entries) = setup_add_two_adjacent_leaves().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             let added_state_key_1 = dirty_cache_entries[0].0.clone();
             let dirty_cache_entry_1 = dirty_cache_entries[0].1.clone();
