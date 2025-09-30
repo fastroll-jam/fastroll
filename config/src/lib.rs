@@ -8,6 +8,7 @@ pub const DEFAULT_FUZZER_SOCKET: &str = "/tmp/jam_target.sock";
 
 pub const STATE_CF_NAME: &str = "state_cf";
 pub const MERKLE_CF_NAME: &str = "merkle_cf";
+pub const MERKLE_LEAF_PATHS_CF_NAME: &str = "merkle_leaf_paths_cf";
 pub const HEADER_CF_NAME: &str = "header_cf";
 pub const XT_CF_NAME: &str = "xt_cf";
 pub const POST_SR_CF_NAME: &str = "post_state_root_cf";
@@ -101,6 +102,7 @@ impl StorageConfig {
         vec![
             ColumnFamilyDescriptor::new(STATE_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(MERKLE_CF_NAME, RocksDBOptions::default()),
+            ColumnFamilyDescriptor::new(MERKLE_LEAF_PATHS_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(HEADER_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(XT_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(POST_SR_CF_NAME, RocksDBOptions::default()),
