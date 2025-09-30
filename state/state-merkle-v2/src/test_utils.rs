@@ -5,7 +5,10 @@ use crate::{
 };
 use bitvec::prelude::*;
 use fr_common::{ByteEncodable, NodeHash, StateKey, STATE_KEY_SIZE};
-use fr_config::{StorageConfig, MERKLE_CF_NAME, MERKLE_LEAF_PATHS_CF_NAME};
+use fr_config::{
+    StorageConfig, MERKLE_CF_NAME, MERKLE_DB_CACHE_SIZE, MERKLE_LEAF_PATHS_CF_NAME,
+    MERKLE_LEAF_PATHS_DB_CACHE_SIZE,
+};
 use fr_crypto::{hash, Blake2b256};
 use fr_db::core::core_db::CoreDB;
 use std::sync::Arc;
@@ -27,7 +30,8 @@ pub fn open_merkle_db() -> MerkleDB {
         Arc::new(core_db),
         MERKLE_CF_NAME,
         MERKLE_LEAF_PATHS_CF_NAME,
-        4096,
+        MERKLE_DB_CACHE_SIZE,
+        MERKLE_LEAF_PATHS_DB_CACHE_SIZE,
     )
 }
 

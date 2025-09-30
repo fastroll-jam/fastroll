@@ -25,11 +25,12 @@ impl MerkleDB {
         core: Arc<CoreDB>,
         nodes_cf_name: &'static str,
         leaf_paths_cf_name: &'static str,
-        cache_size: usize,
+        nodes_cache_size: usize,
+        leaf_paths_cache_size: usize,
     ) -> Self {
         Self {
-            nodes: CachedDB::new(core.clone(), nodes_cf_name, cache_size),
-            leaf_paths: CachedDB::new(core.clone(), leaf_paths_cf_name, cache_size),
+            nodes: CachedDB::new(core.clone(), nodes_cf_name, nodes_cache_size),
+            leaf_paths: CachedDB::new(core.clone(), leaf_paths_cf_name, leaf_paths_cache_size),
             root: MerkleRoot::default(),
         }
     }

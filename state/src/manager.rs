@@ -2,6 +2,7 @@
 use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
     error::StateManagerError,
+    merkle_manager::MerkleManager,
     provider::HostStateProvider,
     state_db::StateDB,
     state_utils::{
@@ -25,6 +26,7 @@ use fr_common::{
 use fr_config::StorageConfig;
 use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
+use fr_state_merkle_v2::merkle_db::MerkleDB;
 use std::{
     future::Future,
     sync::{Arc, RwLock},
@@ -34,6 +36,7 @@ use tracing::instrument;
 pub struct StateManager {
     state_db: StateDB,
     cache: StateCache,
+    merkle_manager: MerkleManager,
     ring_vrf_verifier_cache: RwLock<Option<(EpochIndex, RingVrfVerifier)>>,
 }
 
@@ -138,14 +141,22 @@ impl StateManager {
                 cfg.cfs.state_db.cf_name,
                 cfg.cfs.state_db.cache_size,
             ),
+            MerkleDB::new(
+                core_db.clone(),
+                cfg.cfs.merkle_nodes_db.cf_name,
+                cfg.cfs.merkle_leaf_paths_db.cf_name,
+                cfg.cfs.merkle_nodes_db.cache_size,
+                cfg.cfs.merkle_leaf_paths_db.cache_size,
+            ),
             StateCache::new(cfg.state_cache_size),
         )
     }
 
-    pub fn new(state_db: StateDB, cache: StateCache) -> Self {
+    pub fn new(state_db: StateDB, merkle_db: MerkleDB, cache: StateCache) -> Self {
         Self {
             state_db,
             cache,
+            merkle_manager: MerkleManager::new(merkle_db),
             ring_vrf_verifier_cache: RwLock::new(None),
         }
     }
