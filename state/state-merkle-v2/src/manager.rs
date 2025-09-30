@@ -571,8 +571,6 @@ impl MerkleManager {
     }
 }
 
-// TODO: check `MerkleChangeSet.leaf_paths`
-// TODO: check `DBWriteSet` with regular leaves
 #[cfg(test)]
 mod tests {
     use super::*;

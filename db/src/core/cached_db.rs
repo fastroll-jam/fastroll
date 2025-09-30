@@ -24,8 +24,8 @@ pub enum CacheItemCodecError {
     CommonTypeError(#[from] CommonTypeError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
-    #[error("Invalid CacheItem value")]
-    InvalidCacheItemValue,
+    #[error("Invalid CacheItem value: {0}")]
+    InvalidCacheItemValue(String),
 }
 
 /// A trait for types that can be used as keys of `CachedDB`, defining encoding rules for DB keys.

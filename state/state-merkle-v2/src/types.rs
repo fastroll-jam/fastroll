@@ -206,14 +206,15 @@ pub(crate) enum MerkleNode {
     Branch(BranchNode),
 }
 
-// TODO: Error propagation
 impl CacheItem for MerkleNode {
     fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
         match self {
-            Self::Leaf(leaf) => Ok(leaf.encode().expect("Failed to encode Leaf MerkleNode")),
-            Self::Branch(branch) => {
-                Ok(branch.encode().expect("Failed to encode Branch MerkleNode"))
-            }
+            Self::Leaf(leaf) => Ok(leaf
+                .encode()
+                .map_err(|e| CacheItemCodecError::InvalidCacheItemValue(e.to_string()))?),
+            Self::Branch(branch) => Ok(branch
+                .encode()
+                .map_err(|e| CacheItemCodecError::InvalidCacheItemValue(e.to_string()))?),
         }
     }
 
@@ -228,19 +229,19 @@ impl CacheItem for MerkleNode {
         match (first_bit, second_bit) {
             (Some(true), _) => {
                 // Leaf Node
-                Ok(Self::Leaf(
-                    LeafNode::decode(&node_data_bv).expect("Failed to decode Leaf node"),
-                ))
+                Ok(Self::Leaf(LeafNode::decode(&node_data_bv).map_err(
+                    |e| CacheItemCodecError::InvalidCacheItemValue(e.to_string()),
+                )?))
             }
             (Some(false), _) => {
                 // Branch Node
-                Ok(Self::Branch(
-                    BranchNode::decode(&node_data_bv).expect("Failed to decode Branch node"),
-                ))
+                Ok(Self::Branch(BranchNode::decode(&node_data_bv).map_err(
+                    |e| CacheItemCodecError::InvalidCacheItemValue(e.to_string()),
+                )?))
             }
-            _ => {
-                panic!("Invalid node data")
-            }
+            _ => Err(CacheItemCodecError::InvalidCacheItemValue(
+                "Invalid node data".to_string(),
+            )),
         }
     }
 }
@@ -312,14 +313,18 @@ impl CacheItem for MerklePath {
     where
         Self: Sized,
     {
-        let string_val =
-            String::from_utf8(val).map_err(|_| CacheItemCodecError::InvalidCacheItemValue)?;
+        let string_val = String::from_utf8(val)
+            .map_err(|e| CacheItemCodecError::InvalidCacheItemValue(e.to_string()))?;
         let mut bv = BitVec::<u8, Msb0>::new();
         for char in string_val.chars() {
             match char {
                 '1' => bv.push(true),
                 '0' => bv.push(false),
-                _ => return Err(CacheItemCodecError::InvalidCacheItemValue),
+                other => {
+                    return Err(CacheItemCodecError::InvalidCacheItemValue(format!(
+                        "Invalid character for bits: {other}"
+                    )))
+                }
             }
         }
 

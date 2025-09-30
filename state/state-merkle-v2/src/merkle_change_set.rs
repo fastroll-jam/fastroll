@@ -10,8 +10,10 @@ use std::{
 };
 
 pub type StateDBWrite = (StateHash, Vec<u8>);
-pub(crate) type MerkleDBNodesWrite = (MerklePath, Option<MerkleNode>);
-pub(crate) type MerkleDBLeafPathsWrite = (StateKey, Option<MerklePath>);
+type MerkleNodeWrite = Option<MerkleNode>;
+type MerklePathWrite = Option<MerklePath>;
+pub(crate) type MerkleDBNodesWrite = (MerklePath, MerkleNodeWrite);
+pub(crate) type MerkleDBLeafPathsWrite = (StateKey, MerklePathWrite);
 
 pub(crate) struct MerkleDBWriteBatch {
     pub(crate) nodes: WriteBatch,
@@ -68,37 +70,42 @@ impl DBWriteSet {
 #[derive(Default)]
 pub(crate) struct MerkleChangeSet {
     /// Represents the intermediate state of merkle nodes while processing dirty state cache entries.
-    pub(crate) nodes: HashMap<MerklePath, Option<MerkleNode>>,
+    pub(crate) nodes: HashMap<MerklePath, MerkleNodeWrite>,
     /// Represents the intermediate state of merkle leaf paths while processing dirty state cache entries.
-    pub(crate) leaf_paths: HashMap<StateKey, Option<MerklePath>>,
+    pub(crate) leaf_paths: HashMap<StateKey, MerklePathWrite>,
     /// A set of merkle paths that are affected by dirty cache commitment.
     pub(crate) affected_paths: HashSet<MerklePath>,
     pub(crate) db_write_set: DBWriteSet,
 }
 
 impl MerkleChangeSet {
-    pub(crate) fn get_node(&self, merkle_path: &MerklePath) -> Option<Option<MerkleNode>> {
+    /// Returns `MerkleNodeWrite` at the given merkle path.
+    /// If the node at the given path is not changed and thus not found from `MerkleChangeSet`, returns `None`.
+    pub(crate) fn get_node(&self, merkle_path: &MerklePath) -> Option<MerkleNodeWrite> {
         self.nodes.get(merkle_path).cloned()
     }
 
+    /// Inserts a `MerkleNodeWrite` entry into the change set.
     pub(crate) fn insert_node(
         &mut self,
         merkle_path: MerklePath,
-        node: Option<MerkleNode>,
-    ) -> Option<MerkleNode> {
-        self.nodes.insert(merkle_path, node).flatten()
+        node: MerkleNodeWrite,
+    ) -> Option<MerkleNodeWrite> {
+        self.nodes.insert(merkle_path, node)
     }
 
-    pub(crate) fn get_leaf_path(&self, state_key: &StateKey) -> Option<Option<MerklePath>> {
+    /// Returns `MerklePathWrite` that corresponds to the given state key.
+    pub(crate) fn get_leaf_path(&self, state_key: &StateKey) -> Option<MerklePathWrite> {
         self.leaf_paths.get(state_key).cloned()
     }
 
+    /// Inserts a `MerklePathWrite` entry into the change set.
     pub(crate) fn insert_leaf_path(
         &mut self,
         state_key: StateKey,
-        leaf_path: Option<MerklePath>,
-    ) -> Option<MerklePath> {
-        self.leaf_paths.insert(state_key, leaf_path).flatten()
+        leaf_path: MerklePathWrite,
+    ) -> Option<MerklePathWrite> {
+        self.leaf_paths.insert(state_key, leaf_path)
     }
 
     /// Extends `affected_paths` set with all paths that are affected by mutating
