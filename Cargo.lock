@@ -1256,6 +1256,7 @@ name = "fr-state"
 version = "0.1.12"
 dependencies = [
  "async-trait",
+ "bitvec",
  "fr-block",
  "fr-clock",
  "fr-codec",
@@ -1267,6 +1268,7 @@ dependencies = [
  "fr-merkle",
  "fr-pvm-types",
  "fr-state-merkle",
+ "fr-state-merkle-v2",
  "mini-moka",
  "paste",
  "rand 0.8.5",
@@ -1301,7 +1303,6 @@ dependencies = [
  "fr-config",
  "fr-crypto",
  "fr-db",
- "fr-state",
  "tempfile",
  "thiserror 2.0.16",
  "tokio",

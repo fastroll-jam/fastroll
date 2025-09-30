@@ -1,4 +1,9 @@
-use crate::{
+#![allow(dead_code)]
+use crate::cache::{CacheEntry, CacheEntryStatus, StateMut};
+use fr_codec::prelude::*;
+use fr_common::{ByteEncodable, MerkleRoot, NodeHash, StateKey, HASH_SIZE};
+use fr_crypto::{hash, Blake2b256};
+use fr_state_merkle_v2::{
     merkle_change_set::{
         MerkleChangeSet, MerkleDBLeafPathsWrite, MerkleDBNodesWrite, MerkleDBWriteBatch,
         StateDBWrite,
@@ -7,10 +12,6 @@ use crate::{
     types::{BranchNode, LeafNode, LeafNodeData, MerkleNode, MerklePath, StateMerkleError},
     utils::{bits_decode_msb, bits_encode_msb, derive_final_leaf_paths},
 };
-use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, MerkleRoot, NodeHash, StateKey, HASH_SIZE};
-use fr_crypto::{hash, Blake2b256};
-use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
 
 pub struct MerkleManager {
     merkle_db: MerkleDB,
@@ -574,13 +575,12 @@ impl MerkleManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        merkle_path,
-        test_utils::{create_dummy_branch, open_merkle_db},
-        utils::bits_decode_msb,
-    };
     use bitvec::prelude::*;
     use fr_common::{ByteEncodable, NodeHash};
+    use fr_state_merkle_v2::{
+        merkle_path,
+        test_utils::{create_dummy_branch, open_merkle_db},
+    };
 
     #[tokio::test]
     async fn test_get_longest_common_path_node() {
@@ -631,8 +631,11 @@ mod tests {
 
     mod merkle_commit_tests {
         use super::*;
-        use crate::{test_utils::*, types::*};
-        use fr_state::{state_utils::StateEntryType, types::Timeslot};
+        use crate::{state_utils::StateEntryType, types::*};
+        use fr_state_merkle_v2::test_utils::{
+            create_dummy_regular_leaf, create_dummy_single_child_branch,
+            create_state_key_from_path_prefix,
+        };
 
         async fn setup_add_with_lcp_branch() -> (MerkleDB, StateKey, CacheEntry) {
             let merkle_db = open_merkle_db();

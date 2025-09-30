@@ -50,19 +50,19 @@ pub enum StateMerkleError {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum LeafNodeData {
+pub enum LeafNodeData {
     Embedded(Vec<u8>),
     Regular(Hash32),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct LeafNode {
-    pub(crate) state_key_bv: BitVec<u8, Msb0>,
+pub struct LeafNode {
+    pub state_key_bv: BitVec<u8, Msb0>,
     data: LeafNodeData,
 }
 
 impl LeafNode {
-    pub(crate) fn new(state_key_bv: BitVec<u8, Msb0>, data: LeafNodeData) -> Self {
+    pub fn new(state_key_bv: BitVec<u8, Msb0>, data: LeafNodeData) -> Self {
         Self { state_key_bv, data }
     }
 
@@ -136,7 +136,7 @@ impl LeafNode {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct BranchNode {
+pub struct BranchNode {
     /// 255-bit left child node hash value, with the first bit dropped.
     pub(crate) left_lossy: BitVec<u8, Msb0>,
     /// The right child node hash value.
@@ -144,7 +144,7 @@ pub(crate) struct BranchNode {
 }
 
 impl BranchNode {
-    pub(crate) fn new(left: &NodeHash, right: &NodeHash) -> Self {
+    pub fn new(left: &NodeHash, right: &NodeHash) -> Self {
         let left_bv = bits_encode_msb(left.as_slice());
         let right_bv = bits_encode_msb(right.as_slice());
         Self {
@@ -155,18 +155,18 @@ impl BranchNode {
         }
     }
 
-    pub(crate) fn update_left(&mut self, left: &NodeHash) {
+    pub fn update_left(&mut self, left: &NodeHash) {
         let left_bv = bits_encode_msb(left.as_slice());
         self.left_lossy = slice_bitvec(&left_bv, 1..)
             .expect("Has 256 bits")
             .to_bitvec();
     }
 
-    pub(crate) fn update_right(&mut self, right: &NodeHash) {
+    pub fn update_right(&mut self, right: &NodeHash) {
         self.right = bits_encode_msb(right.as_slice());
     }
 
-    pub(crate) fn has_single_child(&self) -> bool {
+    pub fn has_single_child(&self) -> bool {
         let left_is_zero = !self.left_lossy.any();
         let right_is_zero = !self.right.any();
         left_is_zero ^ right_is_zero
@@ -201,7 +201,7 @@ impl BranchNode {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum MerkleNode {
+pub enum MerkleNode {
     Leaf(LeafNode),
     Branch(BranchNode),
 }
@@ -247,10 +247,11 @@ impl CacheItem for MerkleNode {
 }
 
 impl MerkleNode {
-    pub(crate) fn is_branch(&self) -> bool {
+    pub fn is_branch(&self) -> bool {
         matches!(self, Self::Branch(_))
     }
 
+    #[allow(dead_code)]
     pub(crate) fn is_leaf(&self) -> bool {
         matches!(self, Self::Leaf(_))
     }
@@ -262,7 +263,7 @@ impl MerkleNode {
         }
     }
 
-    pub(crate) fn hash(&self) -> Result<NodeHash, StateMerkleError> {
+    pub fn hash(&self) -> Result<NodeHash, StateMerkleError> {
         Ok(hash::<Blake2b256>(self.encode()?.as_slice())?)
     }
 }
@@ -272,7 +273,7 @@ impl MerkleNode {
 /// For leaf nodes, this path may be shorter than the full state key.
 /// This happens since the trie doesn't create intermediate nodes for unique paths.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct MerklePath(pub(crate) BitVec<u8, Msb0>);
+pub struct MerklePath(pub BitVec<u8, Msb0>);
 
 // MerklePath lengths and prefixes should be preserved; we construct String keys here
 // for correct serialization of `MerklePath` as CacheDB keys.
@@ -333,11 +334,11 @@ impl CacheItem for MerklePath {
 }
 
 impl MerklePath {
-    pub(crate) fn root() -> Self {
+    pub fn root() -> Self {
         Self(BitVec::new())
     }
 
-    pub(crate) fn sibling(&self) -> Option<Self> {
+    pub fn sibling(&self) -> Option<Self> {
         if self.0.is_empty() {
             return None;
         }
@@ -350,7 +351,7 @@ impl MerklePath {
         Some(sibling)
     }
 
-    pub(crate) fn left_child(&self) -> Option<Self> {
+    pub fn left_child(&self) -> Option<Self> {
         if self.0.len() >= NODE_SIZE_BITS {
             return None;
         }
@@ -359,7 +360,7 @@ impl MerklePath {
         Some(left_child)
     }
 
-    pub(crate) fn right_child(&self) -> Option<Self> {
+    pub fn right_child(&self) -> Option<Self> {
         if self.0.len() >= NODE_SIZE_BITS {
             return None;
         }

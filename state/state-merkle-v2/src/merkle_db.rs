@@ -14,7 +14,7 @@ use fr_db::{
 };
 use std::sync::Arc;
 
-pub(crate) struct MerkleDB {
+pub struct MerkleDB {
     nodes: CachedDB<MerklePath, MerkleNode>,
     leaf_paths: CachedDB<StateKey, MerklePath>,
     root: MerkleRoot,
@@ -34,16 +34,16 @@ impl MerkleDB {
         }
     }
 
-    pub(crate) fn nodes_cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
+    pub fn nodes_cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
         Ok(self.nodes.cf_handle()?)
     }
 
-    pub(crate) fn leaf_paths_cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
+    pub fn leaf_paths_cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
         Ok(self.leaf_paths.cf_handle()?)
     }
 
     /// Finds the longest Merkle path in the `MerkleDB` that is a prefix of a given state key.
-    pub(crate) async fn find_longest_prefix(
+    pub async fn find_longest_prefix(
         &self,
         state_key: &StateKey,
     ) -> Result<MerklePath, StateMerkleError> {
@@ -89,29 +89,30 @@ impl MerkleDB {
         .await?
     }
 
+    #[allow(dead_code)]
     pub(crate) fn root(&self) -> &MerkleRoot {
         &self.root
     }
 
-    pub(crate) fn update_root(&mut self, new_root: MerkleRoot) {
+    pub fn update_root(&mut self, new_root: MerkleRoot) {
         self.root = new_root;
     }
 
-    pub(crate) async fn get_node(
+    pub async fn get_node(
         &self,
         merkle_path: &MerklePath,
     ) -> Result<Option<MerkleNode>, StateMerkleError> {
         Ok(self.nodes.get_entry(merkle_path).await?)
     }
 
-    pub(crate) async fn get_leaf_path(
+    pub async fn get_leaf_path(
         &self,
         state_key: &StateKey,
     ) -> Result<Option<MerklePath>, StateMerkleError> {
         Ok(self.leaf_paths.get_entry(state_key).await?)
     }
 
-    pub(crate) async fn get_leaf(
+    pub async fn get_leaf(
         &self,
         state_key: &StateKey,
     ) -> Result<Option<LeafNode>, StateMerkleError> {
@@ -123,7 +124,7 @@ impl MerkleDB {
         Ok(None)
     }
 
-    pub(crate) async fn insert_node(
+    pub async fn insert_node(
         &self,
         merkle_path: &MerklePath,
         node: MerkleNode,
@@ -131,6 +132,7 @@ impl MerkleDB {
         Ok(self.nodes.put_entry(merkle_path, node).await?)
     }
 
+    #[allow(dead_code)]
     async fn insert_leaf_path(
         &self,
         state_key: &StateKey,
@@ -139,7 +141,7 @@ impl MerkleDB {
         Ok(self.leaf_paths.put_entry(state_key, leaf_path).await?)
     }
 
-    pub(crate) async fn insert_leaf(
+    pub async fn insert_leaf(
         &self,
         state_key: &StateKey,
         leaf_path: MerklePath,
@@ -153,7 +155,7 @@ impl MerkleDB {
     }
 
     /// Commit write batches for node entries and leaf node entries into the MerkleDB.
-    pub(crate) async fn commit_write_batch(
+    pub async fn commit_write_batch(
         &self,
         batch: MerkleDBWriteBatch,
         nodes_writes: &[MerkleDBNodesWrite],

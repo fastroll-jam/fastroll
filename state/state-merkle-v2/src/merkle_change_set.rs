@@ -12,19 +12,19 @@ use std::{
 pub type StateDBWrite = (StateHash, Vec<u8>);
 type MerkleNodeWrite = Option<MerkleNode>;
 type MerklePathWrite = Option<MerklePath>;
-pub(crate) type MerkleDBNodesWrite = (MerklePath, MerkleNodeWrite);
-pub(crate) type MerkleDBLeafPathsWrite = (StateKey, MerklePathWrite);
+pub type MerkleDBNodesWrite = (MerklePath, MerkleNodeWrite);
+pub type MerkleDBLeafPathsWrite = (StateKey, MerklePathWrite);
 
-pub(crate) struct MerkleDBWriteBatch {
+pub struct MerkleDBWriteBatch {
     pub(crate) nodes: WriteBatch,
     pub(crate) leaf_paths: WriteBatch,
 }
 
 #[derive(Default)]
-pub(crate) struct DBWriteSet {
-    pub(crate) state_db_write_set: Vec<StateDBWrite>,
-    pub(crate) merkle_db_nodes_write_set: Vec<MerkleDBNodesWrite>,
-    pub(crate) merkle_db_leaf_paths_write_set: Vec<MerkleDBLeafPathsWrite>,
+pub struct DBWriteSet {
+    pub state_db_write_set: Vec<StateDBWrite>,
+    pub merkle_db_nodes_write_set: Vec<MerkleDBNodesWrite>,
+    pub merkle_db_leaf_paths_write_set: Vec<MerkleDBLeafPathsWrite>,
 }
 
 impl DBWriteSet {
@@ -44,7 +44,7 @@ impl DBWriteSet {
         Ok(())
     }
 
-    pub(crate) fn generate_merkle_db_write_batch(
+    pub fn generate_merkle_db_write_batch(
         &mut self,
         merkle_nodes_cf: &ColumnFamily,
         merkle_leaf_paths_cf: &ColumnFamily,
@@ -68,25 +68,25 @@ impl DBWriteSet {
 }
 
 #[derive(Default)]
-pub(crate) struct MerkleChangeSet {
+pub struct MerkleChangeSet {
     /// Represents the intermediate state of merkle nodes while processing dirty state cache entries.
-    pub(crate) nodes: HashMap<MerklePath, MerkleNodeWrite>,
+    pub nodes: HashMap<MerklePath, MerkleNodeWrite>,
     /// Represents the intermediate state of merkle leaf paths while processing dirty state cache entries.
-    pub(crate) leaf_paths: HashMap<StateKey, MerklePathWrite>,
+    pub leaf_paths: HashMap<StateKey, MerklePathWrite>,
     /// A set of merkle paths that are affected by dirty cache commitment.
-    pub(crate) affected_paths: HashSet<MerklePath>,
-    pub(crate) db_write_set: DBWriteSet,
+    pub affected_paths: HashSet<MerklePath>,
+    pub db_write_set: DBWriteSet,
 }
 
 impl MerkleChangeSet {
     /// Returns `MerkleNodeWrite` at the given merkle path.
     /// If the node at the given path is not changed and thus not found from `MerkleChangeSet`, returns `None`.
-    pub(crate) fn get_node(&self, merkle_path: &MerklePath) -> Option<MerkleNodeWrite> {
+    pub fn get_node(&self, merkle_path: &MerklePath) -> Option<MerkleNodeWrite> {
         self.nodes.get(merkle_path).cloned()
     }
 
     /// Inserts a `MerkleNodeWrite` entry into the change set.
-    pub(crate) fn insert_node(
+    pub fn insert_node(
         &mut self,
         merkle_path: MerklePath,
         node: MerkleNodeWrite,
@@ -95,12 +95,12 @@ impl MerkleChangeSet {
     }
 
     /// Returns `MerklePathWrite` that corresponds to the given state key.
-    pub(crate) fn get_leaf_path(&self, state_key: &StateKey) -> Option<MerklePathWrite> {
+    pub fn get_leaf_path(&self, state_key: &StateKey) -> Option<MerklePathWrite> {
         self.leaf_paths.get(state_key).cloned()
     }
 
     /// Inserts a `MerklePathWrite` entry into the change set.
-    pub(crate) fn insert_leaf_path(
+    pub fn insert_leaf_path(
         &mut self,
         state_key: StateKey,
         leaf_path: MerklePathWrite,
@@ -110,16 +110,16 @@ impl MerkleChangeSet {
 
     /// Extends `affected_paths` set with all paths that are affected by mutating
     /// a node at the given merkle path.
-    pub(crate) fn extend_affected_paths(&mut self, merkle_path: &MerklePath) {
+    pub fn extend_affected_paths(&mut self, merkle_path: &MerklePath) {
         let affected_paths = merkle_path.all_paths_to_root();
         self.affected_paths.extend(affected_paths);
     }
 
-    pub(crate) fn insert_to_affected_paths(&mut self, merkle_path: MerklePath) {
+    pub fn insert_to_affected_paths(&mut self, merkle_path: MerklePath) {
         self.affected_paths.insert(merkle_path);
     }
 
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.nodes.clear();
         self.leaf_paths.clear();
         self.affected_paths.clear();
@@ -128,20 +128,17 @@ impl MerkleChangeSet {
         self.db_write_set.merkle_db_nodes_write_set.clear();
     }
 
-    pub(crate) fn insert_state_db_write(&mut self, state_db_write: StateDBWrite) {
+    pub fn insert_state_db_write(&mut self, state_db_write: StateDBWrite) {
         self.db_write_set.state_db_write_set.push(state_db_write);
     }
 
-    pub(crate) fn insert_merkle_db_nodes_write(
-        &mut self,
-        merkle_db_nodes_write: MerkleDBNodesWrite,
-    ) {
+    pub fn insert_merkle_db_nodes_write(&mut self, merkle_db_nodes_write: MerkleDBNodesWrite) {
         self.db_write_set
             .merkle_db_nodes_write_set
             .push(merkle_db_nodes_write);
     }
 
-    pub(crate) fn affected_paths_as_sorted_vec(&mut self) -> Vec<MerklePath> {
+    pub fn affected_paths_as_sorted_vec(&mut self) -> Vec<MerklePath> {
         let affected_set = std::mem::take(&mut self.affected_paths);
         let mut affected_paths_vec: Vec<_> = affected_set.into_iter().collect();
         affected_paths_vec.sort_by(|a, b| {

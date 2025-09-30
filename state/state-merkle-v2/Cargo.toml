@@ -9,13 +9,10 @@ repository.workspace = true
 [dependencies]
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
+fr-config = { workspace = true }
 fr-crypto = { workspace = true }
 fr-db = { workspace = true }
-fr-state = { workspace = true }
-bitvec = { version = "1.0.1", features = ["serde"] }
+bitvec = { workspace = true }
+tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-
-[dev-dependencies]
-fr-config = { workspace = true }
-tempfile = { workspace = true }
