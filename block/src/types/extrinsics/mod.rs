@@ -8,7 +8,7 @@ use fr_crypto::{
     error::CryptoError,
     hash::{hash, Blake2b256},
 };
-use fr_db::core::cached_db::CacheItem;
+use fr_db::core::cached_db::{CacheItem, CacheItemCodecError};
 use thiserror::Error;
 
 pub mod assurances;
@@ -59,15 +59,15 @@ pub struct Extrinsics {
 }
 
 impl CacheItem for Extrinsics {
-    fn into_db_value(self) -> Vec<u8> {
-        self.encode().expect("Failed to encode Extrinsics")
+    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
+        Ok(self.encode()?)
     }
 
-    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
     where
         Self: Sized,
     {
-        Self::decode(&mut val.as_slice()).expect("Failed to decode Extrinsics")
+        Ok(Self::decode(&mut val.as_slice())?)
     }
 }
 

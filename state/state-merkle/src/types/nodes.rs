@@ -3,7 +3,7 @@ use crate::{
 };
 use bit_vec::BitVec;
 use fr_common::{Hash32, NodeHash};
-use fr_db::core::cached_db::CacheItem;
+use fr_db::core::cached_db::{CacheItem, CacheItemCodecError};
 use std::fmt::{Display, Formatter};
 
 /// Merkle node data size in bits.
@@ -39,18 +39,18 @@ impl From<MerkleNodeWrite> for MerkleNode {
 }
 
 impl CacheItem for MerkleNode {
-    fn into_db_value(self) -> Vec<u8> {
-        self.data
+    fn into_db_value(self) -> Result<Vec<u8>, CacheItemCodecError> {
+        Ok(self.data)
     }
 
-    fn from_db_kv(key: &[u8], val: Vec<u8>) -> Self
+    fn from_db_kv(key: &[u8], val: Vec<u8>) -> Result<Self, CacheItemCodecError>
     where
         Self: Sized,
     {
-        Self {
-            hash: NodeHash::try_from(key).expect("Hash length mismatch"),
+        Ok(Self {
+            hash: NodeHash::try_from(key)?,
             data: val,
-        }
+        })
     }
 }
 

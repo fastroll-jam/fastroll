@@ -1,4 +1,7 @@
-use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, Options, WriteBatch, WriteOptions, DB};
+use rocksdb::{
+    ColumnFamily, ColumnFamilyDescriptor, DBIterator, IteratorMode, Options, WriteBatch,
+    WriteOptions, DB,
+};
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
 
@@ -35,6 +38,18 @@ impl CoreDB {
         self.db
             .cf_handle(cf_name)
             .ok_or(CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))
+    }
+
+    pub fn iterator_cf(
+        &'_ self,
+        cf_name: &str,
+        mode: IteratorMode,
+    ) -> Result<DBIterator<'_>, CoreDBError> {
+        let cf = self
+            .db
+            .cf_handle(cf_name)
+            .ok_or(CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
+        Ok(self.db.iterator_cf(cf, mode))
     }
 
     pub(crate) async fn get_entry(
