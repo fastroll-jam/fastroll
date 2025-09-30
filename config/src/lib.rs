@@ -7,14 +7,14 @@ pub const DEFAULT_ROCKSDB_PATH: &str = "./.rocksdb";
 pub const DEFAULT_FUZZER_SOCKET: &str = "/tmp/jam_target.sock";
 
 pub const STATE_CF_NAME: &str = "state_cf";
-pub const MERKLE_CF_NAME: &str = "merkle_cf";
+pub const MERKLE_NODES_CF_NAME: &str = "merkle_nodes_cf";
 pub const MERKLE_LEAF_PATHS_CF_NAME: &str = "merkle_leaf_paths_cf";
 pub const HEADER_CF_NAME: &str = "header_cf";
 pub const XT_CF_NAME: &str = "xt_cf";
 pub const POST_SR_CF_NAME: &str = "post_state_root_cf";
 
 pub const STATE_DB_CACHE_SIZE: usize = 8192;
-pub const MERKLE_DB_CACHE_SIZE: usize = 8192;
+pub const MERKLE_NODES_DB_CACHE_SIZE: usize = 8192;
 pub const MERKLE_LEAF_PATHS_DB_CACHE_SIZE: usize = 1024;
 pub const HEADER_DB_CACHE_SIZE: usize = 1024;
 pub const XT_DB_CACHE_SIZE: usize = 1024;
@@ -49,7 +49,10 @@ impl Default for ColumnFamilyConfigs {
     fn default() -> Self {
         Self {
             state_db: ColumnFamilyConfig::new(STATE_CF_NAME, STATE_DB_CACHE_SIZE),
-            merkle_nodes_db: ColumnFamilyConfig::new(MERKLE_CF_NAME, MERKLE_DB_CACHE_SIZE),
+            merkle_nodes_db: ColumnFamilyConfig::new(
+                MERKLE_NODES_CF_NAME,
+                MERKLE_NODES_DB_CACHE_SIZE,
+            ),
             merkle_leaf_paths_db: ColumnFamilyConfig::new(
                 MERKLE_LEAF_PATHS_CF_NAME,
                 MERKLE_LEAF_PATHS_DB_CACHE_SIZE,
@@ -107,7 +110,7 @@ impl StorageConfig {
     pub fn cf_descriptors() -> Vec<ColumnFamilyDescriptor> {
         vec![
             ColumnFamilyDescriptor::new(STATE_CF_NAME, RocksDBOptions::default()),
-            ColumnFamilyDescriptor::new(MERKLE_CF_NAME, RocksDBOptions::default()),
+            ColumnFamilyDescriptor::new(MERKLE_NODES_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(MERKLE_LEAF_PATHS_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(HEADER_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(XT_CF_NAME, RocksDBOptions::default()),
