@@ -1,7 +1,7 @@
 use crate::{state_db::StateDBError, types::PendingReportsError};
 use fr_codec::JamCodecError;
 use fr_crypto::error::CryptoError;
-use fr_db::core::cached_db::CachedDBError;
+use fr_db::core::cached_db::{CacheItemCodecError, CachedDBError};
 use fr_merkle::common::MerkleError;
 use fr_state_merkle_v2::types::StateMerkleError;
 use thiserror::Error;
@@ -28,6 +28,8 @@ pub enum StateManagerError {
     CryptoError(#[from] CryptoError),
     #[error("StateMerkle error: {0}")]
     StateMerkleError(#[from] StateMerkleError),
+    #[error("CacheItemCodec error: {0}")]
+    CacheItemCodecError(#[from] CacheItemCodecError),
     #[error("MerkleError error: {0}")]
     MerkleError(#[from] MerkleError),
     #[error("StateDB error: {0}")]

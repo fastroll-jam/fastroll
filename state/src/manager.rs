@@ -28,7 +28,13 @@ use fr_common::{
 };
 use fr_config::StorageConfig;
 use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
-use fr_db::{core::core_db::CoreDB, WriteBatch};
+use fr_db::{
+    core::{
+        cached_db::{CacheItem, DBKey},
+        core_db::CoreDB,
+    },
+    WriteBatch,
+};
 use fr_state_merkle_v2::{merkle_db::MerkleDB, types::LeafNodeData};
 use std::{
     future::Future,
@@ -482,12 +488,37 @@ impl StateManager {
         Ok(Some(state_encoded))
     }
 
+    // TODO: check if necessary
     /// Commits a single dirty cache entry into `MerkleDB` and `StateDB`.
     pub async fn commit_single_dirty_cache(
         &self,
-        _state_key: &StateKey,
+        state_key: &StateKey,
     ) -> Result<(), StateManagerError> {
-        unimplemented!()
+        let entry_status = self
+            .cache
+            .get_entry_status(state_key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+        if let CacheEntryStatus::Clean = entry_status {
+            return Err(StateManagerError::NotDirtyCache);
+        }
+
+        let _entry = self.cache.get_entry(state_key);
+
+        // Case 1: Trie is empty
+        // if self.merkle_manager.get_merkle_root().await? == MerkleRoot::default() {}
+
+        // Case 2: Trie is not empty
+        let state_db_writes = self.merkle_manager.commit_dirty_cache(vec![]).await?;
+        let mut state_db_write_batch = WriteBatch::default();
+        let state_db_cf = self.state_db.cf_handle()?;
+        for (k, v) in state_db_writes {
+            state_db_write_batch.put_cf(state_db_cf, k.as_db_key(), v.into_db_value()?);
+        }
+        self.commit_to_state_db(state_db_write_batch).await?;
+
+        // Mark committed entry as clean
+        self.cache.mark_entry_clean_and_snapshot(state_key)?;
+        Ok(())
     }
 
     /// Collects all dirty cache entries after state transition, then commit them into
@@ -495,7 +526,38 @@ impl StateManager {
     /// After committing to the databases, marks the committed cache entries as clean.
     #[instrument(level = "debug", skip(self), name = "commit_cache")]
     pub async fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
-        unimplemented!()
+        let mut dirty_entries = self.cache.collect_dirty();
+        tracing::debug!("committing {} dirty cache entries", dirty_entries.len());
+        if dirty_entries.is_empty() {
+            return Ok(());
+        }
+
+        // If the trie is empty, process one dirty cache entry by calling `commit_single_dirty_cache`
+        // to initialize the trie.
+        if self.merkle_manager.get_merkle_root().await? == MerkleRoot::default() {
+            let (state_key, _entry) = dirty_entries.pop().expect("should not be empty");
+            self.commit_single_dirty_cache(&state_key).await?;
+            if dirty_entries.is_empty() {
+                return Ok(());
+            }
+        }
+
+        // Commit to StateDB
+        let state_db_writes = self
+            .merkle_manager
+            .commit_dirty_cache(dirty_entries.clone())
+            .await?;
+        let mut state_db_write_batch = WriteBatch::default();
+        let state_db_cf = self.state_db.cf_handle()?;
+        for (k, v) in state_db_writes {
+            state_db_write_batch.put_cf(state_db_cf, k.as_db_key(), v.into_db_value()?);
+        }
+        self.commit_to_state_db(state_db_write_batch).await?;
+
+        // Sync up the state cache with the global state.
+        self.cache.sync_cache_status(&dirty_entries);
+
+        Ok(())
     }
 
     async fn commit_to_state_db(&self, batch: WriteBatch) -> Result<(), StateManagerError> {
