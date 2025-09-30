@@ -97,7 +97,7 @@ impl InstructionSet {
         let jump_table_len = program_state.jump_table.len();
 
         // Check if the argument `a` is valid and compute the target
-        if a == 0 || a > jump_table_len * JUMP_ALIGNMENT || a % JUMP_ALIGNMENT != 0 {
+        if a == 0 || a > jump_table_len * JUMP_ALIGNMENT || !a.is_multiple_of(JUMP_ALIGNMENT) {
             return Ok((ExitReason::Panic, vm_state.pc));
         }
 
