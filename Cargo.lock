@@ -1302,6 +1302,7 @@ dependencies = [
  "fr-config",
  "fr-crypto",
  "fr-db",
+ "hex",
  "tempfile",
  "thiserror 2.0.16",
  "tokio",

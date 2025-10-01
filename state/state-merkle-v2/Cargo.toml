@@ -13,6 +13,7 @@ fr-config = { workspace = true }
 fr-crypto = { workspace = true }
 fr-db = { workspace = true }
 bitvec = { workspace = true }
+hex = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

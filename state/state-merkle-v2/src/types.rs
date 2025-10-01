@@ -7,7 +7,10 @@ use fr_db::core::{
     cached_db::{CacheItem, CacheItemCodecError, CachedDBError, DBKey},
     core_db::CoreDBError,
 };
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    fmt::{Display, Formatter},
+};
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -55,10 +58,29 @@ pub enum LeafNodeData {
     Regular(Hash32),
 }
 
+impl Display for LeafNodeData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Embedded(data) => {
+                write!(f, "Embedded({})", hex::encode(data.as_slice()))
+            }
+            Self::Regular(hash) => {
+                write!(f, "Regular({hash})")
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LeafNode {
     pub state_key_bv: BitVec<u8, Msb0>,
     pub data: LeafNodeData,
+}
+
+impl Display for LeafNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Leaf({})", self.data)
+    }
 }
 
 impl LeafNode {
@@ -143,6 +165,12 @@ pub struct BranchNode {
     pub(crate) right: BitVec<u8, Msb0>,
 }
 
+impl Display for BranchNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Branch(left={} right={})", self.left_lossy, self.right)
+    }
+}
+
 impl BranchNode {
     pub fn new(left: &NodeHash, right: &NodeHash) -> Self {
         let left_bv = bits_encode_msb(left.as_slice());
@@ -204,6 +232,15 @@ impl BranchNode {
 pub enum MerkleNode {
     Leaf(LeafNode),
     Branch(BranchNode),
+}
+
+impl Display for MerkleNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Leaf(leaf) => write!(f, "{}", leaf),
+            Self::Branch(branch) => write!(f, "{}", branch),
+        }
+    }
 }
 
 impl CacheItem for MerkleNode {
@@ -272,7 +309,7 @@ impl MerkleNode {
 ///
 /// For leaf nodes, this path may be shorter than the full state key.
 /// This happens since the trie doesn't create intermediate nodes for unique paths.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MerklePath(pub BitVec<u8, Msb0>);
 
 // MerklePath lengths and prefixes should be preserved; we construct String keys here
