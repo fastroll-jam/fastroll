@@ -526,20 +526,10 @@ impl StateManager {
     /// After committing to the databases, marks the committed cache entries as clean.
     #[instrument(level = "debug", skip(self), name = "commit_cache")]
     pub async fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
-        let mut dirty_entries = self.cache.collect_dirty();
+        let dirty_entries = self.cache.collect_dirty();
         tracing::debug!("committing {} dirty cache entries", dirty_entries.len());
         if dirty_entries.is_empty() {
             return Ok(());
-        }
-
-        // If the trie is empty, process one dirty cache entry by calling `commit_single_dirty_cache`
-        // to initialize the trie.
-        if self.merkle_manager.get_merkle_root().await? == MerkleRoot::default() {
-            let (state_key, _entry) = dirty_entries.pop().expect("should not be empty");
-            self.commit_single_dirty_cache(&state_key).await?;
-            if dirty_entries.is_empty() {
-                return Ok(());
-            }
         }
 
         // Commit to StateDB

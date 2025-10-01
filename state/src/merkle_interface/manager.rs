@@ -125,13 +125,17 @@ impl MerkleManager {
     async fn get_longest_common_path_node(
         &self,
         state_key: &StateKey,
-    ) -> Result<(MerkleNode, MerklePath), StateMerkleError> {
+    ) -> Result<(Option<MerkleNode>, MerklePath), StateMerkleError> {
         let lcp_path = self.find_longest_prefix(state_key).await?;
-        let lcp_node = self
-            .get_node(&lcp_path)
-            .await?
-            .ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
-        Ok((lcp_node, lcp_path))
+        let maybe_lcp_node = self.get_node(&lcp_path).await?;
+
+        // Adding the first node to the merkle trie
+        if lcp_path.0.is_empty() && maybe_lcp_node.is_none() {
+            return Ok((None, lcp_path));
+        }
+
+        let lcp_node = maybe_lcp_node.ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
+        Ok((Some(lcp_node), lcp_path))
     }
 
     fn cache_entry_to_leaf_node_and_state_db_write_set(
@@ -166,7 +170,7 @@ impl MerkleManager {
                 StateMut::Add => {
                     let (lcp_node, lcp_path) = self.get_longest_common_path_node(state_key).await?;
                     match lcp_node {
-                        MerkleNode::Branch(_) => {
+                        Some(MerkleNode::Branch(_)) => {
                             // Add case 1. New leaf is extending the single-child branch node.
                             let (leaf, maybe_state_db_write) =
                                 Self::cache_entry_to_leaf_node_and_state_db_write_set(
@@ -194,7 +198,7 @@ impl MerkleManager {
                                 self.merkle_change_set.insert_state_db_write(state_db_write);
                             }
                         }
-                        MerkleNode::Leaf(sibling_candidate) => {
+                        Some(MerkleNode::Leaf(sibling_candidate)) => {
                             // Add case 2. New leaf is extending the leaf node,
                             // which will be its sibling after the processing.
                             let (leaf, maybe_state_db_write) =
@@ -226,7 +230,7 @@ impl MerkleManager {
                                 .insert_node(sibling_path.clone(), Some(sibling_node));
 
                             // Add all new branch node entries to the MerkleChangeSet, from the parent
-                            // node of the new leaf and it sibling all the way up to the `lcp_node`.
+                            // node of the new leaf and its sibling all the way up to the `lcp_node`.
 
                             // Initialize
                             let mut branch_path = new_leaf_path.clone();
@@ -248,11 +252,15 @@ impl MerkleManager {
                                 self.merkle_change_set
                                     .insert_node(branch_path.clone(), Some(branch_node));
 
+                                if branch_path.0.is_empty() {
+                                    break;
+                                }
+
                                 // Update branch_path, left_hash and right_hash for the next loop
                                 let branch_side = branch_path
                                     .0
                                     .pop()
-                                    .expect("Branch path checked to be longer than LCP path");
+                                    .expect("Branch path should not be empty at this point");
                                 (left_hash, right_hash) = if branch_side {
                                     (NodeHash::default(), branch_node_hash)
                                 } else {
@@ -271,6 +279,24 @@ impl MerkleManager {
                                 Some(sibling_path),
                             );
 
+                            if let Some(state_db_write) = maybe_state_db_write {
+                                self.merkle_change_set.insert_state_db_write(state_db_write);
+                            }
+                        }
+                        None => {
+                            // Add case 3. Insert the first node to the trie.
+                            let (leaf, maybe_state_db_write) =
+                                Self::cache_entry_to_leaf_node_and_state_db_write_set(
+                                    state_key,
+                                    dirty_entry,
+                                )?;
+
+                            let leaf_path = MerklePath::root(); // Insert to the root position
+                            self.merkle_change_set.extend_affected_paths(&leaf_path);
+                            self.merkle_change_set
+                                .insert_node(leaf_path.clone(), Some(MerkleNode::Leaf(leaf)));
+                            self.merkle_change_set
+                                .insert_leaf_path(state_key.clone(), Some(leaf_path));
                             if let Some(state_db_write) = maybe_state_db_write {
                                 self.merkle_change_set.insert_state_db_write(state_db_write);
                             }
