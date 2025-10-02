@@ -240,7 +240,9 @@ impl StateManager {
         // State entry must not exist to be added
         let state_exists = self.get_raw_state_entry_from_db(state_key).await?.is_some();
         if state_exists {
-            return Err(StateManagerError::StateEntryAlreadyExists);
+            return Err(StateManagerError::StateEntryAlreadyExists(hex::encode(
+                state_key,
+            )));
         }
 
         self.cache.insert_entry(
@@ -660,7 +662,9 @@ impl StateManager {
         // in service STFs after accumulation, attempting to `Add` state entries that
         // already exist returns error here.
         if state_exists {
-            return Err(StateManagerError::StateEntryAlreadyExists);
+            return Err(StateManagerError::StateEntryAlreadyExists(hex::encode(
+                state_key,
+            )));
         }
 
         let state_entry_type = Arc::new(state_entry.into_entry_type());

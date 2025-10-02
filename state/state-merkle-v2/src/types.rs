@@ -157,12 +157,23 @@ pub struct BranchNode {
 
 impl Display for BranchNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let left = &hex::encode(bits_decode_msb(self.left_lossy.clone()).as_slice())[0..6];
+        // Left child recovered with '0' as the first bit
+        let mut left0_bv = bitvec![u8, Msb0; 0];
+        left0_bv.extend(self.left_lossy.clone());
+        // Left child recovered with '1' as the first bit
+        let mut left1_bv = bitvec![u8, Msb0; 1];
+        left1_bv.extend(self.left_lossy.clone());
+        let left0 = &hex::encode(bits_decode_msb(left0_bv))[0..6];
+        let left1 = &hex::encode(bits_decode_msb(left1_bv))[0..6];
+
         let right = &hex::encode(bits_decode_msb(self.right.clone()).as_slice())[0..6];
         let branch = MerkleNode::Branch(self.clone());
         let branch_hash = branch.hash().unwrap();
         let hash = &hex::encode(branch_hash.0)[0..6];
-        write!(f, "Branch(hash={hash}, left={left}, right={right})")
+        write!(
+            f,
+            "Branch(hash={hash}, left0={left0}, left1={left1}, right={right})"
+        )
     }
 }
 
@@ -415,7 +426,7 @@ impl MerklePath {
 
     /// Returns the given merkle path and all its parent paths.
     /// For example, an input of `1011` will return `[1011, 101, 10, 1, root]`.
-    pub(crate) fn all_paths_to_root(&self) -> Vec<MerklePath> {
+    pub fn all_paths_to_root(&self) -> Vec<MerklePath> {
         let mut merkle_path = self.clone();
         let mut result = Vec::with_capacity(merkle_path.0.len() + 1);
         while !merkle_path.0.is_empty() {

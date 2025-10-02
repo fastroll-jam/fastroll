@@ -20,6 +20,7 @@ fr-pvm-types = { workspace = true }
 fr-state-merkle-v2 = { workspace = true }
 async-trait = { workspace = true }
 bitvec = { workspace = true }
+hex = { workspace = true }
 mini-moka = { workspace = true }
 paste = { workspace = true }
 tempfile = { workspace = true }

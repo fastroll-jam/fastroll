@@ -1268,6 +1268,7 @@ dependencies = [
  "fr-merkle",
  "fr-pvm-types",
  "fr-state-merkle-v2",
+ "hex",
  "mini-moka",
  "paste",
  "rand 0.8.5",

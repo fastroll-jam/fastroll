@@ -20,8 +20,8 @@ pub enum StateManagerError {
     AccountNotFound,
     #[error("Wrong StateMut operation type")]
     WrongStateMutType,
-    #[error("State Entry with the state key already exists")]
-    StateEntryAlreadyExists,
+    #[error("State Entry with the state key already exists ({0})")]
+    StateEntryAlreadyExists(String),
     #[error("MerkleActor is closed")]
     MerkleActorClosed,
     #[error("Crypto error: {0}")]

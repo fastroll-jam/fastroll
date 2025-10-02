@@ -12,6 +12,7 @@ use fr_state_merkle_v2::{
     types::{BranchNode, LeafNode, LeafNodeData, MerkleNode, MerklePath, StateMerkleError},
     utils::{bits_decode_msb, bits_encode_msb, derive_final_leaf_paths},
 };
+use std::collections::HashSet;
 
 pub struct MerkleManager {
     merkle_db: MerkleDB,
@@ -59,30 +60,63 @@ impl MerkleManager {
             .map(|leaf| leaf.data))
     }
 
-    /// Finds the longest Merkle path in the `MerkleChangeSet` and the `MerkleDB`
-    /// that is a prefix of a given state key.
+    /// Finds the longest Merkle path that is prefix of the given state key from the
+    /// `MerkleChangeSet` and the `MerkleDB`. This is used for determining the right position of
+    /// a leaf node to be inserted when processing dirty cache entries with `StateMut::Add` operation.
+    ///
+    /// We should check whether a prefix found from the DB is marked as removed in `MerkleChangeSet`,
+    /// since `StateMut::Add` operation might happen after several `StateMut::Remove` operations.
+    ///
+    /// Therefore, we should find the longest prefix among the following groups of merkle paths:
+    /// 1. Found in the DB, not found in the ChangeSet.
+    /// 2. Found in the DB, exists in the ChangeSet but not marked as removed.
+    /// 3. Not found in the DB, exists in the ChangeSet but not marked as removed.
     async fn find_longest_prefix(
         &self,
         state_key: &StateKey,
     ) -> Result<MerklePath, StateMerkleError> {
         let state_key_as_merkle_path = MerklePath(bits_encode_msb(state_key.as_slice()));
 
-        let longest_prefix_from_db = self.merkle_db.find_longest_prefix(state_key).await?;
-        let longest_prefix_from_change_set = self
+        let lcp_from_db = self.merkle_db.find_longest_prefix(state_key).await?;
+        // Check all ancestor paths of `lcp_from_db` as candidates
+        let mut lcp_candidates: HashSet<MerklePath> =
+            lcp_from_db.all_paths_to_root().into_iter().collect();
+
+        // Find candidates from the MerkleChangeSet
+        let lcp_from_change_set: HashSet<MerklePath> = self
             .merkle_change_set
             .nodes
             .keys()
             .filter(|&key_in_change_set| {
                 state_key_as_merkle_path.0.starts_with(&key_in_change_set.0)
             })
-            .max_by_key(|key_in_change_set| key_in_change_set.0.len());
+            .cloned()
+            .collect();
 
-        if let Some(longest_prefix_from_change_set) = longest_prefix_from_change_set {
-            if longest_prefix_from_change_set.0.len() > longest_prefix_from_db.0.len() {
-                return Ok(longest_prefix_from_change_set.clone());
+        lcp_candidates.extend(lcp_from_change_set);
+
+        // Find the longest common prefix
+        let mut lcp = MerklePath::root();
+        for candidate in lcp_candidates {
+            if candidate.0.len() > lcp.0.len() {
+                match self.merkle_change_set.get_node(&candidate) {
+                    Some(Some(_)) => {
+                        // Marked as updated in ChangeSet; update the LCP.
+                        lcp = candidate;
+                    }
+                    Some(None) => {
+                        // Marked as removed in ChangeSet; not a valid candidate.
+                    }
+                    None => {
+                        // Not found in the ChangeSet; since the candidate is ancestor of the
+                        // `lcp_from_db`, it should always exist in the DB. No further check needed.
+                        lcp = candidate;
+                    }
+                }
             }
         }
-        Ok(longest_prefix_from_db)
+
+        Ok(lcp)
     }
 
     /// Gets a node at the given merkle path from the `MerkleChangeSet`, then falls back to
@@ -257,14 +291,28 @@ impl MerkleManager {
                                 }
 
                                 // Update branch_path, left_hash and right_hash for the next loop
+                                let branch_sibling_path = branch_path
+                                    .sibling()
+                                    .expect("Branch path should not be empty");
+
+                                // Check if a node exists at the branch's sibling position, either in
+                                // the MerkleChangeSet or the MerkleDB
+                                let sibling_hash = self
+                                    .get_node(&branch_sibling_path)
+                                    .await?
+                                    .map(|node| node.hash())
+                                    .transpose()?
+                                    .unwrap_or_default();
+
                                 let branch_side = branch_path
                                     .0
                                     .pop()
-                                    .expect("Branch path should not be empty at this point");
+                                    .expect("Branch path should not be empty");
+
                                 (left_hash, right_hash) = if branch_side {
-                                    (NodeHash::default(), branch_node_hash)
+                                    (sibling_hash, branch_node_hash)
                                 } else {
-                                    (branch_node_hash, NodeHash::default())
+                                    (branch_node_hash, sibling_hash)
                                 };
                             }
 
@@ -363,13 +411,27 @@ impl MerkleManager {
                             while !post_sibling_path.0.is_empty() {
                                 let parent_path_slice =
                                     &post_sibling_path.0[..post_sibling_path.0.len() - 1];
-                                let parent_merkle_path = MerklePath(parent_path_slice.to_bitvec());
+                                let post_sibling_parent_path =
+                                    MerklePath(parent_path_slice.to_bitvec());
 
                                 // If the parent branch node has a single child, promote once again
-                                if let Some(MerkleNode::Branch(parent_branch)) =
-                                    self.get_node(&parent_merkle_path).await?
+                                if let Some(MerkleNode::Branch(_)) =
+                                    self.get_node(&post_sibling_parent_path).await?
                                 {
-                                    if parent_branch.has_single_child() {
+                                    // Check whether the parent branch node has a single child or not.
+                                    // Since the contents of the parent branch node might not be
+                                    // updated yet, we should get children nodes from `MerkleManager`
+                                    // rather than simply checking the parent branch node's data.
+                                    let mut left = post_sibling_parent_path.clone();
+                                    left.0.push(false);
+                                    let mut right = post_sibling_parent_path.clone();
+                                    right.0.push(true);
+
+                                    let parent_branch_has_single_child =
+                                        self.get_node(&left).await?.is_none()
+                                            ^ self.get_node(&right).await?.is_none();
+
+                                    if parent_branch_has_single_child {
                                         // The parent is also a single-child branch, so it gets collapsed
                                         collapsed_branch_paths.push(post_sibling_path.clone());
                                         post_sibling_path.0.pop();
@@ -378,6 +440,7 @@ impl MerkleManager {
                                         break;
                                     }
                                 } else {
+                                    // TODO: Throw an error
                                     // The parent is not a branch or doesn't exist; stop promotion
                                     // This should not happen in regular cases
                                     break;
@@ -450,70 +513,77 @@ impl MerkleManager {
         for affected_path in affected_paths_sorted {
             // Attempt to get node at the given path from the `MerkleChangeSet`
             if let Some(affected_node_write) = self.merkle_change_set.get_node(&affected_path) {
-                self.merkle_change_set
-                    .insert_merkle_db_nodes_write((affected_path, affected_node_write));
-            } else {
-                // Node at the path is not found from the `MerkleChangeSet`, so get the node from the `MerkleDB`.
-                // This should be branch type, since all mutated leaf nodes must be already present
-                // at the `MerkleChangeSet`.
-                if let Some(affected_node) = self.merkle_db.get_node(&affected_path).await? {
-                    if let MerkleNode::Branch(mut affected_branch) = affected_node {
-                        // If any of its children is mutated and found in the `StateCache`, update
-                        // the child node hash value and then push to the DB write set.
-                        let left_child_path = affected_path
-                            .clone()
-                            .left_child()
-                            .expect("Affected path length should not exceed NODE_SIZE_BITS");
-                        let right_child_path = affected_path
-                            .clone()
-                            .right_child()
-                            .expect("Affected path length should not exceed NODE_SIZE_BITS");
-
-                        if let Some(left_child_write) =
-                            self.merkle_change_set.get_node(&left_child_path)
-                        {
-                            match left_child_write {
-                                Some(left_child_mutated) => {
-                                    affected_branch.update_left(&left_child_mutated.hash()?);
-                                }
-                                None => {
-                                    // Replace with zero hash for empty (removed) child
-                                    affected_branch.update_left(&NodeHash::default());
-                                }
-                            }
-                        }
-                        if let Some(right_child_write) =
-                            self.merkle_change_set.get_node(&right_child_path)
-                        {
-                            match right_child_write {
-                                Some(right_child_mutated) => {
-                                    affected_branch.update_right(&right_child_mutated.hash()?);
-                                }
-                                None => {
-                                    // Replace with zero hash for empty (removed) child
-                                    affected_branch.update_right(&NodeHash::default());
-                                }
-                            }
-                        }
-
-                        // Insert the updated branch node to the MerkleChangeSet so parent nodes can
-                        // refer to updated versions of nodes from the MerkleChangeSet.
-                        self.merkle_change_set.insert_node(
-                            affected_path.clone(),
-                            Some(MerkleNode::Branch(affected_branch.clone())),
-                        );
-
-                        // Insert the updated branch node to the DB write set
-                        self.merkle_change_set.insert_merkle_db_nodes_write((
-                            affected_path.clone(),
-                            Some(MerkleNode::Branch(affected_branch)),
-                        ));
-                    } else {
-                        return Err(StateMerkleError::AffectedLeafNotFoundFromMerkleChangeSet);
+                match affected_node_write {
+                    Some(MerkleNode::Leaf(_)) | None => {
+                        self.merkle_change_set
+                            .insert_merkle_db_nodes_write((affected_path, affected_node_write));
+                        continue;
                     }
-                } else {
-                    return Err(StateMerkleError::InvalidAffectedMerklePath);
+                    // Leaf nodes have to be re-computed once again, since their children might have been updated
+                    Some(MerkleNode::Branch(_)) => {}
                 }
+            }
+
+            // Get node at the path either from the latest `MerkleChangeSet` or `MerkleDB`.
+            // This should be branch type, since all mutated leaf nodes must be already present
+            // at the `MerkleChangeSet`.
+            if let Some(affected_node) = self.get_node(&affected_path).await? {
+                if let MerkleNode::Branch(mut affected_branch) = affected_node {
+                    // If any of its children is mutated and found in the `StateCache`, update
+                    // the child node hash value and then push to the DB write set.
+                    let left_child_path = affected_path
+                        .clone()
+                        .left_child()
+                        .expect("Affected path length should not exceed NODE_SIZE_BITS");
+                    let right_child_path = affected_path
+                        .clone()
+                        .right_child()
+                        .expect("Affected path length should not exceed NODE_SIZE_BITS");
+
+                    if let Some(left_child_write) =
+                        self.merkle_change_set.get_node(&left_child_path)
+                    {
+                        match left_child_write {
+                            Some(left_child_mutated) => {
+                                affected_branch.update_left(&left_child_mutated.hash()?);
+                            }
+                            None => {
+                                // Replace with zero hash for empty (removed) child
+                                affected_branch.update_left(&NodeHash::default());
+                            }
+                        }
+                    }
+                    if let Some(right_child_write) =
+                        self.merkle_change_set.get_node(&right_child_path)
+                    {
+                        match right_child_write {
+                            Some(right_child_mutated) => {
+                                affected_branch.update_right(&right_child_mutated.hash()?);
+                            }
+                            None => {
+                                // Replace with zero hash for empty (removed) child
+                                affected_branch.update_right(&NodeHash::default());
+                            }
+                        }
+                    }
+
+                    // Insert the updated branch node to the MerkleChangeSet so parent nodes can
+                    // refer to updated versions of nodes from the MerkleChangeSet.
+                    self.merkle_change_set.insert_node(
+                        affected_path.clone(),
+                        Some(MerkleNode::Branch(affected_branch.clone())),
+                    );
+
+                    // Insert the updated branch node to the DB write set
+                    self.merkle_change_set.insert_merkle_db_nodes_write((
+                        affected_path.clone(),
+                        Some(MerkleNode::Branch(affected_branch)),
+                    ));
+                } else {
+                    return Err(StateMerkleError::AffectedLeafNotFoundFromMerkleChangeSet);
+                }
+            } else {
+                return Err(StateMerkleError::InvalidAffectedMerklePath);
             }
         }
 
