@@ -1,7 +1,7 @@
 //! End-to-end state transition tests
 #![allow(dead_code, unused_imports)]
 use fr_common::utils::tracing::setup_timed_tracing;
-use fr_config::{StorageConfig, DEFAULT_ROCKSDB_PATH};
+use fr_config::StorageConfig;
 use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
 use fr_node::{
     genesis::{genesis_simple_state, load_genesis_block},
@@ -18,7 +18,7 @@ use std::{
 };
 
 fn init_node_storage(node_id: &str) -> NodeStorage {
-    NodeStorage::new(StorageConfig::from_node_id(node_id, DEFAULT_ROCKSDB_PATH))
+    NodeStorage::new(StorageConfig::from_node_id_with_temp_dir(node_id))
         .expect("Failed to initialize NodeStorage")
 }
 
@@ -36,7 +36,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
     state_manager.commit_dirty_cache().await?;
 
     // Commit posterior state root of the genesis block
-    let post_state_root = state_manager.merkle_root();
+    let post_state_root = state_manager.merkle_root().await?;
     storage
         .post_state_root_db()
         .set_post_state_root(&genesis_header_hash, post_state_root)

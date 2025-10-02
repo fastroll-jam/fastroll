@@ -1,4 +1,9 @@
-use crate::{
+#![allow(dead_code)]
+use crate::cache::{CacheEntry, CacheEntryStatus, StateMut};
+use fr_codec::prelude::*;
+use fr_common::{ByteEncodable, MerkleRoot, NodeHash, StateKey, HASH_SIZE};
+use fr_crypto::{hash, Blake2b256};
+use fr_state_merkle_v2::{
     merkle_change_set::{
         MerkleChangeSet, MerkleDBLeafPathsWrite, MerkleDBNodesWrite, MerkleDBWriteBatch,
         StateDBWrite,
@@ -7,10 +12,7 @@ use crate::{
     types::{BranchNode, LeafNode, LeafNodeData, MerkleNode, MerklePath, StateMerkleError},
     utils::{bits_decode_msb, bits_encode_msb, derive_final_leaf_paths},
 };
-use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, MerkleRoot, NodeHash, StateKey, HASH_SIZE};
-use fr_crypto::{hash, Blake2b256};
-use fr_state::cache::{CacheEntry, CacheEntryStatus, StateMut};
+use std::collections::HashSet;
 
 pub struct MerkleManager {
     merkle_db: MerkleDB,
@@ -18,37 +20,103 @@ pub struct MerkleManager {
 }
 
 impl MerkleManager {
-    pub fn new(merkle_db: MerkleDB, merkle_change_set: MerkleChangeSet) -> Self {
+    pub fn new(merkle_db: MerkleDB) -> Self {
         Self {
             merkle_db,
-            merkle_change_set,
+            merkle_change_set: MerkleChangeSet::default(),
         }
     }
 
-    /// Finds the longest Merkle path in the `MerkleChangeSet` and the `MerkleDB`
-    /// that is a prefix of a given state key.
+    pub fn merkle_root(&self) -> &MerkleRoot {
+        self.merkle_db.root()
+    }
+
+    /// Retrieves the data of a leaf node at a given Merkle path, representing the encoded state data.
+    ///
+    /// # Leaf Node Types
+    /// The function handles retrieving two types of leaf nodes:
+    ///
+    /// ## Embedded Leaf Node
+    /// - The state data is encoded directly as part of the leaf node itself.
+    /// - Used for smaller state values that can fit within the node structure (<= 32 bytes).
+    ///
+    /// ## Regular Leaf Node
+    /// - The leaf node contains a `Blake2b-256` hash of the state data.
+    /// - This hash serves as a key for fetching the actual state data from the `StateDB`.
+    /// - The state data is encoded using `JamCodec` and stored separately.
+    /// - Used for larger state values (> 32 bytes), with no size limit on the encoded data in the `StateDB`.
+    ///
+    /// # Note
+    /// For `Regular` leaf nodes, additional steps are required to fetch the actual state data
+    /// from the `StateDB` using the returned hash.
+    pub async fn retrieve(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<Option<LeafNodeData>, StateMerkleError> {
+        Ok(self
+            .merkle_db
+            .get_leaf(state_key)
+            .await?
+            .map(|leaf| leaf.data))
+    }
+
+    /// Finds the longest Merkle path that is prefix of the given state key from the
+    /// `MerkleChangeSet` and the `MerkleDB`. This is used for determining the right position of
+    /// a leaf node to be inserted when processing dirty cache entries with `StateMut::Add` operation.
+    ///
+    /// We should check whether a prefix found from the DB is marked as removed in `MerkleChangeSet`,
+    /// since `StateMut::Add` operation might happen after several `StateMut::Remove` operations.
+    ///
+    /// Therefore, we should find the longest prefix among the following groups of merkle paths:
+    /// 1. Found in the DB, not found in the ChangeSet.
+    /// 2. Found in the DB, exists in the ChangeSet but not marked as removed.
+    /// 3. Not found in the DB, exists in the ChangeSet but not marked as removed.
     async fn find_longest_prefix(
         &self,
         state_key: &StateKey,
     ) -> Result<MerklePath, StateMerkleError> {
         let state_key_as_merkle_path = MerklePath(bits_encode_msb(state_key.as_slice()));
 
-        let longest_prefix_from_db = self.merkle_db.find_longest_prefix(state_key).await?;
-        let longest_prefix_from_change_set = self
+        let lcp_from_db = self.merkle_db.find_longest_prefix(state_key).await?;
+        // Check all ancestor paths of `lcp_from_db` as candidates
+        let mut lcp_candidates: HashSet<MerklePath> =
+            lcp_from_db.all_paths_to_root().into_iter().collect();
+
+        // Find candidates from the MerkleChangeSet
+        let lcp_from_change_set: HashSet<MerklePath> = self
             .merkle_change_set
             .nodes
             .keys()
             .filter(|&key_in_change_set| {
                 state_key_as_merkle_path.0.starts_with(&key_in_change_set.0)
             })
-            .max_by_key(|key_in_change_set| key_in_change_set.0.len());
+            .cloned()
+            .collect();
 
-        if let Some(longest_prefix_from_change_set) = longest_prefix_from_change_set {
-            if longest_prefix_from_change_set.0.len() > longest_prefix_from_db.0.len() {
-                return Ok(longest_prefix_from_change_set.clone());
+        lcp_candidates.extend(lcp_from_change_set);
+
+        // Find the longest common prefix
+        let mut lcp = MerklePath::root();
+        for candidate in lcp_candidates {
+            if candidate.0.len() > lcp.0.len() {
+                match self.merkle_change_set.get_node(&candidate) {
+                    Some(Some(_)) => {
+                        // Marked as updated in ChangeSet; update the LCP.
+                        lcp = candidate;
+                    }
+                    Some(None) => {
+                        // Marked as removed in ChangeSet; not a valid candidate.
+                    }
+                    None => {
+                        // Not found in the ChangeSet; since the candidate is ancestor of the
+                        // `lcp_from_db`, it should always exist in the DB. No further check needed.
+                        lcp = candidate;
+                    }
+                }
             }
         }
-        Ok(longest_prefix_from_db)
+
+        Ok(lcp)
     }
 
     /// Gets a node at the given merkle path from the `MerkleChangeSet`, then falls back to
@@ -91,13 +159,17 @@ impl MerkleManager {
     async fn get_longest_common_path_node(
         &self,
         state_key: &StateKey,
-    ) -> Result<(MerkleNode, MerklePath), StateMerkleError> {
+    ) -> Result<(Option<MerkleNode>, MerklePath), StateMerkleError> {
         let lcp_path = self.find_longest_prefix(state_key).await?;
-        let lcp_node = self
-            .get_node(&lcp_path)
-            .await?
-            .ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
-        Ok((lcp_node, lcp_path))
+        let maybe_lcp_node = self.get_node(&lcp_path).await?;
+
+        // Adding the first node to the merkle trie
+        if lcp_path.0.is_empty() && maybe_lcp_node.is_none() {
+            return Ok((None, lcp_path));
+        }
+
+        let lcp_node = maybe_lcp_node.ok_or(StateMerkleError::MerkleTrieNotInitialized)?;
+        Ok((Some(lcp_node), lcp_path))
     }
 
     fn cache_entry_to_leaf_node_and_state_db_write_set(
@@ -132,7 +204,7 @@ impl MerkleManager {
                 StateMut::Add => {
                     let (lcp_node, lcp_path) = self.get_longest_common_path_node(state_key).await?;
                     match lcp_node {
-                        MerkleNode::Branch(_) => {
+                        Some(MerkleNode::Branch(_)) => {
                             // Add case 1. New leaf is extending the single-child branch node.
                             let (leaf, maybe_state_db_write) =
                                 Self::cache_entry_to_leaf_node_and_state_db_write_set(
@@ -160,7 +232,7 @@ impl MerkleManager {
                                 self.merkle_change_set.insert_state_db_write(state_db_write);
                             }
                         }
-                        MerkleNode::Leaf(sibling_candidate) => {
+                        Some(MerkleNode::Leaf(sibling_candidate)) => {
                             // Add case 2. New leaf is extending the leaf node,
                             // which will be its sibling after the processing.
                             let (leaf, maybe_state_db_write) =
@@ -192,7 +264,7 @@ impl MerkleManager {
                                 .insert_node(sibling_path.clone(), Some(sibling_node));
 
                             // Add all new branch node entries to the MerkleChangeSet, from the parent
-                            // node of the new leaf and it sibling all the way up to the `lcp_node`.
+                            // node of the new leaf and its sibling all the way up to the `lcp_node`.
 
                             // Initialize
                             let mut branch_path = new_leaf_path.clone();
@@ -214,15 +286,33 @@ impl MerkleManager {
                                 self.merkle_change_set
                                     .insert_node(branch_path.clone(), Some(branch_node));
 
+                                if branch_path.0.is_empty() {
+                                    break;
+                                }
+
                                 // Update branch_path, left_hash and right_hash for the next loop
+                                let branch_sibling_path = branch_path
+                                    .sibling()
+                                    .expect("Branch path should not be empty");
+
+                                // Check if a node exists at the branch's sibling position, either in
+                                // the MerkleChangeSet or the MerkleDB
+                                let sibling_hash = self
+                                    .get_node(&branch_sibling_path)
+                                    .await?
+                                    .map(|node| node.hash())
+                                    .transpose()?
+                                    .unwrap_or_default();
+
                                 let branch_side = branch_path
                                     .0
                                     .pop()
-                                    .expect("Branch path checked to be longer than LCP path");
+                                    .expect("Branch path should not be empty");
+
                                 (left_hash, right_hash) = if branch_side {
-                                    (NodeHash::default(), branch_node_hash)
+                                    (sibling_hash, branch_node_hash)
                                 } else {
-                                    (branch_node_hash, NodeHash::default())
+                                    (branch_node_hash, sibling_hash)
                                 };
                             }
 
@@ -237,6 +327,24 @@ impl MerkleManager {
                                 Some(sibling_path),
                             );
 
+                            if let Some(state_db_write) = maybe_state_db_write {
+                                self.merkle_change_set.insert_state_db_write(state_db_write);
+                            }
+                        }
+                        None => {
+                            // Add case 3. Insert the first node to the trie.
+                            let (leaf, maybe_state_db_write) =
+                                Self::cache_entry_to_leaf_node_and_state_db_write_set(
+                                    state_key,
+                                    dirty_entry,
+                                )?;
+
+                            let leaf_path = MerklePath::root(); // Insert to the root position
+                            self.merkle_change_set.extend_affected_paths(&leaf_path);
+                            self.merkle_change_set
+                                .insert_node(leaf_path.clone(), Some(MerkleNode::Leaf(leaf)));
+                            self.merkle_change_set
+                                .insert_leaf_path(state_key.clone(), Some(leaf_path));
                             if let Some(state_db_write) = maybe_state_db_write {
                                 self.merkle_change_set.insert_state_db_write(state_db_write);
                             }
@@ -303,13 +411,27 @@ impl MerkleManager {
                             while !post_sibling_path.0.is_empty() {
                                 let parent_path_slice =
                                     &post_sibling_path.0[..post_sibling_path.0.len() - 1];
-                                let parent_merkle_path = MerklePath(parent_path_slice.to_bitvec());
+                                let post_sibling_parent_path =
+                                    MerklePath(parent_path_slice.to_bitvec());
 
                                 // If the parent branch node has a single child, promote once again
-                                if let Some(MerkleNode::Branch(parent_branch)) =
-                                    self.get_node(&parent_merkle_path).await?
+                                if let Some(MerkleNode::Branch(_)) =
+                                    self.get_node(&post_sibling_parent_path).await?
                                 {
-                                    if parent_branch.has_single_child() {
+                                    // Check whether the parent branch node has a single child or not.
+                                    // Since the contents of the parent branch node might not be
+                                    // updated yet, we should get children nodes from `MerkleManager`
+                                    // rather than simply checking the parent branch node's data.
+                                    let mut left = post_sibling_parent_path.clone();
+                                    left.0.push(false);
+                                    let mut right = post_sibling_parent_path.clone();
+                                    right.0.push(true);
+
+                                    let parent_branch_has_single_child =
+                                        self.get_node(&left).await?.is_none()
+                                            ^ self.get_node(&right).await?.is_none();
+
+                                    if parent_branch_has_single_child {
                                         // The parent is also a single-child branch, so it gets collapsed
                                         collapsed_branch_paths.push(post_sibling_path.clone());
                                         post_sibling_path.0.pop();
@@ -318,6 +440,7 @@ impl MerkleManager {
                                         break;
                                     }
                                 } else {
+                                    // TODO: Throw an error
                                     // The parent is not a branch or doesn't exist; stop promotion
                                     // This should not happen in regular cases
                                     break;
@@ -390,70 +513,77 @@ impl MerkleManager {
         for affected_path in affected_paths_sorted {
             // Attempt to get node at the given path from the `MerkleChangeSet`
             if let Some(affected_node_write) = self.merkle_change_set.get_node(&affected_path) {
-                self.merkle_change_set
-                    .insert_merkle_db_nodes_write((affected_path, affected_node_write));
-            } else {
-                // Node at the path is not found from the `MerkleChangeSet`, so get the node from the `MerkleDB`.
-                // This should be branch type, since all mutated leaf nodes must be already present
-                // at the `MerkleChangeSet`.
-                if let Some(affected_node) = self.merkle_db.get_node(&affected_path).await? {
-                    if let MerkleNode::Branch(mut affected_branch) = affected_node {
-                        // If any of its children is mutated and found in the `StateCache`, update
-                        // the child node hash value and then push to the DB write set.
-                        let left_child_path = affected_path
-                            .clone()
-                            .left_child()
-                            .expect("Affected path length should not exceed NODE_SIZE_BITS");
-                        let right_child_path = affected_path
-                            .clone()
-                            .right_child()
-                            .expect("Affected path length should not exceed NODE_SIZE_BITS");
-
-                        if let Some(left_child_write) =
-                            self.merkle_change_set.get_node(&left_child_path)
-                        {
-                            match left_child_write {
-                                Some(left_child_mutated) => {
-                                    affected_branch.update_left(&left_child_mutated.hash()?);
-                                }
-                                None => {
-                                    // Replace with zero hash for empty (removed) child
-                                    affected_branch.update_left(&NodeHash::default());
-                                }
-                            }
-                        }
-                        if let Some(right_child_write) =
-                            self.merkle_change_set.get_node(&right_child_path)
-                        {
-                            match right_child_write {
-                                Some(right_child_mutated) => {
-                                    affected_branch.update_right(&right_child_mutated.hash()?);
-                                }
-                                None => {
-                                    // Replace with zero hash for empty (removed) child
-                                    affected_branch.update_right(&NodeHash::default());
-                                }
-                            }
-                        }
-
-                        // Insert the updated branch node to the MerkleChangeSet so parent nodes can
-                        // refer to updated versions of nodes from the MerkleChangeSet.
-                        self.merkle_change_set.insert_node(
-                            affected_path.clone(),
-                            Some(MerkleNode::Branch(affected_branch.clone())),
-                        );
-
-                        // Insert the updated branch node to the DB write set
-                        self.merkle_change_set.insert_merkle_db_nodes_write((
-                            affected_path.clone(),
-                            Some(MerkleNode::Branch(affected_branch)),
-                        ));
-                    } else {
-                        return Err(StateMerkleError::AffectedLeafNotFoundFromMerkleChangeSet);
+                match affected_node_write {
+                    Some(MerkleNode::Leaf(_)) | None => {
+                        self.merkle_change_set
+                            .insert_merkle_db_nodes_write((affected_path, affected_node_write));
+                        continue;
                     }
-                } else {
-                    return Err(StateMerkleError::InvalidAffectedMerklePath);
+                    // Leaf nodes have to be re-computed once again, since their children might have been updated
+                    Some(MerkleNode::Branch(_)) => {}
                 }
+            }
+
+            // Get node at the path either from the latest `MerkleChangeSet` or `MerkleDB`.
+            // This should be branch type, since all mutated leaf nodes must be already present
+            // at the `MerkleChangeSet`.
+            if let Some(affected_node) = self.get_node(&affected_path).await? {
+                if let MerkleNode::Branch(mut affected_branch) = affected_node {
+                    // If any of its children is mutated and found in the `StateCache`, update
+                    // the child node hash value and then push to the DB write set.
+                    let left_child_path = affected_path
+                        .clone()
+                        .left_child()
+                        .expect("Affected path length should not exceed NODE_SIZE_BITS");
+                    let right_child_path = affected_path
+                        .clone()
+                        .right_child()
+                        .expect("Affected path length should not exceed NODE_SIZE_BITS");
+
+                    if let Some(left_child_write) =
+                        self.merkle_change_set.get_node(&left_child_path)
+                    {
+                        match left_child_write {
+                            Some(left_child_mutated) => {
+                                affected_branch.update_left(&left_child_mutated.hash()?);
+                            }
+                            None => {
+                                // Replace with zero hash for empty (removed) child
+                                affected_branch.update_left(&NodeHash::default());
+                            }
+                        }
+                    }
+                    if let Some(right_child_write) =
+                        self.merkle_change_set.get_node(&right_child_path)
+                    {
+                        match right_child_write {
+                            Some(right_child_mutated) => {
+                                affected_branch.update_right(&right_child_mutated.hash()?);
+                            }
+                            None => {
+                                // Replace with zero hash for empty (removed) child
+                                affected_branch.update_right(&NodeHash::default());
+                            }
+                        }
+                    }
+
+                    // Insert the updated branch node to the MerkleChangeSet so parent nodes can
+                    // refer to updated versions of nodes from the MerkleChangeSet.
+                    self.merkle_change_set.insert_node(
+                        affected_path.clone(),
+                        Some(MerkleNode::Branch(affected_branch.clone())),
+                    );
+
+                    // Insert the updated branch node to the DB write set
+                    self.merkle_change_set.insert_merkle_db_nodes_write((
+                        affected_path.clone(),
+                        Some(MerkleNode::Branch(affected_branch)),
+                    ));
+                } else {
+                    return Err(StateMerkleError::AffectedLeafNotFoundFromMerkleChangeSet);
+                }
+            } else {
+                return Err(StateMerkleError::InvalidAffectedMerklePath);
             }
         }
 
@@ -574,13 +704,12 @@ impl MerkleManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        merkle_path,
-        test_utils::{create_dummy_branch, open_merkle_db},
-        utils::bits_decode_msb,
-    };
     use bitvec::prelude::*;
     use fr_common::{ByteEncodable, NodeHash};
+    use fr_state_merkle_v2::{
+        merkle_path,
+        test_utils::{create_dummy_branch, open_merkle_db},
+    };
 
     #[tokio::test]
     async fn test_get_longest_common_path_node() {
@@ -615,7 +744,7 @@ mod tests {
             .await
             .unwrap();
 
-        let merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+        let merkle_manager = MerkleManager::new(merkle_db);
 
         let mut state_key_vec = bits_decode_msb(bitvec![u8, Msb0; 1, 0, 1, 1, 0, 0, 1, 1, 1]);
         state_key_vec.resize(31, 0);
@@ -631,8 +760,11 @@ mod tests {
 
     mod merkle_commit_tests {
         use super::*;
-        use crate::{test_utils::*, types::*};
-        use fr_state::{state_utils::StateEntryType, types::Timeslot};
+        use crate::{state_utils::StateEntryType, types::*};
+        use fr_state_merkle_v2::test_utils::{
+            create_dummy_regular_leaf, create_dummy_single_child_branch,
+            create_state_key_from_path_prefix,
+        };
 
         async fn setup_add_with_lcp_branch() -> (MerkleDB, StateKey, CacheEntry) {
             let merkle_db = open_merkle_db();
@@ -678,7 +810,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_with_lcp_branch_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_with_lcp_branch().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -718,7 +850,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_with_lcp_branch_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_with_lcp_branch().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -790,7 +922,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_with_lcp_leaf_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_with_lcp_leaf().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -878,7 +1010,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_with_lcp_leaf_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_add_with_lcp_leaf().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -984,7 +1116,7 @@ mod tests {
         #[tokio::test]
         async fn test_update_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_update().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1025,7 +1157,7 @@ mod tests {
         #[tokio::test]
         async fn test_update_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_update().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -1100,7 +1232,7 @@ mod tests {
         async fn test_remove_with_branch_sibling_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) =
                 setup_remove_with_branch_sibling().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1138,7 +1270,7 @@ mod tests {
         async fn test_remove_with_branch_sibling_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) =
                 setup_remove_with_branch_sibling().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -1214,7 +1346,7 @@ mod tests {
         #[tokio::test]
         async fn test_remove_with_leaf_sibling_change_set() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_remove_with_leaf_sibling().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entry_as_leaf_writes(&state_key, &dirty_cache_entry)
@@ -1281,7 +1413,7 @@ mod tests {
         #[tokio::test]
         async fn test_remove_with_leaf_sibling_db_commit() {
             let (merkle_db, state_key, dirty_cache_entry) = setup_remove_with_leaf_sibling().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
             let dirty_cache_entries = [(state_key.clone(), dirty_cache_entry.clone())];
 
             let state_db_writes = merkle_manager
@@ -1401,7 +1533,7 @@ mod tests {
         #[tokio::test]
         async fn test_remove_two_adjacent_leaves_change_set() {
             let (merkle_db, dirty_cache_entries) = setup_remove_two_adjacent_leaves().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             merkle_manager
                 .insert_dirty_cache_entries_as_leaf_writes(&dirty_cache_entries)
@@ -1465,7 +1597,7 @@ mod tests {
         #[tokio::test]
         async fn test_remove_two_adjacent_leaves_db_commit() {
             let (merkle_db, dirty_cache_entries) = setup_remove_two_adjacent_leaves().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             let state_db_writes = merkle_manager
                 .commit_dirty_state_cache_to_merkle_db_and_produce_state_db_write_set(
@@ -1576,7 +1708,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_two_adjacent_leaves_change_set() {
             let (merkle_db, dirty_cache_entries) = setup_add_two_adjacent_leaves().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             let added_state_key_1 = dirty_cache_entries[0].0.clone();
             let dirty_cache_entry_1 = dirty_cache_entries[0].1.clone();
@@ -1731,7 +1863,7 @@ mod tests {
         #[tokio::test]
         async fn test_add_two_adjacent_leaves_db_commit() {
             let (merkle_db, dirty_cache_entries) = setup_add_two_adjacent_leaves().await;
-            let mut merkle_manager = MerkleManager::new(merkle_db, MerkleChangeSet::default());
+            let mut merkle_manager = MerkleManager::new(merkle_db);
 
             let added_state_key_1 = dirty_cache_entries[0].0.clone();
             let dirty_cache_entry_1 = dirty_cache_entries[0].1.clone();
