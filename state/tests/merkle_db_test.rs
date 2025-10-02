@@ -171,10 +171,8 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     state_manager.add_auth_pool(auth_pool).await?;
 
     // Commit to the DB
+    state_manager.commit_dirty_cache().await?;
     let auth_pool_state_key = get_simple_state_key(StateKeyConstant::AuthPool);
-    state_manager
-        .commit_single_dirty_cache(&auth_pool_state_key)
-        .await?;
     tracing::info!(
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root().await?
@@ -200,9 +198,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 
     // Commit to the DB
     let pending_reports_state_key = get_simple_state_key(StateKeyConstant::PendingReports);
-    state_manager
-        .commit_single_dirty_cache(&pending_reports_state_key)
-        .await?;
+    state_manager.commit_dirty_cache().await?;
     tracing::info!(
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root().await?
@@ -235,9 +231,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
         })
         .await?;
     let auth_pool_expected = state_manager.get_auth_pool().await?;
-    state_manager
-        .commit_single_dirty_cache(&auth_pool_state_key)
-        .await?;
+    state_manager.commit_dirty_cache().await?;
     tracing::info!(
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root().await?
@@ -258,9 +252,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
             Ok(())
         })
         .await?;
-    state_manager
-        .commit_single_dirty_cache(&auth_pool_state_key)
-        .await?;
+    state_manager.commit_dirty_cache().await?;
     tracing::info!(
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root().await?

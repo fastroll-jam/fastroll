@@ -490,39 +490,6 @@ impl StateManager {
         Ok(Some(state_encoded))
     }
 
-    // TODO: check if necessary
-    /// Commits a single dirty cache entry into `MerkleDB` and `StateDB`.
-    pub async fn commit_single_dirty_cache(
-        &self,
-        state_key: &StateKey,
-    ) -> Result<(), StateManagerError> {
-        let entry_status = self
-            .cache
-            .get_entry_status(state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-        if let CacheEntryStatus::Clean = entry_status {
-            return Err(StateManagerError::NotDirtyCache);
-        }
-
-        let _entry = self.cache.get_entry(state_key);
-
-        // Case 1: Trie is empty
-        // if self.merkle_manager.get_merkle_root().await? == MerkleRoot::default() {}
-
-        // Case 2: Trie is not empty
-        let state_db_writes = self.merkle_manager.commit_dirty_cache(vec![]).await?;
-        let mut state_db_write_batch = WriteBatch::default();
-        let state_db_cf = self.state_db.cf_handle()?;
-        for (k, v) in state_db_writes {
-            state_db_write_batch.put_cf(state_db_cf, k.as_db_key(), v.into_db_value()?);
-        }
-        self.commit_to_state_db(state_db_write_batch).await?;
-
-        // Mark committed entry as clean
-        self.cache.mark_entry_clean_and_snapshot(state_key)?;
-        Ok(())
-    }
-
     /// Collects all dirty cache entries after state transition, then commit them into
     /// `MerkleDB` and `StateDB` as a single synchronous batch write operation.
     /// After committing to the databases, marks the committed cache entries as clean.
