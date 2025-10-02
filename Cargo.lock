@@ -999,6 +999,7 @@ name = "fr-config"
 version = "0.1.12"
 dependencies = [
  "fr-db",
+ "tempfile",
 ]
 
 [[package]]

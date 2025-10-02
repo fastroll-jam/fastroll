@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use fr_db::{ColumnFamilyDescriptor, RocksDBOptions};
 use std::path::PathBuf;
+use tempfile::tempdir;
 
 // --- Default values
 pub const DEFAULT_ROCKSDB_PATH: &str = "./.rocksdb";
@@ -94,6 +95,13 @@ impl StorageConfig {
     pub fn from_node_id(node_id: &str, db_path: &str) -> Self {
         Self {
             path: PathBuf::from(format!("{db_path}/{node_id}")),
+            ..Default::default()
+        }
+    }
+
+    pub fn from_node_id_with_temp_dir(node_id: &str) -> Self {
+        Self {
+            path: tempdir().unwrap().path().join(node_id),
             ..Default::default()
         }
     }
