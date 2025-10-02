@@ -7,7 +7,11 @@ use fr_db::core::{
     cached_db::{CacheItem, CacheItemCodecError, CachedDBError, DBKey},
     core_db::CoreDBError,
 };
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    cmp::Ordering,
+    fmt::{Display, Formatter},
+};
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -50,19 +54,27 @@ pub enum StateMerkleError {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum LeafNodeData {
+pub enum LeafNodeData {
     Embedded(Vec<u8>),
     Regular(Hash32),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct LeafNode {
-    pub(crate) state_key_bv: BitVec<u8, Msb0>,
-    data: LeafNodeData,
+pub struct LeafNode {
+    pub state_key_bv: BitVec<u8, Msb0>,
+    pub data: LeafNodeData,
+}
+
+impl Display for LeafNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let node = MerkleNode::Leaf(self.clone());
+        let hash = &hex::encode(node.hash().unwrap().0)[0..6];
+        write!(f, "Leaf({hash})")
+    }
 }
 
 impl LeafNode {
-    pub(crate) fn new(state_key_bv: BitVec<u8, Msb0>, data: LeafNodeData) -> Self {
+    pub fn new(state_key_bv: BitVec<u8, Msb0>, data: LeafNodeData) -> Self {
         Self { state_key_bv, data }
     }
 
@@ -136,15 +148,37 @@ impl LeafNode {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct BranchNode {
+pub struct BranchNode {
     /// 255-bit left child node hash value, with the first bit dropped.
     pub(crate) left_lossy: BitVec<u8, Msb0>,
     /// The right child node hash value.
     pub(crate) right: BitVec<u8, Msb0>,
 }
 
+impl Display for BranchNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // Left child recovered with '0' as the first bit
+        let mut left0_bv = bitvec![u8, Msb0; 0];
+        left0_bv.extend(self.left_lossy.clone());
+        // Left child recovered with '1' as the first bit
+        let mut left1_bv = bitvec![u8, Msb0; 1];
+        left1_bv.extend(self.left_lossy.clone());
+        let left0 = &hex::encode(bits_decode_msb(left0_bv))[0..6];
+        let left1 = &hex::encode(bits_decode_msb(left1_bv))[0..6];
+
+        let right = &hex::encode(bits_decode_msb(self.right.clone()).as_slice())[0..6];
+        let branch = MerkleNode::Branch(self.clone());
+        let branch_hash = branch.hash().unwrap();
+        let hash = &hex::encode(branch_hash.0)[0..6];
+        write!(
+            f,
+            "Branch(hash={hash}, left0={left0}, left1={left1}, right={right})"
+        )
+    }
+}
+
 impl BranchNode {
-    pub(crate) fn new(left: &NodeHash, right: &NodeHash) -> Self {
+    pub fn new(left: &NodeHash, right: &NodeHash) -> Self {
         let left_bv = bits_encode_msb(left.as_slice());
         let right_bv = bits_encode_msb(right.as_slice());
         Self {
@@ -155,18 +189,18 @@ impl BranchNode {
         }
     }
 
-    pub(crate) fn update_left(&mut self, left: &NodeHash) {
+    pub fn update_left(&mut self, left: &NodeHash) {
         let left_bv = bits_encode_msb(left.as_slice());
         self.left_lossy = slice_bitvec(&left_bv, 1..)
             .expect("Has 256 bits")
             .to_bitvec();
     }
 
-    pub(crate) fn update_right(&mut self, right: &NodeHash) {
+    pub fn update_right(&mut self, right: &NodeHash) {
         self.right = bits_encode_msb(right.as_slice());
     }
 
-    pub(crate) fn has_single_child(&self) -> bool {
+    pub fn has_single_child(&self) -> bool {
         let left_is_zero = !self.left_lossy.any();
         let right_is_zero = !self.right.any();
         left_is_zero ^ right_is_zero
@@ -201,9 +235,18 @@ impl BranchNode {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum MerkleNode {
+pub enum MerkleNode {
     Leaf(LeafNode),
     Branch(BranchNode),
+}
+
+impl Display for MerkleNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Leaf(leaf) => write!(f, "{}", leaf),
+            Self::Branch(branch) => write!(f, "{}", branch),
+        }
+    }
 }
 
 impl CacheItem for MerkleNode {
@@ -247,10 +290,11 @@ impl CacheItem for MerkleNode {
 }
 
 impl MerkleNode {
-    pub(crate) fn is_branch(&self) -> bool {
+    pub fn is_branch(&self) -> bool {
         matches!(self, Self::Branch(_))
     }
 
+    #[allow(dead_code)]
     pub(crate) fn is_leaf(&self) -> bool {
         matches!(self, Self::Leaf(_))
     }
@@ -262,7 +306,7 @@ impl MerkleNode {
         }
     }
 
-    pub(crate) fn hash(&self) -> Result<NodeHash, StateMerkleError> {
+    pub fn hash(&self) -> Result<NodeHash, StateMerkleError> {
         Ok(hash::<Blake2b256>(self.encode()?.as_slice())?)
     }
 }
@@ -272,7 +316,19 @@ impl MerkleNode {
 /// For leaf nodes, this path may be shorter than the full state key.
 /// This happens since the trie doesn't create intermediate nodes for unique paths.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct MerklePath(pub(crate) BitVec<u8, Msb0>);
+pub struct MerklePath(pub BitVec<u8, Msb0>);
+
+impl PartialOrd for MerklePath {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for MerklePath {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.len().cmp(&other.0.len()).then(self.0.cmp(&other.0))
+    }
+}
 
 // MerklePath lengths and prefixes should be preserved; we construct String keys here
 // for correct serialization of `MerklePath` as CacheDB keys.
@@ -333,11 +389,11 @@ impl CacheItem for MerklePath {
 }
 
 impl MerklePath {
-    pub(crate) fn root() -> Self {
+    pub fn root() -> Self {
         Self(BitVec::new())
     }
 
-    pub(crate) fn sibling(&self) -> Option<Self> {
+    pub fn sibling(&self) -> Option<Self> {
         if self.0.is_empty() {
             return None;
         }
@@ -350,7 +406,7 @@ impl MerklePath {
         Some(sibling)
     }
 
-    pub(crate) fn left_child(&self) -> Option<Self> {
+    pub fn left_child(&self) -> Option<Self> {
         if self.0.len() >= NODE_SIZE_BITS {
             return None;
         }
@@ -359,7 +415,7 @@ impl MerklePath {
         Some(left_child)
     }
 
-    pub(crate) fn right_child(&self) -> Option<Self> {
+    pub fn right_child(&self) -> Option<Self> {
         if self.0.len() >= NODE_SIZE_BITS {
             return None;
         }
@@ -370,7 +426,7 @@ impl MerklePath {
 
     /// Returns the given merkle path and all its parent paths.
     /// For example, an input of `1011` will return `[1011, 101, 10, 1, root]`.
-    pub(crate) fn all_paths_to_root(&self) -> Vec<MerklePath> {
+    pub fn all_paths_to_root(&self) -> Vec<MerklePath> {
         let mut merkle_path = self.clone();
         let mut result = Vec::with_capacity(merkle_path.0.len() + 1);
         while !merkle_path.0.is_empty() {

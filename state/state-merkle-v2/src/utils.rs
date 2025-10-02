@@ -3,12 +3,12 @@ use bitvec::{prelude::*, slice::BitSliceIndex};
 use fr_common::Hash32;
 
 /// The `bits` function of the GP (MSB-first encoding for each byte)
-pub(crate) fn bits_encode_msb(data: &[u8]) -> BitVec<u8, Msb0> {
+pub fn bits_encode_msb(data: &[u8]) -> BitVec<u8, Msb0> {
     BitVec::from_slice(data)
 }
 
 /// The inverse function of `bits` of the GP.
-pub(crate) fn bits_decode_msb(bits: BitVec<u8, Msb0>) -> Vec<u8> {
+pub fn bits_decode_msb(bits: BitVec<u8, Msb0>) -> Vec<u8> {
     bits.into_vec()
 }
 
@@ -35,7 +35,7 @@ pub(crate) fn bitvec_to_hash(data: BitVec<u8, Msb0>) -> Result<Hash32, StateMerk
 
 /// Derives two shortest merkle paths of two leaves with the given state keys
 /// where they diverge.
-pub(crate) fn derive_final_leaf_paths(
+pub fn derive_final_leaf_paths(
     state_key_bv_1: BitVec<u8, Msb0>,
     state_key_bv_2: BitVec<u8, Msb0>,
 ) -> (MerklePath, MerklePath) {

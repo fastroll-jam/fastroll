@@ -123,7 +123,7 @@ impl BlockAuthor {
         let xt = Self::collect_extrinsics();
         let xt_hash = xt.hash()?;
         self.set_extrinsics(xt.clone(), xt_hash.clone())?;
-        self.prelude(&storage)?;
+        self.prelude(&storage).await?;
 
         // STF phase #1
         let header_markers = self
@@ -162,7 +162,7 @@ impl BlockAuthor {
         // Commit the state transitions
         // Note: Also some STFs can be run asynchronously after committing the header.
         storage.state_manager().commit_dirty_cache().await?;
-        let post_state_root = storage.state_manager().merkle_root();
+        let post_state_root = storage.state_manager().merkle_root().await?;
         tracing::debug!("Post State Root: {}", &post_state_root);
 
         // Store post state root
@@ -192,7 +192,7 @@ impl BlockAuthor {
         let xt = Self::collect_extrinsics();
         let xt_hash = xt.hash()?;
         self.set_extrinsics(xt.clone(), xt_hash.clone())?;
-        self.prelude_for_test(&storage)?;
+        self.prelude_for_test(&storage).await?;
         let header_markers = self
             .run_state_transition_pre_header_commitment(&storage)
             .await?;
@@ -211,7 +211,7 @@ impl BlockAuthor {
         self.run_final_state_transition(&storage, new_header_hash, execution_output)
             .await?;
         storage.state_manager().commit_dirty_cache().await?;
-        let post_state_root = storage.state_manager().merkle_root();
+        let post_state_root = storage.state_manager().merkle_root().await?;
         tracing::debug!("Post State Root: {}", &post_state_root);
         // Store post state root
         let new_block_hash = self.new_block.header.hash()?;
@@ -240,10 +240,10 @@ impl BlockAuthor {
     }
 
     /// Sets header fields required for running STFs in advance.
-    fn prelude(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
+    async fn prelude(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
         let parent_hash = storage.header_db().get_best_header().hash()?;
         tracing::debug!("Parent header hash: {}", &parent_hash);
-        let prior_state_root = storage.state_manager().merkle_root();
+        let prior_state_root = storage.state_manager().merkle_root().await?;
         tracing::debug!("Prior state root: {}", &prior_state_root);
 
         self.new_block.header.set_parent_hash(parent_hash);
@@ -259,10 +259,10 @@ impl BlockAuthor {
     }
 
     /// Note: test-only
-    fn prelude_for_test(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
+    async fn prelude_for_test(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
         let parent_hash = storage.header_db().get_best_header().hash()?;
         tracing::debug!("Parent header hash: {}", &parent_hash);
-        let prior_state_root = storage.state_manager().merkle_root();
+        let prior_state_root = storage.state_manager().merkle_root().await?;
         tracing::debug!("Prior state root: {}", &prior_state_root);
         self.new_block.header.set_parent_hash(parent_hash);
         self.new_block.header.set_prior_state_root(prior_state_root);

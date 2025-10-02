@@ -1,10 +1,9 @@
+#![allow(dead_code)]
 use crate::{
     error::StateManagerError,
     state_utils::{StateComponent, StateEntryType},
 };
-use fr_codec::prelude::*;
 use fr_common::StateKey;
-use fr_state_merkle::merkle_db::MerkleWriteOp;
 use mini_moka::sync::{Cache, ConcurrentCacheExt};
 use std::{
     collections::HashSet,
@@ -18,22 +17,20 @@ pub enum StateMut {
     Remove,
 }
 
-// FIXME: visibility
 #[derive(Debug, Clone, PartialEq)]
-pub enum CacheEntryStatus {
+pub(crate) enum CacheEntryStatus {
     Clean,
     Dirty(StateMut),
 }
 
-// FIXME: visibility
 #[derive(Debug, Clone)]
 pub struct CacheEntry {
     /// Cached snapshot of clean state entry, synchronized with the DB.
     pub(crate) clean_snapshot: Arc<StateEntryType>,
     /// Latest state cache entry value.
-    pub value: Arc<StateEntryType>,
+    pub(crate) value: Arc<StateEntryType>,
     /// State cache status (Clean or Dirty).
-    pub status: CacheEntryStatus,
+    pub(crate) status: CacheEntryStatus,
 }
 
 impl CacheEntry {
@@ -48,24 +45,6 @@ impl CacheEntry {
 
     pub(crate) fn is_dirty(&self) -> bool {
         matches!(self.status, CacheEntryStatus::Dirty(_))
-    }
-
-    pub(crate) fn as_merkle_write_op(
-        &self,
-        state_key: &StateKey,
-    ) -> Result<MerkleWriteOp, StateManagerError> {
-        let CacheEntryStatus::Dirty(op) = &self.status else {
-            return Err(StateManagerError::NotDirtyCache);
-        };
-
-        let encoded = self.value.encode()?;
-        let merkle_state_mut = match op {
-            StateMut::Add => MerkleWriteOp::Add(state_key.clone(), encoded),
-            StateMut::Update => MerkleWriteOp::Update(state_key.clone(), encoded),
-            StateMut::Remove => MerkleWriteOp::Remove(state_key.clone()),
-        };
-
-        Ok(merkle_state_mut)
     }
 
     fn mark_dirty(&mut self, state_mut: StateMut) {
@@ -126,16 +105,6 @@ impl StateCache {
 
     pub(crate) fn get_entry_status(&self, key: &StateKey) -> Option<CacheEntryStatus> {
         self.inner.get(key).map(|entry| entry.status.clone())
-    }
-
-    pub(crate) fn get_entry_as_merkle_write_op(
-        &self,
-        key: &StateKey,
-    ) -> Result<MerkleWriteOp, StateManagerError> {
-        let entry = self
-            .get_entry(key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-        entry.as_merkle_write_op(key)
     }
 
     pub(crate) fn insert_entry(&self, key: StateKey, entry: CacheEntry) {

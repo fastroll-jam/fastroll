@@ -17,14 +17,16 @@ fr-db = { workspace = true }
 fr-limited-vec = { workspace = true }
 fr-merkle = { workspace = true }
 fr-pvm-types = { workspace = true }
-fr-state-merkle = { workspace = true }
+fr-state-merkle-v2 = { workspace = true }
 async-trait = { workspace = true }
+bitvec = { workspace = true }
+hex = { workspace = true }
 mini-moka = { workspace = true }
 paste = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }
-tokio = { workspace = true }
