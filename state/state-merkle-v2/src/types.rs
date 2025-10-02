@@ -9,6 +9,7 @@ use fr_db::core::{
 };
 use std::{
     borrow::Cow,
+    cmp::Ordering,
     fmt::{Display, Formatter},
 };
 use thiserror::Error;
@@ -58,19 +59,6 @@ pub enum LeafNodeData {
     Regular(Hash32),
 }
 
-impl Display for LeafNodeData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Embedded(data) => {
-                write!(f, "Embedded({})", hex::encode(data.as_slice()))
-            }
-            Self::Regular(hash) => {
-                write!(f, "Regular({hash})")
-            }
-        }
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LeafNode {
     pub state_key_bv: BitVec<u8, Msb0>,
@@ -79,7 +67,9 @@ pub struct LeafNode {
 
 impl Display for LeafNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Leaf({})", self.data)
+        let node = MerkleNode::Leaf(self.clone());
+        let hash = &hex::encode(node.hash().unwrap().0)[0..6];
+        write!(f, "Leaf({hash})")
     }
 }
 
@@ -167,7 +157,12 @@ pub struct BranchNode {
 
 impl Display for BranchNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Branch(left={} right={})", self.left_lossy, self.right)
+        let left = &hex::encode(bits_decode_msb(self.left_lossy.clone()).as_slice())[0..6];
+        let right = &hex::encode(bits_decode_msb(self.right.clone()).as_slice())[0..6];
+        let branch = MerkleNode::Branch(self.clone());
+        let branch_hash = branch.hash().unwrap();
+        let hash = &hex::encode(branch_hash.0)[0..6];
+        write!(f, "Branch(hash={hash}, left={left}, right={right})")
     }
 }
 
@@ -309,8 +304,20 @@ impl MerkleNode {
 ///
 /// For leaf nodes, this path may be shorter than the full state key.
 /// This happens since the trie doesn't create intermediate nodes for unique paths.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MerklePath(pub BitVec<u8, Msb0>);
+
+impl PartialOrd for MerklePath {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for MerklePath {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.len().cmp(&other.0.len()).then(self.0.cmp(&other.0))
+    }
+}
 
 // MerklePath lengths and prefixes should be preserved; we construct String keys here
 // for correct serialization of `MerklePath` as CacheDB keys.
