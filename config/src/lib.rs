@@ -1,20 +1,22 @@
 #![allow(dead_code)]
 use fr_db::{ColumnFamilyDescriptor, RocksDBOptions};
 use std::path::PathBuf;
+use tempfile::tempdir;
 
 // --- Default values
 pub const DEFAULT_ROCKSDB_PATH: &str = "./.rocksdb";
 pub const DEFAULT_FUZZER_SOCKET: &str = "/tmp/jam_target.sock";
 
 pub const STATE_CF_NAME: &str = "state_cf";
-pub const MERKLE_CF_NAME: &str = "merkle_cf";
+pub const MERKLE_NODES_CF_NAME: &str = "merkle_nodes_cf";
 pub const MERKLE_LEAF_PATHS_CF_NAME: &str = "merkle_leaf_paths_cf";
 pub const HEADER_CF_NAME: &str = "header_cf";
 pub const XT_CF_NAME: &str = "xt_cf";
 pub const POST_SR_CF_NAME: &str = "post_state_root_cf";
 
 pub const STATE_DB_CACHE_SIZE: usize = 8192;
-pub const MERKLE_DB_CACHE_SIZE: usize = 8192;
+pub const MERKLE_NODES_DB_CACHE_SIZE: usize = 8192;
+pub const MERKLE_LEAF_PATHS_DB_CACHE_SIZE: usize = 1024;
 pub const HEADER_DB_CACHE_SIZE: usize = 1024;
 pub const XT_DB_CACHE_SIZE: usize = 1024;
 pub const POST_SR_DB_CACHE_SIZE: usize = 1024;
@@ -37,7 +39,8 @@ impl ColumnFamilyConfig {
 
 pub struct ColumnFamilyConfigs {
     pub state_db: ColumnFamilyConfig,
-    pub merkle_db: ColumnFamilyConfig,
+    pub merkle_nodes_db: ColumnFamilyConfig,
+    pub merkle_leaf_paths_db: ColumnFamilyConfig,
     pub header_db: ColumnFamilyConfig,
     pub xt_db: ColumnFamilyConfig,
     pub post_state_root_db: ColumnFamilyConfig,
@@ -47,7 +50,14 @@ impl Default for ColumnFamilyConfigs {
     fn default() -> Self {
         Self {
             state_db: ColumnFamilyConfig::new(STATE_CF_NAME, STATE_DB_CACHE_SIZE),
-            merkle_db: ColumnFamilyConfig::new(MERKLE_CF_NAME, MERKLE_DB_CACHE_SIZE),
+            merkle_nodes_db: ColumnFamilyConfig::new(
+                MERKLE_NODES_CF_NAME,
+                MERKLE_NODES_DB_CACHE_SIZE,
+            ),
+            merkle_leaf_paths_db: ColumnFamilyConfig::new(
+                MERKLE_LEAF_PATHS_CF_NAME,
+                MERKLE_LEAF_PATHS_DB_CACHE_SIZE,
+            ),
             header_db: ColumnFamilyConfig::new(HEADER_CF_NAME, HEADER_DB_CACHE_SIZE),
             xt_db: ColumnFamilyConfig::new(XT_CF_NAME, XT_DB_CACHE_SIZE),
             post_state_root_db: ColumnFamilyConfig::new(POST_SR_CF_NAME, POST_SR_DB_CACHE_SIZE),
@@ -89,6 +99,13 @@ impl StorageConfig {
         }
     }
 
+    pub fn from_node_id_with_temp_dir(node_id: &str) -> Self {
+        Self {
+            path: tempdir().unwrap().path().join(node_id),
+            ..Default::default()
+        }
+    }
+
     /// Database-level options
     pub fn rocksdb_opts() -> RocksDBOptions {
         // Default Database-level options
@@ -101,7 +118,7 @@ impl StorageConfig {
     pub fn cf_descriptors() -> Vec<ColumnFamilyDescriptor> {
         vec![
             ColumnFamilyDescriptor::new(STATE_CF_NAME, RocksDBOptions::default()),
-            ColumnFamilyDescriptor::new(MERKLE_CF_NAME, RocksDBOptions::default()),
+            ColumnFamilyDescriptor::new(MERKLE_NODES_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(MERKLE_LEAF_PATHS_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(HEADER_CF_NAME, RocksDBOptions::default()),
             ColumnFamilyDescriptor::new(XT_CF_NAME, RocksDBOptions::default()),

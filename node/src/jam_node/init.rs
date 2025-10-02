@@ -37,7 +37,7 @@ async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
     storage.state_manager().commit_dirty_cache().await?;
 
     // Commit posterior state root of the genesis block
-    let post_state_root = storage.state_manager().merkle_root();
+    let post_state_root = storage.state_manager().merkle_root().await?;
     storage
         .post_state_root_db()
         .set_post_state_root(&genesis_header_hash, post_state_root)
