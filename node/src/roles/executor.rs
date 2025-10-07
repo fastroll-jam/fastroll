@@ -242,12 +242,22 @@ impl BlockExecutor {
         });
         let (acc_stats, acc_output_pairs, account_state_changes) = acc_jh.await??;
 
+        // Services last_accumulate_at STF
+        let accumulated_services: Vec<ServiceId> = acc_stats.keys().cloned().collect();
+        let manager = storage.state_manager();
+        let last_acc_at_jh = spawn_timed("last_acc_at_stf", async move {
+            transition_services_last_accumulate_at(manager, &accumulated_services).await
+        });
+
         // LastAccumulateOutputs STF
         let manager = storage.state_manager();
         let last_acc_output_jh = spawn_timed("last_acc_output_stf", async move {
             transition_last_accumulate_outputs(manager, acc_output_pairs).await
         });
-        let accumulate_root = last_acc_output_jh.await??;
+        let (last_acc_at_jh_res, last_acc_output_res) =
+            try_join!(last_acc_at_jh, last_acc_output_jh)?;
+        last_acc_at_jh_res?;
+        let accumulate_root = last_acc_output_res?;
 
         // AuthPool STF (post-accumulation)
         let manager = storage.state_manager();

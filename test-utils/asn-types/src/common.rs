@@ -19,13 +19,13 @@ use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket,
     workloads::{
-        AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
+        AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext, ReportedWorkPackage,
         SegmentRootLookupTable, WorkDigest, WorkDigests,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Oversize, Panic},
         WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
     },
-    Balance, ByteSequence, EntropyHash, ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId,
-    TicketId, TimeslotIndex, WorkPackageHash, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH,
+    BlockHeaderHash, ByteSequence, EntropyHash, ErasureRoot, Hash32, Octets, SegmentRoot,
+    ServiceId, StateRoot, TicketId, WorkPackageHash, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH,
     MAX_AUTH_POOL_SIZE, VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
@@ -33,12 +33,12 @@ use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
     privileges::{AssignServices, PrivilegedServices},
     AccountMetadata, AccumulateHistory, AccumulateHistoryEntries, AccumulateQueue,
-    AccumulateQueueEntries, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry, CoreAuthPool,
-    CoreAuthPoolEntries, CoreAuthQueue, CoreAuthQueueEntries, CorePendingReportsEntries, CoreStats,
-    CoreStatsEntries, CoreStatsEntry, DisputesState, EpochEntropy, EpochFallbackKeys, EpochTickets,
-    EpochValidatorStats, OnChainStatistics, PendingReport, PendingReports, ServiceStats,
-    ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntries,
-    ValidatorStatsEntry, WorkReportDepsMap,
+    AccumulateQueueEntries, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntries,
+    BlockHistoryEntry, CoreAuthPool, CoreAuthPoolEntries, CoreAuthQueue, CoreAuthQueueEntries,
+    CorePendingReportsEntries, CoreStats, CoreStatsEntries, CoreStatsEntry, DisputesState,
+    EpochEntropy, EpochFallbackKeys, EpochTickets, EpochValidatorStats, OnChainStatistics,
+    PendingReport, PendingReports, ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot,
+    ValidatorStats, ValidatorStatsEntries, ValidatorStatsEntry, WorkReportDepsMap,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -176,28 +176,33 @@ pub type AsnServiceId = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnServiceInfo {
+    pub version: u8,
     pub code_hash: AsnOpaqueHash,
     pub balance: u64,
     pub min_item_gas: AsnGas,
     pub min_memo_gas: AsnGas,
     pub bytes: u64,
+    pub deposit_offset: u64,
     pub items: u32,
+    pub creation_slot: u32,
+    pub last_accumulation_slot: u32,
+    pub parent_service: u32,
 }
 
 impl From<AsnServiceInfo> for AccountMetadata {
     fn from(value: AsnServiceInfo) -> Self {
         Self {
+            version: value.version,
             code_hash: value.code_hash,
             balance: value.balance,
             gas_limit_accumulate: value.min_item_gas,
             gas_limit_on_transfer: value.min_memo_gas,
-            items_footprint: value.items,
             octets_footprint: value.bytes,
-            // FIXME: test vectors should be aligned with GP v0.6.7
-            gratis_storage_offset: Balance::default(),
-            created_at: TimeslotIndex::default(),
-            last_accumulate_at: TimeslotIndex::default(),
-            parent_service_id: ServiceId::default(),
+            gratis_storage_offset: value.deposit_offset,
+            items_footprint: value.items,
+            created_at: value.creation_slot,
+            last_accumulate_at: value.last_accumulation_slot,
+            parent_service_id: value.parent_service,
         }
     }
 }
@@ -205,12 +210,17 @@ impl From<AsnServiceInfo> for AccountMetadata {
 impl From<AccountMetadata> for AsnServiceInfo {
     fn from(value: AccountMetadata) -> Self {
         Self {
+            version: value.version,
             code_hash: value.code_hash,
             balance: value.balance,
             min_item_gas: value.gas_limit_accumulate,
             min_memo_gas: value.gas_limit_on_transfer,
-            items: value.items_footprint,
             bytes: value.octets_footprint,
+            deposit_offset: value.gratis_storage_offset,
+            items: value.items_footprint,
+            creation_slot: value.created_at,
+            last_accumulation_slot: value.last_accumulate_at,
+            parent_service: value.parent_service_id,
         }
     }
 }
@@ -859,71 +869,77 @@ pub struct AsnReported {
 
 pub type Reports = Vec<AsnReported>;
 
-// FIXME: Align `AsnBlockInfo`, `AsnBlocksHistory` to GP v0.6.7
-
 // Recorded disputes sequences and offenders
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnBlockInfo {
     header_hash: AsnOpaqueHash,
-    mmr: AsnMmr,
+    beefy_root: AsnOpaqueHash,
     state_root: AsnOpaqueHash,
     reported: Reports,
 }
 
 impl From<AsnBlockInfo> for BlockHistoryEntry {
-    fn from(_value: AsnBlockInfo) -> Self {
-        // Self {
-        //     header_hash: BlockHeaderHash::from(value.header_hash),
-        //     accumulation_result_mmr_root: value.mmr.into(),
-        //     state_root: StateRoot::from(value.state_root),
-        //     reported_packages: value
-        //         .reported
-        //         .into_iter()
-        //         .map(|reported| ReportedWorkPackage {
-        //             work_package_hash: WorkPackageHash::from(reported.hash),
-        //             segment_root: SegmentRoot::from(reported.exports_root),
-        //         })
-        //         .collect(),
-        // }
-        unimplemented!()
+    fn from(value: AsnBlockInfo) -> Self {
+        Self {
+            header_hash: BlockHeaderHash::from(value.header_hash),
+            accumulation_result_mmr_root: value.beefy_root,
+            state_root: StateRoot::from(value.state_root),
+            reported_packages: value
+                .reported
+                .into_iter()
+                .map(|reported| ReportedWorkPackage {
+                    work_package_hash: WorkPackageHash::from(reported.hash),
+                    segment_root: SegmentRoot::from(reported.exports_root),
+                })
+                .collect(),
+        }
     }
 }
 
 impl From<BlockHistoryEntry> for AsnBlockInfo {
-    fn from(_value: BlockHistoryEntry) -> Self {
-        // Self {
-        //     header_hash: AsnOpaqueHash::from(value.header_hash),
-        //     mmr: value.accumulation_result_mmr_root.into(),
-        //     state_root: AsnOpaqueHash::from(value.state_root),
-        //     reported: value
-        //         .reported_packages
-        //         .into_iter()
-        //         .map(|package| AsnReported {
-        //             hash: AsnOpaqueHash::from(package.work_package_hash),
-        //             exports_root: AsnOpaqueHash::from(package.segment_root),
-        //         })
-        //         .collect(),
-        // }
-        unimplemented!()
+    fn from(value: BlockHistoryEntry) -> Self {
+        Self {
+            header_hash: AsnOpaqueHash::from(value.header_hash),
+            beefy_root: value.accumulation_result_mmr_root,
+            state_root: AsnOpaqueHash::from(value.state_root),
+            reported: value
+                .reported_packages
+                .into_iter()
+                .map(|package| AsnReported {
+                    hash: AsnOpaqueHash::from(package.work_package_hash),
+                    exports_root: AsnOpaqueHash::from(package.segment_root),
+                })
+                .collect(),
+        }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnBlocksHistory(pub Vec<AsnBlockInfo>);
+pub struct AsnRecentBlocks {
+    pub history: Vec<AsnBlockInfo>,
+    pub mmr: AsnMmr,
+}
 
-impl From<AsnBlocksHistory> for BlockHistory {
-    fn from(_value: AsnBlocksHistory) -> Self {
-        // let history_vec: Vec<BlockHistoryEntry> =
-        //     value.0.into_iter().map(BlockHistoryEntry::from).collect();
-        // Self(BlockHistoryEntries::try_from(history_vec).unwrap())
-        unimplemented!()
+impl From<AsnRecentBlocks> for BlockHistory {
+    fn from(value: AsnRecentBlocks) -> Self {
+        let history_vec: Vec<BlockHistoryEntry> = value
+            .history
+            .into_iter()
+            .map(BlockHistoryEntry::from)
+            .collect();
+        Self {
+            history: BlockHistoryEntries::try_from(history_vec).unwrap(),
+            beefy_belt: value.mmr.into(),
+        }
     }
 }
 
-impl From<BlockHistory> for AsnBlocksHistory {
-    fn from(_value: BlockHistory) -> Self {
-        // Self(value.0.into_iter().map(AsnBlockInfo::from).collect())
-        unimplemented!()
+impl From<BlockHistory> for AsnRecentBlocks {
+    fn from(value: BlockHistory) -> Self {
+        Self {
+            history: value.history.into_iter().map(AsnBlockInfo::from).collect(),
+            mmr: value.beefy_belt.into(),
+        }
     }
 }
 
@@ -1820,8 +1836,7 @@ pub struct AsnPrivilegedServices {
     pub bless: AsnServiceId,
     pub assign: Vec<AsnServiceId>,
     pub designate: AsnServiceId,
-    // FIXME: test vectors should be aligned with GP v0.7.1
-    pub registrar: AsnServiceId,
+    pub register: AsnServiceId,
     pub always_acc: Vec<AlwaysAccumulateMapItem>,
 }
 
@@ -1831,7 +1846,7 @@ impl From<AsnPrivilegedServices> for PrivilegedServices {
             manager_service: value.bless,
             assign_services: AssignServices::try_from(value.assign).unwrap(),
             designate_service: value.designate,
-            registrar_service: value.registrar,
+            registrar_service: value.register,
             always_accumulate_services: value
                 .always_acc
                 .into_iter()
@@ -1847,7 +1862,7 @@ impl From<PrivilegedServices> for AsnPrivilegedServices {
             bless: value.manager_service,
             assign: value.assign_services.into(),
             designate: value.designate_service,
-            registrar: value.registrar_service,
+            register: value.registrar_service,
             always_acc: value
                 .always_accumulate_services
                 .into_iter()

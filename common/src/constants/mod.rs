@@ -15,6 +15,9 @@ pub const COMMON_ERA_TIMESTAMP: u64 = 1_735_732_800;
 /// JAM common era UNIX timestamp in millis.
 pub const COMMON_ERA_TIMESTAMP_MILLIS: u64 = COMMON_ERA_TIMESTAMP * 1_000;
 
+/// Service Account Version.
+pub const SERVICE_ACCOUNT_VERSION: u8 = 0;
+
 /// Size of Hash type in octets.
 pub const HASH_SIZE: usize = 32;
 

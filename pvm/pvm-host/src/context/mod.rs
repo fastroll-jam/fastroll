@@ -8,7 +8,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     Balance, CodeHash, CoreIndex, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex,
-    UnsignedGas, MIN_PUBLIC_SERVICE_ID,
+    UnsignedGas, MIN_PUBLIC_SERVICE_ID, SERVICE_ACCOUNT_VERSION,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::memory::Memory;
@@ -428,6 +428,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         let code_length = new_account_fields.code_lookups_key.clone().1;
         let new_account = AccountSandbox {
             metadata: SandboxEntryVersioned::new_added(AccountMetadata {
+                version: SERVICE_ACCOUNT_VERSION,
                 code_hash: new_account_fields.code_hash,
                 balance: new_account_fields.balance,
                 gas_limit_accumulate: new_account_fields.gas_limit_accumulate,
