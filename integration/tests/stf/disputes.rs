@@ -220,10 +220,9 @@ generate_typed_tests! {
     // Auditor marked as offender, but vote matches the verdict.
     progress_with_faults_7: "progress_with_faults-7.json",
 
-    // FIXME: temporarily skipped due to Codec definition mismatches (GP v0.7.0)
     // Success
     // Invalidation of availability assignments.
-    // progress_invalidates_avail_assignments_1: "progress_invalidates_avail_assignments-1.json",
+    progress_invalidates_avail_assignments_1: "progress_invalidates_avail_assignments-1.json",
 
     // Fail
     // Bad signature within the verdict judgements.
