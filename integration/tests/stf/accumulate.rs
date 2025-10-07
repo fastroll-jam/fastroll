@@ -72,23 +72,12 @@ impl StateTransitionTest for AccumulateTest {
         // Load AuthQueue (required for partial state initialization)
         state_manager.add_auth_queue(AuthQueue::default()).await?;
 
-        // Add service info for privileged services
-        let mut privileged_service_ids = HashSet::new();
-        privileged_service_ids.insert(pre_privileged_services.manager_service);
-        for assign_service in &pre_privileged_services.assign_services {
-            privileged_service_ids.insert(*assign_service);
-        }
-        privileged_service_ids.insert(pre_privileged_services.designate_service);
-        for privileged_service_id in privileged_service_ids {
-            state_manager
-                .add_account_metadata(privileged_service_id, AccountMetadata::default())
-                .await?;
-        }
-        state_manager
-            .add_privileged_services(pre_privileged_services)
-            .await?;
-
         // Add regular accounts
+        let regular_account_ids = test_pre_state
+            .accounts
+            .iter()
+            .map(|a| a.id)
+            .collect::<HashSet<_>>();
         for account in &test_pre_state.accounts {
             // Add service info
             state_manager
@@ -114,6 +103,24 @@ impl StateTransitionTest for AccumulateTest {
                     .await?;
             }
         }
+
+        // Add service info for privileged services
+        let mut privileged_service_ids = HashSet::new();
+        privileged_service_ids.insert(pre_privileged_services.manager_service);
+        for assign_service in &pre_privileged_services.assign_services {
+            privileged_service_ids.insert(*assign_service);
+        }
+        privileged_service_ids.insert(pre_privileged_services.designate_service);
+        for privileged_service_id in privileged_service_ids {
+            if !regular_account_ids.contains(&privileged_service_id) {
+                state_manager
+                    .add_account_metadata(privileged_service_id, AccountMetadata::default())
+                    .await?;
+            }
+        }
+        state_manager
+            .add_privileged_services(pre_privileged_services)
+            .await?;
 
         Ok(())
     }
@@ -397,4 +404,13 @@ generate_typed_tests! {
     ready_queue_editing_3: "ready_queue_editing-3.json",
 
     same_code_different_services_1: "same_code_different_services-1.json",
+
+    transfer_for_ejected_service_1: "transfer_for_ejected_service-1.json",
+
+    work_for_ejected_service_1: "work_for_ejected_service-1.json",
+
+    work_for_ejected_service_2: "work_for_ejected_service-2.json",
+
+    work_for_ejected_service_3: "work_for_ejected_service-3.json",
+
 }

@@ -75,6 +75,7 @@ pub fn map_error_to_custom_code(e: TransitionError) -> ReportsErrorCode {
         TransitionError::XtError(XtError::WorkReportOutputSizeLimitExceeded) => {
             ReportsErrorCode::work_report_too_big
         }
+        TransitionError::XtError(XtError::BannedValidator(_)) => ReportsErrorCode::banned_validator,
         _ => ReportsErrorCode::reserved,
     }
 }

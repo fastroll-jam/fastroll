@@ -351,4 +351,8 @@ generate_typed_tests! {
     // Fail
     // Work report output size is over the limit.
     too_big_work_report_output_1: "too_big_work_report_output-1.json",
+
+    banned_validator_guarantee_1: "banned_validator_guarantee-1.json",
+
+    different_core_same_guarantors_1: "different_core_same_guarantors-1.json",
 }
