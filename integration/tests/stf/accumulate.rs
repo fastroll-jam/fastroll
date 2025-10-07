@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use fr_asn_types::{
     accumulate::*,
     common::{AsnOpaqueHash, AsnServiceInfo},
-    preimages::{AsnPreimagesMapEntry, PreimagesMapEntry},
+    preimages::{AsnLookupMetaMapEntry, AsnPreimagesMapEntry, PreimagesMapEntry},
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::{workloads::WorkReport, Hash32, Octets, ServiceId};
@@ -106,7 +106,7 @@ impl StateTransitionTest for AccumulateTest {
                     .await?
             }
             // Add preimages entries
-            for preimage in &account.data.preimages {
+            for preimage in &account.data.preimages_blob {
                 let key = preimage.hash.clone();
                 let val = PreimagesMapEntry::from(preimage.clone()).data;
                 state_manager
@@ -232,7 +232,7 @@ impl StateTransitionTest for AccumulateTest {
                 })
             }))
             .await;
-            let curr_preimages = join_all(s.data.preimages.iter().map(|e| async {
+            let curr_preimages = join_all(s.data.preimages_blob.iter().map(|e| async {
                 // Get the key from the pre-state
                 let key = e.hash.clone();
                 // Get the posterior preimage value
@@ -253,7 +253,7 @@ impl StateTransitionTest for AccumulateTest {
                 data: AsnAccount {
                     service: curr_metadata,
                     storage: curr_storage_entries,
-                    preimages: curr_preimages,
+                    preimages_blob: curr_preimages,
                 },
             }
         }))
@@ -289,12 +289,15 @@ impl StateTransitionTest for AccumulateTest {
                 assert_eq!(actual_storage.key, expected_storage.key);
                 assert_eq!(actual_storage.value, expected_storage.value);
             }
-            assert_eq!(actual.data.preimages.len(), expected.data.preimages.len());
+            assert_eq!(
+                actual.data.preimages_blob.len(),
+                expected.data.preimages_blob.len()
+            );
             for (actual_preimages, expected_preimages) in actual
                 .data
-                .preimages
+                .preimages_blob
                 .into_iter()
-                .zip(expected.data.preimages)
+                .zip(expected.data.preimages_blob)
             {
                 assert_eq!(actual_preimages.hash, expected_preimages.hash);
                 assert_eq!(actual_preimages.blob, expected_preimages.blob);
