@@ -107,6 +107,7 @@ pub async fn accumulate_outer(
         )
         .await?;
 
+        // TODO: Resolve the latest privileged services partial state conflicts, if exists (manager vs. privileges themselves)
         deferred_transfers = new_deferred_transfers;
         report_idx += processable_reports_prediction;
         let gas_used = service_gas_pairs.iter().map(|pair| pair.gas).sum();
@@ -139,7 +140,7 @@ async fn add_partial_state_change(
     accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState<StateManager>,
     mut accumulate_result_partial_state: AccumulatePartialState<StateManager>,
-) {
+) -> Result<(), PVMInvokeError> {
     if let (None, Some(new_staging_set)) = (
         &partial_state_union.new_staging_set,
         accumulate_result_partial_state.new_staging_set,
@@ -150,15 +151,18 @@ async fn add_partial_state_change(
     if partial_state_union.auth_queue != accumulate_result_partial_state.auth_queue {
         partial_state_union.auth_queue = accumulate_result_partial_state.auth_queue;
     }
+
     if partial_state_union.manager_service != accumulate_result_partial_state.manager_service {
         partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
     }
-    if partial_state_union.assign_services != accumulate_result_partial_state.assign_services {
-        partial_state_union.assign_services = accumulate_result_partial_state.assign_services
-    }
-    if partial_state_union.designate_service != accumulate_result_partial_state.designate_service {
-        partial_state_union.designate_service = accumulate_result_partial_state.designate_service;
-    }
+
+    partial_state_union.assign_services.last_confirmed =
+        accumulate_result_partial_state.assign_services.latest()?;
+    partial_state_union.designate_service.last_confirmed =
+        accumulate_result_partial_state.designate_service.latest();
+    partial_state_union.registrar_service.last_confirmed =
+        accumulate_result_partial_state.registrar_service.latest();
+
     if partial_state_union.always_accumulate_services
         != accumulate_result_partial_state.always_accumulate_services
     {
@@ -189,6 +193,8 @@ async fn add_partial_state_change(
                 .insert(service_id, sandbox.clone());
         }
     }
+
+    Ok(())
 }
 
 /// Integrates all provided preimages by a single-service accumulation into the partial state accounts sandbox.
@@ -254,12 +260,18 @@ async fn accumulate_parallel(
             .collect::<Vec<_>>(),
     );
 
-    let privileged_services =
-        BTreeSet::from_iter(partial_state_union.assign_services.iter().cloned().chain([
-            partial_state_union.registrar_service,
-            partial_state_union.designate_service,
-            partial_state_union.manager_service,
-        ]));
+    let privileged_services = BTreeSet::from_iter(
+        partial_state_union
+            .assign_services
+            .last_confirmed
+            .iter()
+            .cloned()
+            .chain([
+                partial_state_union.registrar_service.last_confirmed,
+                partial_state_union.designate_service.last_confirmed,
+                partial_state_union.manager_service,
+            ]),
+    );
     service_ids.extend(privileged_services);
 
     let services_count = service_ids.len();
@@ -313,7 +325,7 @@ async fn accumulate_parallel(
             partial_state_union,
             accumulate_result.partial_state,
         )
-        .await;
+        .await?;
         add_provided_preimages(
             state_manager.clone(),
             partial_state_union,

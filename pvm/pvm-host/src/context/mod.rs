@@ -8,10 +8,9 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     Balance, CodeHash, CoreIndex, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex,
-    UnsignedGas, CORE_COUNT, MIN_PUBLIC_SERVICE_ID,
+    UnsignedGas, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_crypto::{hash, Blake2b256};
-use fr_limited_vec::FixedVec;
 use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
     common::ExportDataSegment,
@@ -23,7 +22,8 @@ use fr_pvm_types::{
 use fr_state::{
     provider::HostStateProvider,
     types::{
-        AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, CoreAuthQueue, StagingSet,
+        AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AssignServices,
+        CoreAuthQueue, StagingSet,
     },
 };
 use std::{
@@ -291,21 +291,46 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
 
     pub fn assign_new_privileged_services(
         &mut self,
+        accumulate_host: ServiceId,
         manager_service: ServiceId,
-        assign_services: FixedVec<ServiceId, CORE_COUNT>,
+        assign_services: AssignServices,
         designate_service: ServiceId,
         registrar_service: ServiceId,
         always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
     ) {
-        self.partial_state.manager_service = manager_service;
-        self.partial_state.assign_services = assign_services;
-        self.partial_state.designate_service = designate_service;
-        self.partial_state.registrar_service = registrar_service;
-        self.partial_state.always_accumulate_services = always_accumulate_services;
+        if accumulate_host == self.partial_state.manager_service {
+            self.partial_state.manager_service = manager_service;
+            self.partial_state.assign_services.change_by_manager = Some(assign_services);
+            self.partial_state.designate_service.change_by_manager = Some(designate_service);
+            self.partial_state.registrar_service.change_by_manager = Some(registrar_service);
+            self.partial_state.always_accumulate_services = always_accumulate_services;
+        } else {
+            let prev_assign_services_cloned =
+                self.partial_state.assign_services.last_confirmed.clone();
+            prev_assign_services_cloned
+                .iter()
+                .enumerate()
+                .zip(assign_services.iter().enumerate())
+                .for_each(
+                    |((core_index, prev_assign_service_id), (_, new_assign_service_id))| {
+                        if accumulate_host == *prev_assign_service_id {
+                            self.partial_state.assign_services.change_by_self[core_index] =
+                                Some(*new_assign_service_id);
+                        }
+                    },
+                );
+
+            if accumulate_host == self.partial_state.designate_service.last_confirmed {
+                self.partial_state.designate_service.change_by_self = Some(designate_service);
+            }
+            if accumulate_host == self.partial_state.registrar_service.last_confirmed {
+                self.partial_state.registrar_service.change_by_self = Some(registrar_service);
+            }
+        }
     }
 
     pub fn assign_new_core_assign_service(&mut self, core_index: usize, assign_service: ServiceId) {
-        self.partial_state.assign_services[core_index] = assign_service;
+        self.partial_state.assign_services.change_by_self[core_index] = Some(assign_service);
     }
 
     pub fn assign_core_auth_queue(

@@ -34,9 +34,9 @@ pub(crate) async fn run_privileged_transitions(
 
     // Transition privileged services
     let manager_service_sandboxed = partial_state_union.manager_service;
-    let assign_services_sandboxed = partial_state_union.assign_services;
-    let designate_service_sandboxed = partial_state_union.designate_service;
-    let registrar_service_sandboxed = partial_state_union.registrar_service;
+    let assign_services_sandboxed = partial_state_union.assign_services.last_confirmed;
+    let designate_service_sandboxed = partial_state_union.designate_service.last_confirmed;
+    let registrar_service_sandboxed = partial_state_union.registrar_service.last_confirmed;
     let always_accumulate_services_sandboxed = partial_state_union.always_accumulate_services;
     state_manager
         .with_mut_privileged_services(

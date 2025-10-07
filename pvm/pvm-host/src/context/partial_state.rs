@@ -1,5 +1,6 @@
 use crate::error::PartialStateError;
-use fr_common::{LookupsKey, PreimagesKey, ServiceId, StorageKey};
+use fr_common::{CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey, CORE_COUNT};
+use fr_limited_vec::FixedVec;
 use fr_state::{
     error::StateManagerError,
     provider::HostStateProvider,
@@ -976,6 +977,117 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
     }
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AssignServicesPartialState {
+    /// The latest state copied from the beginning of the current parallel accumulation round.
+    pub last_confirmed: AssignServices,
+    /// The changed assigner service ids by the accumulation of the manager service within the
+    /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
+    pub(crate) change_by_manager: Option<AssignServices>,
+    /// The changed assigner service ids by the assigner services themselves within the current
+    /// parallel accumulation round.
+    pub(crate) change_by_self: FixedVec<Option<ServiceId>, CORE_COUNT>,
+}
+
+impl AssignServicesPartialState {
+    pub fn new(assign_services: AssignServices) -> Self {
+        Self {
+            last_confirmed: assign_services,
+            change_by_manager: None,
+            change_by_self: FixedVec::default(),
+        }
+    }
+
+    pub fn latest_by_core_index(
+        &self,
+        core_index: CoreIndex,
+    ) -> Result<ServiceId, PartialStateError> {
+        if let Some(change_by_manager) = &self.change_by_manager {
+            return Ok(*change_by_manager
+                .get(core_index as usize)
+                .ok_or(PartialStateError::InvalidAssignerCoreIndex(core_index))?);
+        }
+
+        match self
+            .change_by_self
+            .get(core_index as usize)
+            .ok_or(PartialStateError::InvalidAssignerCoreIndex(core_index))?
+        {
+            Some(change) => Ok(*change),
+            None => Ok(*self
+                .last_confirmed
+                .get(core_index as usize)
+                .ok_or(PartialStateError::InvalidAssignerCoreIndex(core_index))?),
+        }
+    }
+
+    pub fn latest(&self) -> Result<AssignServices, PartialStateError> {
+        (0..CORE_COUNT)
+            .map(|index| self.latest_by_core_index(index as CoreIndex))
+            .collect()
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct DesignateServicePartialState {
+    /// The latest state copied from the beginning of the current parallel accumulation round.
+    pub last_confirmed: ServiceId,
+    /// The changed designate service id by the accumulation of the manager service within the
+    /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
+    pub(crate) change_by_manager: Option<ServiceId>,
+    /// The changed designate service id by the designate service itself within the current
+    /// parallel accumulation round.
+    pub(crate) change_by_self: Option<ServiceId>,
+}
+
+impl DesignateServicePartialState {
+    pub fn new(designate_service: ServiceId) -> Self {
+        Self {
+            last_confirmed: designate_service,
+            change_by_self: None,
+            change_by_manager: None,
+        }
+    }
+
+    pub fn latest(&self) -> ServiceId {
+        match (self.change_by_manager, self.change_by_self) {
+            (Some(change), _) => change,
+            (None, Some(change)) => change,
+            (None, None) => self.last_confirmed,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct RegistrarServicePartialState {
+    /// The latest state copied from the beginning of the current parallel accumulation round.
+    pub last_confirmed: ServiceId,
+    /// The changed registrar service id by the accumulation of the manager service within the
+    /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
+    pub(crate) change_by_manager: Option<ServiceId>,
+    /// The changed registrar service id by the registrar service itself within the current
+    /// parallel accumulation round.
+    pub(crate) change_by_self: Option<ServiceId>,
+}
+
+impl RegistrarServicePartialState {
+    pub fn new(registrar_service: ServiceId) -> Self {
+        Self {
+            last_confirmed: registrar_service,
+            change_by_self: None,
+            change_by_manager: None,
+        }
+    }
+
+    pub fn latest(&self) -> ServiceId {
+        match (self.change_by_manager, self.change_by_self) {
+            (Some(change), _) => change,
+            (None, Some(change)) => change,
+            (None, None) => self.last_confirmed,
+        }
+    }
+}
+
 /// Represents a mutable copy of a subset of the global state used during the accumulation process.
 ///
 /// This provides a sandboxed environment for performing state mutations safely, yielding the final
@@ -990,11 +1102,11 @@ pub struct AccumulatePartialState<S: HostStateProvider> {
     /// `m`: Sandboxed copy of privileged manager service id
     pub manager_service: ServiceId,
     /// **`a`**: Sandboxed copy of privileged assign service ids
-    pub assign_services: AssignServices,
+    pub assign_services: AssignServicesPartialState,
     /// `v`: Sandboxed copy of privileged designate service id
-    pub designate_service: ServiceId,
+    pub designate_service: DesignateServicePartialState,
     /// `r`: Sandboxed copy of privileged registrar service id
-    pub registrar_service: ServiceId,
+    pub registrar_service: RegistrarServicePartialState,
     /// **`z`**: Sandboxed copy of privileged always-accumulate services
     pub always_accumulate_services: AlwaysAccumulateServices,
 }
@@ -1007,8 +1119,8 @@ impl<S: HostStateProvider> Clone for AccumulatePartialState<S> {
             auth_queue: self.auth_queue.clone(),
             manager_service: self.manager_service,
             assign_services: self.assign_services.clone(),
-            designate_service: self.designate_service,
-            registrar_service: self.registrar_service,
+            designate_service: self.designate_service.clone(),
+            registrar_service: self.registrar_service.clone(),
             always_accumulate_services: self.always_accumulate_services.clone(),
         }
     }
@@ -1021,9 +1133,9 @@ impl<S: HostStateProvider> Default for AccumulatePartialState<S> {
             new_staging_set: None,
             auth_queue: AuthQueue::default(),
             manager_service: ServiceId::default(),
-            assign_services: AssignServices::default(),
-            designate_service: ServiceId::default(),
-            registrar_service: ServiceId::default(),
+            assign_services: AssignServicesPartialState::default(),
+            designate_service: DesignateServicePartialState::default(),
+            registrar_service: RegistrarServicePartialState::default(),
             always_accumulate_services: AlwaysAccumulateServices::default(),
         }
     }
@@ -1045,9 +1157,9 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             new_staging_set: None,
             auth_queue,
             manager_service,
-            assign_services,
-            designate_service,
-            registrar_service,
+            assign_services: AssignServicesPartialState::new(assign_services),
+            designate_service: DesignateServicePartialState::new(designate_service),
+            registrar_service: RegistrarServicePartialState::new(registrar_service),
             always_accumulate_services,
         })
     }
@@ -1078,9 +1190,9 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             new_staging_set: None,
             auth_queue,
             manager_service,
-            assign_services,
-            designate_service,
-            registrar_service,
+            assign_services: AssignServicesPartialState::new(assign_services),
+            designate_service: DesignateServicePartialState::new(designate_service),
+            registrar_service: RegistrarServicePartialState::new(registrar_service),
             always_accumulate_services,
         })
     }

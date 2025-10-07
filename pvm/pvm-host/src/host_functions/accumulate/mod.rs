@@ -118,6 +118,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         }
 
         x.assign_new_privileged_services(
+            x.accumulate_host,
             manager,
             AssignServices::try_from(assign_services.clone())?,
             designate,
@@ -178,7 +179,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Privilege (Err: HUH)
 
         // Only the privileged assign service of the core is allowed to invoke this host call
-        if x.accumulate_host != x.partial_state.assign_services[core_index] {
+        if x.accumulate_host != x.partial_state.assign_services.last_confirmed[core_index] {
             continue_huh!()
         }
 
@@ -231,8 +232,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // --- Check Privilege (Err: HUH)
 
-        // Only the privileged designate service of the core is allowed to invoke this host call
-        if x.accumulate_host != x.partial_state.designate_service {
+        // Only the privileged designate service is allowed to invoke this host call
+        if x.accumulate_host != x.partial_state.designate_service.last_confirmed {
             continue_huh!()
         }
 
@@ -329,7 +330,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // Not used if this value is larger than `MIN_PUBLIC_SERVICE_ID`
         let new_small_service_id = vm.read_reg_as_service_id(12).unwrap_or(ServiceId::MAX);
         let has_small_service_id = new_small_service_id < MIN_PUBLIC_SERVICE_ID
-            && x.accumulate_host == x.partial_state.registrar_service;
+            && x.accumulate_host == x.partial_state.registrar_service.last_confirmed;
         let new_small_service_id_already_taken = x
             .partial_state
             .accounts_sandbox

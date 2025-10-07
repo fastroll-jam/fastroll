@@ -191,6 +191,10 @@ where
         self.inner.is_empty()
     }
 
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.inner.get(index)
+    }
+
     pub fn as_slice(&self) -> &[T] {
         self.inner.as_slice()
     }
@@ -242,6 +246,17 @@ where
 {
     fn as_mut(&mut self) -> &mut [T] {
         self.inner.as_mut()
+    }
+}
+
+impl<T, const SIZE: usize> FromIterator<T> for FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self {
+            inner: iter.into_iter().collect(),
+        }
     }
 }
 
