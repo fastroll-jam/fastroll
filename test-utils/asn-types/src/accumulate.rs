@@ -60,8 +60,7 @@ pub struct AsnAccount {
     pub service: AsnServiceInfo,
     pub storage: Vec<AsnStorageMapEntry>,
     pub preimages_blob: Vec<AsnPreimagesMapEntry>,
-    // TODO: Test lookup entries (we need information of preimage lengths to recover `LookupsKey`)
-    // pub preimages_status: Vec<AsnPreimageStatus>,
+    pub preimages_status: Vec<AsnPreimageStatus>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

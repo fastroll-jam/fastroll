@@ -4,17 +4,19 @@ use async_trait::async_trait;
 use fr_asn_types::{
     accumulate::*,
     common::{AsnOpaqueHash, AsnServiceInfo},
-    preimages::{AsnLookupMetaMapEntry, AsnPreimagesMapEntry, PreimagesMapEntry},
+    preimages::{
+        AsnLookupMetaMapEntry, AsnPreimagesMapEntry, LookupMetaMapEntry, PreimagesMapEntry,
+    },
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::{workloads::WorkReport, Hash32, Octets, ServiceId};
+use fr_common::{workloads::WorkReport, Hash32, LookupsKey, Octets, ServiceId};
 use fr_pvm_invocation::accumulate::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{
-        privileges::PrivilegedServices, AccountMetadata, AccumulateHistory, AccumulateQueue,
-        AuthQueue, EpochEntropy, Timeslot,
+        privileges::PrivilegedServices, AccountLookupsEntry, AccountLookupsEntryTimeslots,
+        AccountMetadata, AccumulateHistory, AccumulateQueue, AuthQueue, EpochEntropy, Timeslot,
     },
 };
 use fr_test_utils::{
@@ -30,7 +32,10 @@ use fr_transition::{
     },
 };
 use futures::future::join_all;
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 #[allow(dead_code)]
 struct AccumulateTest;
@@ -94,12 +99,35 @@ impl StateTransitionTest for AccumulateTest {
                     .add_account_storage_entry(account.id, &key, val)
                     .await?
             }
+            let mut preimage_size_map = HashMap::new(); // Required to construct `LookupsKey`
+
             // Add preimages entries
             for preimage in &account.data.preimages_blob {
                 let key = preimage.hash.clone();
                 let val = PreimagesMapEntry::from(preimage.clone()).data;
+                preimage_size_map.insert(key.clone(), preimage.blob.len());
                 state_manager
                     .add_account_preimages_entry(account.id, &key, val)
+                    .await?;
+            }
+            // Add lookups entries
+            for lookup in &account.data.preimages_status {
+                let size = preimage_size_map
+                    .get(&lookup.hash)
+                    .expect("Preimage blob not provided");
+                let key: LookupsKey = (lookup.hash.clone(), *size as u32);
+                let val = AccountLookupsEntry {
+                    value: AccountLookupsEntryTimeslots::try_from(
+                        lookup
+                            .status
+                            .iter()
+                            .map(|slot| Timeslot::new(*slot))
+                            .collect::<Vec<_>>(),
+                    )
+                    .expect("Failed to convert between timeslot vec types"),
+                };
+                state_manager
+                    .add_account_lookups_entry(account.id, key, val)
                     .await?;
             }
         }
@@ -225,7 +253,7 @@ impl StateTransitionTest for AccumulateTest {
             );
 
             let curr_storage_entries = join_all(s.data.storage.iter().map(|e| async {
-                // Get the key from the pre-state
+                // Get the key from the post-state
                 let key = Octets::from_vec(e.key.0.clone());
                 // Get the posterior storage value
                 let storage_entry = state_manager
@@ -240,7 +268,7 @@ impl StateTransitionTest for AccumulateTest {
             }))
             .await;
             let curr_preimages = join_all(s.data.preimages_blob.iter().map(|e| async {
-                // Get the key from the pre-state
+                // Get the key from the post-state
                 let key = e.hash.clone();
                 // Get the posterior preimage value
                 let preimage = state_manager
@@ -254,6 +282,25 @@ impl StateTransitionTest for AccumulateTest {
                 })
             }))
             .await;
+            let curr_lookups = join_all(s.data.preimages_blob.iter().map(|e| async {
+                // Get the key from the post-state
+                let key: LookupsKey = (e.hash.clone(), e.blob.len() as u32);
+                // Get the posterior lookups value
+                let lookups = state_manager
+                    .get_account_lookups_entry(s.id, &key)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                AsnPreimageStatus {
+                    hash: key.0,
+                    status: lookups
+                        .value
+                        .into_iter()
+                        .map(|timeslot| timeslot.slot())
+                        .collect(),
+                }
+            }))
+            .await;
 
             AsnAccountsMapEntry {
                 id: s.id,
@@ -261,6 +308,7 @@ impl StateTransitionTest for AccumulateTest {
                     service: curr_metadata,
                     storage: curr_storage_entries,
                     preimages_blob: curr_preimages,
+                    preimages_status: curr_lookups,
                 },
             }
         }))
