@@ -58,9 +58,10 @@ mod bless_tests {
 
     impl Default for BlessTestFixture {
         fn default() -> Self {
-            let prev_assign_services =
-                AssignServices::try_from((10..10 + CORE_COUNT as ServiceId).collect::<Vec<_>>())
-                    .unwrap();
+            let prev_assign_services = AssignServices::try_from(
+                (1000..1000 + CORE_COUNT as ServiceId).collect::<Vec<_>>(),
+            )
+            .unwrap();
             let prev_always_accumulate_services = AlwaysAccumulateServices::default();
 
             let assign_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
@@ -308,9 +309,11 @@ mod bless_tests {
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager); // Should remain unchanged
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        let mut assign_services_vec = vec![Some(fixture.assign_services[0])];
+        assign_services_vec.resize(CORE_COUNT, None);
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::try_from(vec![Some(fixture.assign_services[0]), None]).unwrap()
+            FixedVec::try_from(assign_services_vec).unwrap()
         );
         assert!(x
             .partial_state

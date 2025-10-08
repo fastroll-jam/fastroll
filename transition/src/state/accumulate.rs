@@ -25,29 +25,31 @@ pub async fn transition_accumulate_queue(
 
     // Represents the current slot phase `m`.
     let slot_phase = (curr_timeslot.slot() as usize % EPOCH_LENGTH) as isize;
+    let skipped_slots_capped =
+        ((curr_timeslot.slot() - prior_timeslot.slot()) as usize).min(EPOCH_LENGTH);
+    let curr_slot_entry_updated = edit_queue(queued_reports, &last_accumulate_set_vec);
 
     state_manager
         .with_mut_accumulate_queue(StateMut::Update, |queue| -> Result<(), StateManagerError> {
-            // Update accumulate queue for the current timeslot (i = 0).
-            let curr_slot_entry = queue.get_circular_mut(slot_phase);
-            let curr_slot_entry_updated = edit_queue(queued_reports, &last_accumulate_set_vec);
-            curr_slot_entry.drain(..);
-            curr_slot_entry.extend(curr_slot_entry_updated);
-
             // Update accumulate queue for the skipped timeslots (1 <= i < (τ' - τ)).
-            let skipped_slots = (curr_timeslot.slot() - prior_timeslot.slot()) as usize;
-            for i in 1..skipped_slots {
-                let skipped_slot_entry = queue.get_circular_mut(slot_phase - i as isize);
-                skipped_slot_entry.drain(..);
+            for i in 1..skipped_slots_capped {
+                queue.get_circular_mut(slot_phase - i as isize).clear();
             }
 
-            // Update ready accumulate for the older timeslots, within an epoch range (i >= (τ' - τ)).
-            for i in skipped_slots..EPOCH_LENGTH {
-                let old_entry = queue.get_circular_mut(slot_phase - i as isize);
-                let old_entry_updated = edit_queue(old_entry.as_ref(), &last_accumulate_set_vec);
-                old_entry.drain(..);
-                old_entry.extend(old_entry_updated);
+            // Update accumulate queue for the older timeslots, within an epoch range (i >= (τ' - τ)).
+            for i in skipped_slots_capped..EPOCH_LENGTH {
+                let idx = slot_phase - i as isize;
+                let old_entry_updated =
+                    edit_queue(queue.get_circular(idx), &last_accumulate_set_vec);
+                let old_entry_mut = queue.get_circular_mut(idx);
+                old_entry_mut.clear();
+                old_entry_mut.extend(old_entry_updated);
             }
+
+            // Update accumulate queue for the current timeslot (i = 0).
+            let curr_slot_entry_mut = queue.get_circular_mut(slot_phase);
+            curr_slot_entry_mut.clear();
+            curr_slot_entry_mut.extend(curr_slot_entry_updated);
             Ok(())
         })
         .await?;

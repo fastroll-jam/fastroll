@@ -3,8 +3,7 @@ use fr_asn_types::common::{AsnBlock, AsnHeader, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 use fr_common::{
-    utils::tracing::setup_timed_tracing_with_flamegraph, ByteArray, ByteSequence, StateKey,
-    StateRoot,
+    utils::tracing::setup_timed_tracing, ByteArray, ByteSequence, StateKey, StateRoot,
 };
 use fr_config::StorageConfig;
 use fr_node::roles::importer::BlockImporter;
@@ -237,7 +236,7 @@ impl BlockImportHarness {
 
 pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
-    setup_timed_tracing_with_flamegraph(file_path);
+    setup_timed_tracing();
 
     let (storage, test_case) = {
         let span = info_span!("init_test");
