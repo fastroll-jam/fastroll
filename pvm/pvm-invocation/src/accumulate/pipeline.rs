@@ -307,37 +307,39 @@ async fn accumulate_parallel(
     }
 
     for handle in handles {
-        let accumulate_result = handle
+        if let Some(accumulate_result) = handle
             .await
-            .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??;
-        // Note: Accumulations of privileged services are not metered (accumulate outputs / gas usages)
-        if metered_service_ids.contains(&accumulate_result.accumulate_host) {
-            service_gas_pairs.push(AccumulationGasPair {
-                service: accumulate_result.accumulate_host,
-                gas: accumulate_result.gas_used,
-            });
-            if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
-                service_output_pairs.insert(AccumulationOutputPair {
+            .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??
+        {
+            // Note: Accumulations of privileged services are not metered (accumulate outputs / gas usages)
+            if metered_service_ids.contains(&accumulate_result.accumulate_host) {
+                service_gas_pairs.push(AccumulationGasPair {
                     service: accumulate_result.accumulate_host,
-                    output_hash,
+                    gas: accumulate_result.gas_used,
                 });
+                if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
+                    service_output_pairs.insert(AccumulationOutputPair {
+                        service: accumulate_result.accumulate_host,
+                        output_hash,
+                    });
+                }
             }
+            new_deferred_transfers.extend(accumulate_result.deferred_transfers);
+            add_partial_state_change(
+                state_manager.clone(),
+                accumulate_result.accumulate_host,
+                partial_state_union,
+                accumulate_result.partial_state,
+            )
+            .await?;
+            add_provided_preimages(
+                state_manager.clone(),
+                partial_state_union,
+                accumulate_result.provided_preimages,
+                curr_timeslot_index,
+            )
+            .await;
         }
-        new_deferred_transfers.extend(accumulate_result.deferred_transfers);
-        add_partial_state_change(
-            state_manager.clone(),
-            accumulate_result.accumulate_host,
-            partial_state_union,
-            accumulate_result.partial_state,
-        )
-        .await?;
-        add_provided_preimages(
-            state_manager.clone(),
-            partial_state_union,
-            accumulate_result.provided_preimages,
-            curr_timeslot_index,
-        )
-        .await;
     }
 
     let service_output_pairs = AccumulationOutputPairs(service_output_pairs);
@@ -394,7 +396,7 @@ async fn accumulate_single_service(
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
     curr_timeslot_index: TimeslotIndex,
-) -> Result<AccumulateResult<StateManager>, PVMInvokeError> {
+) -> Result<Option<AccumulateResult<StateManager>>, PVMInvokeError> {
     let mut gas_limit = always_accumulate_services
         .get(&service_id)
         .cloned()

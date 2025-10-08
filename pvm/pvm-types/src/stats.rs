@@ -57,11 +57,12 @@ impl AccumulateStats {
                     gas_used: service_gas_counts
                         .get(&service_id)
                         .cloned()
-                        .expect("Should exist"),
+                        .unwrap_or_default(), // There can be services with digests but with no gas usage. (e.g., early exit on absence of service code)
                     digests_count: service_digests_counts
                         .get(&service_id)
                         .cloned()
-                        .expect("Should exist") as u32,
+                        .expect("Digest stats should exist")
+                        as u32,
                 },
             );
         }

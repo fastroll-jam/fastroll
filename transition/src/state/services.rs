@@ -346,19 +346,22 @@ pub async fn transition_services_last_accumulate_at(
     // Mark the last accumulate timeslots of all accumulated services in the blocks.
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
     for service_id in accumulated_services {
-        // Directly mutate account metadata
-        // Note: not considering new accounts having accumulated items within the same block
-        // of the creation. `StateMut` variant is always `Update` here.
-        state_manager
-            .with_mut_account_metadata(
-                StateMut::Update,
-                *service_id,
-                |metadata| -> Result<(), StateManagerError> {
-                    metadata.last_accumulate_at = curr_timeslot_index;
-                    Ok(())
-                },
-            )
-            .await?
+        // Check if the accumulate host exists
+        if state_manager.account_exists(*service_id).await? {
+            // Directly mutate account metadata
+            // Note: not considering new accounts having accumulated items within the same block
+            // of the creation. `StateMut` variant is always `Update` here.
+            state_manager
+                .with_mut_account_metadata(
+                    StateMut::Update,
+                    *service_id,
+                    |metadata| -> Result<(), StateManagerError> {
+                        metadata.last_accumulate_at = curr_timeslot_index;
+                        Ok(())
+                    },
+                )
+                .await?
+        }
     }
 
     Ok(())
