@@ -86,16 +86,18 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
 
         // Update accumulate host account's balance to apply deferred transfers
         let recv_amount = args.inputs.deferred_transfers_amount();
-        state_manager
-            .with_mut_account_metadata(
-                StateMut::Update,
-                args.accumulate_host,
-                |metadata| -> Result<(), StateManagerError> {
-                    metadata.add_balance(recv_amount);
-                    Ok(())
-                },
-            )
-            .await?;
+        if recv_amount > 0 {
+            state_manager
+                .with_mut_account_metadata(
+                    StateMut::Update,
+                    args.accumulate_host,
+                    |metadata| -> Result<(), StateManagerError> {
+                        metadata.add_balance(recv_amount);
+                        Ok(())
+                    },
+                )
+                .await?;
+        }
 
         let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
             tracing::warn!("Accumulate service code not found.");
