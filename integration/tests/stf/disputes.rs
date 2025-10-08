@@ -109,6 +109,7 @@ impl StateTransitionTest for DisputesTest {
     async fn extract_post_state(
         state_manager: Arc<StateManager>,
         pre_state: &Self::State,
+        _test_case_post_state: &Self::State,
         error_code: &Option<Self::ErrorCode>,
     ) -> Result<Self::State, StateManagerError> {
         if error_code.is_some() {
@@ -220,10 +221,9 @@ generate_typed_tests! {
     // Auditor marked as offender, but vote matches the verdict.
     progress_with_faults_7: "progress_with_faults-7.json",
 
-    // FIXME: temporarily skipped due to Codec definition mismatches (GP v0.7.0)
     // Success
     // Invalidation of availability assignments.
-    // progress_invalidates_avail_assignments_1: "progress_invalidates_avail_assignments-1.json",
+    progress_invalidates_avail_assignments_1: "progress_invalidates_avail_assignments-1.json",
 
     // Fail
     // Bad signature within the verdict judgements.

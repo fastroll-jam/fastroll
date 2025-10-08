@@ -383,7 +383,7 @@ impl StateManager {
         service_id: ServiceId,
     ) -> Result<Option<AccountCode>, StateManagerError> {
         let Some(metadata) = self.get_account_metadata(service_id).await? else {
-            tracing::warn!("Account with service id {service_id} not found");
+            tracing::warn!("Account not found. s={service_id}");
             return Ok(None);
         };
         tracing::debug!("Code hash: {}", &metadata.code_hash.encode_hex());

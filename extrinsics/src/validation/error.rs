@@ -149,6 +149,8 @@ pub enum XtError {
     WorkReportTotalGasTooHigh,
     #[error("Service account's accumulate gas limit is too low to process work digest")]
     ServiceAccountGasLimitTooLow,
+    #[error("Guarantor's Ed25519 public key is in the offenders set. Guarantor: {0}")]
+    BannedValidator(ValidatorIndex),
 
     // Preimages validation errors
     #[error("Preimage lookups must be sorted by service id")]

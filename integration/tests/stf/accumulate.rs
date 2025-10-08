@@ -4,17 +4,19 @@ use async_trait::async_trait;
 use fr_asn_types::{
     accumulate::*,
     common::{AsnOpaqueHash, AsnServiceInfo},
-    preimages::{AsnPreimagesMapEntry, PreimagesMapEntry},
+    preimages::{
+        AsnLookupMetaMapEntry, AsnPreimagesMapEntry, LookupMetaMapEntry, PreimagesMapEntry,
+    },
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::{workloads::WorkReport, Hash32, Octets, ServiceId};
+use fr_common::{workloads::WorkReport, Hash32, LookupsKey, Octets, ServiceId};
 use fr_pvm_invocation::accumulate::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{
-        privileges::PrivilegedServices, AccountMetadata, AccumulateHistory, AccumulateQueue,
-        AuthQueue, EpochEntropy, Timeslot,
+        privileges::PrivilegedServices, AccountLookupsEntry, AccountLookupsEntryTimeslots,
+        AccountMetadata, AccumulateHistory, AccumulateQueue, AuthQueue, EpochEntropy, Timeslot,
     },
 };
 use fr_test_utils::{
@@ -25,12 +27,15 @@ use fr_transition::{
     error::TransitionError,
     state::{
         accumulate::{transition_accumulate_history, transition_accumulate_queue},
-        services::transition_on_accumulate,
+        services::{transition_on_accumulate, transition_services_last_accumulate_at},
         timeslot::transition_timeslot,
     },
 };
 use futures::future::join_all;
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 #[allow(dead_code)]
 struct AccumulateTest;
@@ -72,23 +77,12 @@ impl StateTransitionTest for AccumulateTest {
         // Load AuthQueue (required for partial state initialization)
         state_manager.add_auth_queue(AuthQueue::default()).await?;
 
-        // Add service info for privileged services
-        let mut privileged_service_ids = HashSet::new();
-        privileged_service_ids.insert(pre_privileged_services.manager_service);
-        for assign_service in &pre_privileged_services.assign_services {
-            privileged_service_ids.insert(*assign_service);
-        }
-        privileged_service_ids.insert(pre_privileged_services.designate_service);
-        for privileged_service_id in privileged_service_ids {
-            state_manager
-                .add_account_metadata(privileged_service_id, AccountMetadata::default())
-                .await?;
-        }
-        state_manager
-            .add_privileged_services(pre_privileged_services)
-            .await?;
-
         // Add regular accounts
+        let regular_account_ids = test_pre_state
+            .accounts
+            .iter()
+            .map(|a| a.id)
+            .collect::<HashSet<_>>();
         for account in &test_pre_state.accounts {
             // Add service info
             state_manager
@@ -105,15 +99,56 @@ impl StateTransitionTest for AccumulateTest {
                     .add_account_storage_entry(account.id, &key, val)
                     .await?
             }
+            let mut preimage_size_map = HashMap::new(); // Required to construct `LookupsKey`
+
             // Add preimages entries
-            for preimage in &account.data.preimages {
+            for preimage in &account.data.preimages_blob {
                 let key = preimage.hash.clone();
                 let val = PreimagesMapEntry::from(preimage.clone()).data;
+                preimage_size_map.insert(key.clone(), preimage.blob.len());
                 state_manager
                     .add_account_preimages_entry(account.id, &key, val)
                     .await?;
             }
+            // Add lookups entries
+            for lookup in &account.data.preimages_status {
+                let size = preimage_size_map
+                    .get(&lookup.hash)
+                    .expect("Preimage blob not provided");
+                let key: LookupsKey = (lookup.hash.clone(), *size as u32);
+                let val = AccountLookupsEntry {
+                    value: AccountLookupsEntryTimeslots::try_from(
+                        lookup
+                            .status
+                            .iter()
+                            .map(|slot| Timeslot::new(*slot))
+                            .collect::<Vec<_>>(),
+                    )
+                    .expect("Failed to convert between timeslot vec types"),
+                };
+                state_manager
+                    .add_account_lookups_entry(account.id, key, val)
+                    .await?;
+            }
         }
+
+        // Add service info for privileged services
+        let mut privileged_service_ids = HashSet::new();
+        privileged_service_ids.insert(pre_privileged_services.manager_service);
+        for assign_service in &pre_privileged_services.assign_services {
+            privileged_service_ids.insert(*assign_service);
+        }
+        privileged_service_ids.insert(pre_privileged_services.designate_service);
+        for privileged_service_id in privileged_service_ids {
+            if !regular_account_ids.contains(&privileged_service_id) {
+                state_manager
+                    .add_account_metadata(privileged_service_id, AccountMetadata::default())
+                    .await?;
+            }
+        }
+        state_manager
+            .add_privileged_services(pre_privileged_services)
+            .await?;
 
         Ok(())
     }
@@ -151,6 +186,10 @@ impl StateTransitionTest for AccumulateTest {
         );
         let acc_summary =
             transition_on_accumulate(state_manager.clone(), &accumulatable_reports).await?;
+        let accumulated_services: Vec<ServiceId> =
+            acc_summary.accumulate_stats.keys().cloned().collect();
+        transition_services_last_accumulate_at(state_manager.clone(), &accumulated_services)
+            .await?;
         transition_accumulate_history(
             state_manager.clone(),
             &accumulatable_reports,
@@ -187,6 +226,7 @@ impl StateTransitionTest for AccumulateTest {
     async fn extract_post_state(
         state_manager: Arc<StateManager>,
         pre_state: &Self::State,
+        test_case_post_state: &Self::State,
         error_code: &Option<Self::ErrorCode>,
     ) -> Result<Self::State, StateManagerError> {
         if error_code.is_some() {
@@ -201,7 +241,9 @@ impl StateTransitionTest for AccumulateTest {
         let curr_acc_queue = state_manager.get_accumulate_queue().await?;
         let curr_acc_history = state_manager.get_accumulate_history().await?;
         let curr_privileged_services = state_manager.get_privileged_services().await?;
-        let curr_accounts = join_all(pre_state.accounts.iter().map(|s| async {
+        // Iterate on post state accounts from the test case so that we can get the full list of
+        // account storage/preimages items.
+        let curr_accounts = join_all(test_case_post_state.accounts.iter().map(|s| async {
             let curr_metadata = AsnServiceInfo::from(
                 state_manager
                     .get_account_metadata(s.id)
@@ -211,7 +253,7 @@ impl StateTransitionTest for AccumulateTest {
             );
 
             let curr_storage_entries = join_all(s.data.storage.iter().map(|e| async {
-                // Get the key from the pre-state
+                // Get the key from the post-state
                 let key = Octets::from_vec(e.key.0.clone());
                 // Get the posterior storage value
                 let storage_entry = state_manager
@@ -225,8 +267,8 @@ impl StateTransitionTest for AccumulateTest {
                 })
             }))
             .await;
-            let curr_preimages = join_all(s.data.preimages.iter().map(|e| async {
-                // Get the key from the pre-state
+            let curr_preimages = join_all(s.data.preimages_blob.iter().map(|e| async {
+                // Get the key from the post-state
                 let key = e.hash.clone();
                 // Get the posterior preimage value
                 let preimage = state_manager
@@ -240,13 +282,33 @@ impl StateTransitionTest for AccumulateTest {
                 })
             }))
             .await;
+            let curr_lookups = join_all(s.data.preimages_blob.iter().map(|e| async {
+                // Get the key from the post-state
+                let key: LookupsKey = (e.hash.clone(), e.blob.len() as u32);
+                // Get the posterior lookups value
+                let lookups = state_manager
+                    .get_account_lookups_entry(s.id, &key)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                AsnPreimageStatus {
+                    hash: key.0,
+                    status: lookups
+                        .value
+                        .into_iter()
+                        .map(|timeslot| timeslot.slot())
+                        .collect(),
+                }
+            }))
+            .await;
 
             AsnAccountsMapEntry {
                 id: s.id,
                 data: AsnAccount {
                     service: curr_metadata,
                     storage: curr_storage_entries,
-                    preimages: curr_preimages,
+                    preimages_blob: curr_preimages,
+                    preimages_status: curr_lookups,
                 },
             }
         }))
@@ -274,20 +336,23 @@ impl StateTransitionTest for AccumulateTest {
             .zip(test_case_post_state.accounts)
         {
             assert_eq!(actual.id, expected.id);
-            // assert_eq!(actual.data.service, expected.data.service);
-            // assert_eq!(actual.data.storage.len(), expected.data.storage.len());
-            // for (actual_storage, expected_storage) in
-            //     actual.data.storage.into_iter().zip(expected.data.storage)
-            // {
-            //     assert_eq!(actual_storage.key, expected_storage.key);
-            //     assert_eq!(actual_storage.value, expected_storage.value);
-            // }
-            assert_eq!(actual.data.preimages.len(), expected.data.preimages.len());
+            assert_eq!(actual.data.service, expected.data.service);
+            assert_eq!(actual.data.storage.len(), expected.data.storage.len());
+            for (actual_storage, expected_storage) in
+                actual.data.storage.into_iter().zip(expected.data.storage)
+            {
+                assert_eq!(actual_storage.key, expected_storage.key);
+                assert_eq!(actual_storage.value, expected_storage.value);
+            }
+            assert_eq!(
+                actual.data.preimages_blob.len(),
+                expected.data.preimages_blob.len()
+            );
             for (actual_preimages, expected_preimages) in actual
                 .data
-                .preimages
+                .preimages_blob
                 .into_iter()
-                .zip(expected.data.preimages)
+                .zip(expected.data.preimages_blob)
             {
                 assert_eq!(actual_preimages.hash, expected_preimages.hash);
                 assert_eq!(actual_preimages.blob, expected_preimages.blob);
@@ -296,96 +361,104 @@ impl StateTransitionTest for AccumulateTest {
     }
 }
 
-// FIXME: temporarily skipped due to PrivilegedServices.assign_services type mismatch (GP v0.6.7)
-// generate_typed_tests! {
-//     AccumulateTest,
-//
-//     // No reports.
-//     no_available_reports_1: "no_available_reports-1.json",
-//
-//     // Report with no dependencies.
-//     process_one_immediate_report_1: "process_one_immediate_report-1.json",
-//
-//     // Report with unsatisfied dependency added to the ready-queue.
-//     enqueue_and_unlock_simple_1: "enqueue_and_unlock_simple-1.json",
-//
-//     // Report with no dependencies that resolves previous dependency.
-//     enqueue_and_unlock_simple_2: "enqueue_and_unlock_simple-2.json",
-//
-//     // Report with unsatisfied segment tree root dependency added to the ready-queue.
-//     enqueue_and_unlock_with_sr_lookup_1: "enqueue_and_unlock_with_sr_lookup-1.json",
-//
-//     // Report with no dependencies that resolves previous dependency.
-//     enqueue_and_unlock_with_sr_lookup_2: "enqueue_and_unlock_with_sr_lookup-2.json",
-//
-//     // Two reports with unsatisfied dependencies added to the ready-queue.
-//     enqueue_and_unlock_chain_1: "enqueue_and_unlock_chain-1.json",
-//
-//     // Two additional reports with unsatisfied dependencies added to the ready-queue.
-//     enqueue_and_unlock_chain_2: "enqueue_and_unlock_chain-2.json",
-//
-//     // Two additional reports. One with unsatisfied dependencies, thus added to the ready-queue.
-//     // One report is accumulated and resolves two previously enqueued reports.
-//     enqueue_and_unlock_chain_3: "enqueue_and_unlock_chain-3.json",
-//
-//     // Report that resolves all remaining queued dependencies.
-//     enqueue_and_unlock_chain_4: "enqueue_and_unlock_chain-4.json",
-//
-//     // Two reports with unsatisfied dependencies added to the ready-queue.
-//     enqueue_and_unlock_chain_wraps_1: "enqueue_and_unlock_chain_wraps-1.json",
-//
-//     // Two additional reports, one with no dependencies and thus immediately accumulated.
-//     // The other is pushed to the ready-queue which fills up the wraps around
-//     // (ready-queue is a ring buffer).
-//     enqueue_and_unlock_chain_wraps_2: "enqueue_and_unlock_chain_wraps-2.json",
-//
-//     // Two additional reports with unsatisfied dependencies pushed to the ready-queue.
-//     enqueue_and_unlock_chain_wraps_3: "enqueue_and_unlock_chain_wraps-3.json",
-//
-//     // Two additional reports, one with no dependencies and thus immediately accumulated.
-//     // Three old entries in the ready-queue are removed.
-//     enqueue_and_unlock_chain_wraps_4: "enqueue_and_unlock_chain_wraps-4.json",
-//
-//     // Report with no dependencies resolves all previous enqueued reports.
-//     enqueue_and_unlock_chain_wraps_5: "enqueue_and_unlock_chain_wraps-5.json",
-//
-//     // Report with direct dependency on itself.
-//     // This makes the report stale, but pushed to the ready-queue anyway.
-//     enqueue_self_referential_1: "enqueue_self_referential-1.json",
-//
-//     // Two reports with indirect circular dependency.
-//     // This makes the reports stale, but pushed to the ready-queue anyway.
-//     enqueue_self_referential_2: "enqueue_self_referential-2.json",
-//
-//     // Two reports. First depends on second, which depends on unseen report.
-//     enqueue_self_referential_3: "enqueue_self_referential-3.json",
-//
-//     // New report creates a cycle with the previous enqueued reports.
-//     // This makes the reports stale, but pushed to the ready-queue anyway.
-//     enqueue_self_referential_4: "enqueue_self_referential-4.json",
-//
-//     // There are some reports in the ready-queue ready to be accumulated.
-//     // Even though we don't supply any new available work report theses are processed.
-//     // This condition may result because of gas exhaustion during previous block execution.
-//     accumulate_ready_queued_reports_1: "accumulate_ready_queued_reports-1.json",
-//
-//     // Check that ready-queue and accumulated-reports queues are shifted.
-//     // A new available report is supplied.
-//     queues_are_shifted_1: "queues_are_shifted-1.json",
-//
-//     // Check that ready-queue and accumulated-reports queues are shifted.
-//     // No new report is supplied.
-//     queues_are_shifted_2: "queues_are_shifted-2.json",
-//
-//     // Two reports with unsatisfied dependencies added to the ready-queue.
-//     ready_queue_editing_1: "ready_queue_editing-1.json",
-//
-//     // Two reports, one with unsatisfied dependency added to the ready-queue.
-//     // One accumulated. Ready queue items dependencies are edited.
-//     ready_queue_editing_2: "ready_queue_editing-2.json",
-//
-//     // One report unlocks reports in the ready-queue.
-//     ready_queue_editing_3: "ready_queue_editing-3.json",
-//
-//     same_code_different_services_1: "same_code_different_services-1.json",
-// }
+generate_typed_tests! {
+    AccumulateTest,
+
+    // No reports.
+    no_available_reports_1: "no_available_reports-1.json",
+
+    // Report with no dependencies.
+    process_one_immediate_report_1: "process_one_immediate_report-1.json",
+
+    // Report with unsatisfied dependency added to the ready-queue.
+    enqueue_and_unlock_simple_1: "enqueue_and_unlock_simple-1.json",
+
+    // Report with no dependencies that resolves previous dependency.
+    enqueue_and_unlock_simple_2: "enqueue_and_unlock_simple-2.json",
+
+    // Report with unsatisfied segment tree root dependency added to the ready-queue.
+    enqueue_and_unlock_with_sr_lookup_1: "enqueue_and_unlock_with_sr_lookup-1.json",
+
+    // Report with no dependencies that resolves previous dependency.
+    enqueue_and_unlock_with_sr_lookup_2: "enqueue_and_unlock_with_sr_lookup-2.json",
+
+    // Two reports with unsatisfied dependencies added to the ready-queue.
+    enqueue_and_unlock_chain_1: "enqueue_and_unlock_chain-1.json",
+
+    // Two additional reports with unsatisfied dependencies added to the ready-queue.
+    enqueue_and_unlock_chain_2: "enqueue_and_unlock_chain-2.json",
+
+    // Two additional reports. One with unsatisfied dependencies, thus added to the ready-queue.
+    // One report is accumulated and resolves two previously enqueued reports.
+    enqueue_and_unlock_chain_3: "enqueue_and_unlock_chain-3.json",
+
+    // Report that resolves all remaining queued dependencies.
+    enqueue_and_unlock_chain_4: "enqueue_and_unlock_chain-4.json",
+
+    // Two reports with unsatisfied dependencies added to the ready-queue.
+    enqueue_and_unlock_chain_wraps_1: "enqueue_and_unlock_chain_wraps-1.json",
+
+    // Two additional reports, one with no dependencies and thus immediately accumulated.
+    // The other is pushed to the ready-queue which fills up the wraps around
+    // (ready-queue is a ring buffer).
+    enqueue_and_unlock_chain_wraps_2: "enqueue_and_unlock_chain_wraps-2.json",
+
+    // Two additional reports with unsatisfied dependencies pushed to the ready-queue.
+    enqueue_and_unlock_chain_wraps_3: "enqueue_and_unlock_chain_wraps-3.json",
+
+    // Two additional reports, one with no dependencies and thus immediately accumulated.
+    // Three old entries in the ready-queue are removed.
+    enqueue_and_unlock_chain_wraps_4: "enqueue_and_unlock_chain_wraps-4.json",
+
+    // Report with no dependencies resolves all previous enqueued reports.
+    enqueue_and_unlock_chain_wraps_5: "enqueue_and_unlock_chain_wraps-5.json",
+
+    // Report with direct dependency on itself.
+    // This makes the report stale, but pushed to the ready-queue anyway.
+    enqueue_self_referential_1: "enqueue_self_referential-1.json",
+
+    // Two reports with indirect circular dependency.
+    // This makes the reports stale, but pushed to the ready-queue anyway.
+    enqueue_self_referential_2: "enqueue_self_referential-2.json",
+
+    // Two reports. First depends on second, which depends on unseen report.
+    enqueue_self_referential_3: "enqueue_self_referential-3.json",
+
+    // New report creates a cycle with the previous enqueued reports.
+    // This makes the reports stale, but pushed to the ready-queue anyway.
+    enqueue_self_referential_4: "enqueue_self_referential-4.json",
+
+    // There are some reports in the ready-queue ready to be accumulated.
+    // Even though we don't supply any new available work report theses are processed.
+    // This condition may result because of gas exhaustion during previous block execution.
+    accumulate_ready_queued_reports_1: "accumulate_ready_queued_reports-1.json",
+
+    // Check that ready-queue and accumulated-reports queues are shifted.
+    // A new available report is supplied.
+    queues_are_shifted_1: "queues_are_shifted-1.json",
+
+    // Check that ready-queue and accumulated-reports queues are shifted.
+    // No new report is supplied.
+    queues_are_shifted_2: "queues_are_shifted-2.json",
+
+    // Two reports with unsatisfied dependencies added to the ready-queue.
+    ready_queue_editing_1: "ready_queue_editing-1.json",
+
+    // Two reports, one with unsatisfied dependency added to the ready-queue.
+    // One accumulated. Ready queue items dependencies are edited.
+    ready_queue_editing_2: "ready_queue_editing-2.json",
+
+    // One report unlocks reports in the ready-queue.
+    ready_queue_editing_3: "ready_queue_editing-3.json",
+
+    same_code_different_services_1: "same_code_different_services-1.json",
+
+    transfer_for_ejected_service_1: "transfer_for_ejected_service-1.json",
+
+    work_for_ejected_service_1: "work_for_ejected_service-1.json",
+
+    work_for_ejected_service_2: "work_for_ejected_service-2.json",
+
+    work_for_ejected_service_3: "work_for_ejected_service-3.json",
+
+}

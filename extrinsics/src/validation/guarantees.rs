@@ -137,7 +137,7 @@ impl GuaranteesXtValidator {
         let accumulate_queue = self.state_manager.get_accumulate_queue_clean().await?; // ω
         let accumulate_history = self.state_manager.get_accumulate_history_clean().await?; // ξ
 
-        let mut all_guarantor_keys = vec![];
+        let mut all_guarantor_keys = HashSet::new(); // Remove duplicate guarantor keys
         for entry in extrinsic.iter() {
             let guarantor_keys = self
                 .validate_entry(
@@ -156,7 +156,7 @@ impl GuaranteesXtValidator {
             all_guarantor_keys.extend(guarantor_keys);
         }
 
-        Ok(all_guarantor_keys)
+        Ok(all_guarantor_keys.into_iter().collect())
     }
 
     /// Validates each `GuaranteesXtEntry`.
@@ -557,6 +557,10 @@ impl GuaranteesXtValidator {
             .validator_keys
             .get_validator_ed25519_key(credential.validator_index)
             .ok_or(XtError::InvalidValidatorIndex)?;
+
+        if guarantor_public_key == &Ed25519PubKey::default() {
+            return Err(XtError::BannedValidator(credential.validator_index));
+        }
 
         let ed25519_verifier = Ed25519Verifier::new(guarantor_public_key.clone());
         ed25519_verifier

@@ -81,39 +81,43 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         state_manager: Arc<StateManager>,
         partial_state: AccumulatePartialState<StateManager>,
         args: &AccumulateInvokeArgs,
-    ) -> Result<AccumulateResult<StateManager>, PVMInvokeError> {
+    ) -> Result<Option<AccumulateResult<StateManager>>, PVMInvokeError> {
         tracing::info!("Ψ_A (accumulate) invoked. s={}", args.accumulate_host);
+
+        // Check if the accumulate host exists
+        if !state_manager.account_exists(args.accumulate_host).await? {
+            return Ok(None);
+        }
 
         // Update accumulate host account's balance to apply deferred transfers
         let recv_amount = args.inputs.deferred_transfers_amount();
-        state_manager
-            .with_mut_account_metadata(
-                StateMut::Update,
-                args.accumulate_host,
-                |metadata| -> Result<(), StateManagerError> {
-                    metadata.add_balance(recv_amount);
-                    Ok(())
-                },
-            )
-            .await?;
+        if recv_amount > 0 {
+            state_manager
+                .with_mut_account_metadata(
+                    StateMut::Update,
+                    args.accumulate_host,
+                    |metadata| -> Result<(), StateManagerError> {
+                        metadata.add_balance(recv_amount);
+                        Ok(())
+                    },
+                )
+                .await?;
+        }
 
         let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
-            tracing::warn!("Accumulate service code not found.");
-            return Ok(AccumulateResult {
-                accumulate_host: args.accumulate_host,
-                partial_state,
-                ..Default::default()
-            });
+            tracing::warn!(
+                "Accumulate service code not found. s={}",
+                args.accumulate_host
+            );
+            // Early exit; No-op
+            return Ok(None);
         };
 
         let code_len = account_code.code().len();
         if code_len > MAX_SERVICE_CODE_SIZE {
             tracing::warn!("Accumulate service code exceeds maximum allowed.");
-            return Ok(AccumulateResult {
-                accumulate_host: args.accumulate_host,
-                partial_state,
-                ..Default::default()
-            });
+            // Early exit; No-op
+            return Ok(None);
         }
         tracing::debug!("Account code length: {code_len} octets");
 
@@ -167,32 +171,32 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
                     x.yielded_accumulate_hash
                 };
 
-                Ok(AccumulateResult {
+                Ok(Some(AccumulateResult {
                     partial_state: x.partial_state,
                     deferred_transfers: x.deferred_transfers,
                     yielded_accumulate_hash: accumulate_result_hash,
                     gas_used: result.gas_used,
                     accumulate_host: x.accumulate_host,
                     provided_preimages: x.provided_preimages,
-                })
+                }))
             }
-            PVMInvocationOutput::OutputUnavailable => Ok(AccumulateResult {
+            PVMInvocationOutput::OutputUnavailable => Ok(Some(AccumulateResult {
                 partial_state: x.partial_state,
                 deferred_transfers: x.deferred_transfers,
                 yielded_accumulate_hash: x.yielded_accumulate_hash,
                 gas_used: result.gas_used,
                 accumulate_host: x.accumulate_host,
                 provided_preimages: x.provided_preimages,
-            }),
+            })),
             PVMInvocationOutput::OutOfGas(_) | PVMInvocationOutput::Panic(_) => {
-                Ok(AccumulateResult {
+                Ok(Some(AccumulateResult {
                     partial_state: y.partial_state,
                     deferred_transfers: y.deferred_transfers,
                     yielded_accumulate_hash: y.yielded_accumulate_hash,
                     gas_used: result.gas_used, // Note: taking gas usage from the `x` context
                     accumulate_host: x.accumulate_host,
                     provided_preimages: y.provided_preimages,
-                })
+                }))
             }
         }
     }

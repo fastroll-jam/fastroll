@@ -20,6 +20,7 @@ use fr_crypto::{
     types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys},
     Blake2b256,
 };
+use fr_limited_vec::FixedVec;
 use fr_pvm_core::state::state_change::HostCallVMStateChange;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
@@ -76,7 +77,7 @@ mod bless_tests {
 
             Self {
                 accumulate_host: 1,
-                prev_manager: 10,
+                prev_manager: 5,
                 prev_designate: 20,
                 prev_registrar: 30,
                 prev_assign_services,
@@ -186,9 +187,10 @@ mod bless_tests {
     }
 
     #[tokio::test]
-    async fn test_bless_successful() -> Result<(), Box<dyn Error>> {
+    async fn test_bless_successful_by_manager_service() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let fixture = BlessTestFixture::default();
+        let mut fixture = BlessTestFixture::default();
+        fixture.accumulate_host = fixture.prev_manager;
         let vm = fixture
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
@@ -209,19 +211,171 @@ mod bless_tests {
             x.partial_state.manager_service,
             fixture.manager as ServiceId
         );
-        assert_eq!(x.partial_state.assign_services, fixture.assign_services);
         assert_eq!(
-            x.partial_state.designate_service,
-            fixture.designate as ServiceId
+            x.partial_state.assign_services.change_by_manager,
+            Some(fixture.assign_services)
         );
         assert_eq!(
-            x.partial_state.registrar_service,
-            fixture.registrar as ServiceId
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT])
         );
+        assert_eq!(
+            x.partial_state.designate_service.change_by_manager,
+            Some(fixture.designate as ServiceId)
+        );
+        assert!(x.partial_state.designate_service.change_by_self.is_none());
+        assert_eq!(
+            x.partial_state.registrar_service.change_by_manager,
+            Some(fixture.registrar as ServiceId)
+        );
+        assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.always_accumulate_services
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_successful_by_designate_service() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let mut fixture = BlessTestFixture::default();
+        fixture.accumulate_host = fixture.prev_designate;
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
+            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
+        assert_eq!(res, BlessTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.manager_service, fixture.prev_manager); // Should remain unchanged
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        assert_eq!(
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT])
+        );
+        assert!(x
+            .partial_state
+            .designate_service
+            .change_by_manager
+            .is_none());
+        assert_eq!(
+            x.partial_state.designate_service.change_by_self,
+            Some(fixture.designate as ServiceId)
+        );
+        assert!(x
+            .partial_state
+            .registrar_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_self.is_none());
+        assert_eq!(
+            x.partial_state.always_accumulate_services,
+            fixture.prev_always_accumulate_services
+        ); // Should remain unchanged
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_successful_by_assigner_service_valid() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let mut fixture = BlessTestFixture::default();
+        fixture.accumulate_host = fixture.prev_assign_services[0];
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
+            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
+        assert_eq!(res, BlessTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.manager_service, fixture.prev_manager); // Should remain unchanged
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        assert_eq!(
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::try_from(vec![Some(fixture.assign_services[0]), None]).unwrap()
+        );
+        assert!(x
+            .partial_state
+            .designate_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.designate_service.change_by_self.is_none());
+        assert!(x
+            .partial_state
+            .registrar_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_self.is_none());
+        assert_eq!(
+            x.partial_state.always_accumulate_services,
+            fixture.prev_always_accumulate_services
+        ); // Should remain unchanged
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_successful_by_assigner_service_invalid() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = BlessTestFixture {
+            accumulate_host: ServiceId::MAX, // Accumulate host is not assigner service
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
+            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
+        assert_eq!(res, BlessTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.manager_service, fixture.prev_manager); // Should remain unchanged
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        assert_eq!(
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT])
+        );
+        assert!(x
+            .partial_state
+            .designate_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.designate_service.change_by_self.is_none());
+        assert!(x
+            .partial_state
+            .registrar_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_self.is_none());
+        assert_eq!(
+            x.partial_state.always_accumulate_services,
+            fixture.prev_always_accumulate_services
+        ); // Should remain unchanged
         Ok(())
     }
 
@@ -250,12 +404,23 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
-            x.partial_state.assign_services,
-            fixture.prev_assign_services
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT]),
         );
-        assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
+        assert!(x
+            .partial_state
+            .designate_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.designate_service.change_by_self.is_none());
+        assert!(x
+            .partial_state
+            .registrar_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
@@ -288,12 +453,23 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
-            x.partial_state.assign_services,
-            fixture.prev_assign_services
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT]),
         );
-        assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
+        assert!(x
+            .partial_state
+            .designate_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.designate_service.change_by_self.is_none());
+        assert!(x
+            .partial_state
+            .registrar_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
@@ -326,12 +502,23 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
-            x.partial_state.assign_services,
-            fixture.prev_assign_services
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT]),
         );
-        assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
+        assert!(x
+            .partial_state
+            .designate_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.designate_service.change_by_self.is_none());
+        assert!(x
+            .partial_state
+            .registrar_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
@@ -360,12 +547,23 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
-            x.partial_state.assign_services,
-            fixture.prev_assign_services
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT]),
         );
-        assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
+        assert!(x
+            .partial_state
+            .designate_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.designate_service.change_by_self.is_none());
+        assert!(x
+            .partial_state
+            .registrar_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
@@ -395,12 +593,23 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
-            x.partial_state.assign_services,
-            fixture.prev_assign_services
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT]),
         );
-        assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
+        assert!(x
+            .partial_state
+            .designate_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.designate_service.change_by_self.is_none());
+        assert!(x
+            .partial_state
+            .registrar_service
+            .change_by_manager
+            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
@@ -585,9 +794,10 @@ mod assign_tests {
         // Check partial state after host-call
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.auth_queue, fixture.updated_auth_queue);
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
-            x.partial_state.assign_services[fixture.core_index as usize],
-            fixture.new_assign_service as ServiceId
+            x.partial_state.assign_services.change_by_self[fixture.core_index as usize],
+            Some(fixture.new_assign_service as ServiceId)
         );
         Ok(())
     }
@@ -611,8 +821,8 @@ mod assign_tests {
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
         assert_eq!(
-            x.partial_state.assign_services[fixture.core_index as usize],
-            fixture.prev_assign_service
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT])
         );
         Ok(())
     }
@@ -640,8 +850,8 @@ mod assign_tests {
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
         assert_eq!(
-            x.partial_state.assign_services[fixture.core_index as usize],
-            fixture.prev_assign_service
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT])
         );
         Ok(())
     }
@@ -672,8 +882,8 @@ mod assign_tests {
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
         assert_eq!(
-            x.partial_state.assign_services[fixture.core_index as usize],
-            fixture.prev_assign_service
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT])
         );
         Ok(())
     }
@@ -703,8 +913,8 @@ mod assign_tests {
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
         assert_eq!(
-            x.partial_state.assign_services[fixture.core_index as usize],
-            fixture.prev_assign_service
+            x.partial_state.assign_services.change_by_self,
+            FixedVec::from_iter([None; CORE_COUNT])
         );
         Ok(())
     }

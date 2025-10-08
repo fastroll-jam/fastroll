@@ -72,6 +72,7 @@ pub trait StateTransitionTest {
     async fn extract_post_state(
         state_manager: Arc<StateManager>,
         pre_state: &Self::State,
+        test_case_post_state: &Self::State, // required to iterate on all account storage items in accumulate STF tests
         error_code: &Option<Self::ErrorCode>,
     ) -> Result<Self::State, StateManagerError>;
 
@@ -121,8 +122,13 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
     state_manager.clear_state_cache();
 
     // compare the actual and the expected post state
-    let post_state =
-        T::extract_post_state(state_manager, &test_case.pre_state, &maybe_error_code).await?;
+    let post_state = T::extract_post_state(
+        state_manager,
+        &test_case.pre_state,
+        &test_case.post_state,
+        &maybe_error_code,
+    )
+    .await?;
     T::assert_post_state(post_state, test_case.post_state);
 
     // compare the output

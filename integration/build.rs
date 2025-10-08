@@ -5,7 +5,7 @@ fn main() {
     // PVM test cases
     generate_pvm_tests();
     // Block import test cases
-    // generate_block_import_tests();
+    generate_block_import_tests();
 }
 
 fn generate_pvm_tests() {

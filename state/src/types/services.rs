@@ -6,7 +6,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     Balance, CodeHash, LookupsKey, Octets, ServiceId, StorageKey, TimeslotIndex, UnsignedGas,
-    MIN_BALANCE_PER_ITEM, MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
+    MIN_BALANCE_PER_ITEM, MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE, SERVICE_ACCOUNT_VERSION,
 };
 use fr_limited_vec::LimitedVec;
 use std::{
@@ -113,8 +113,10 @@ impl AccountCode {
 }
 
 /// Service account metadata.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccountMetadata {
+    /// Account version
+    pub version: u8,
     /// `c`: Service code hash
     pub code_hash: CodeHash,
     /// `b`: Service account token balance
@@ -138,9 +140,28 @@ pub struct AccountMetadata {
 }
 impl_account_state_component!(AccountMetadata, AccountMetadata);
 
+impl Default for AccountMetadata {
+    fn default() -> Self {
+        Self {
+            version: SERVICE_ACCOUNT_VERSION,
+            code_hash: CodeHash::default(),
+            balance: 0,
+            gas_limit_accumulate: 0,
+            gas_limit_on_transfer: 0,
+            octets_footprint: 0,
+            gratis_storage_offset: 0,
+            items_footprint: 0,
+            created_at: 0,
+            last_accumulate_at: 0,
+            parent_service_id: 0,
+        }
+    }
+}
+
 impl Display for AccountMetadata {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         writeln!(f, "{{")?;
+        writeln!(f, "  version: {}", self.version)?;
         writeln!(f, "  code_hash: {}", self.code_hash)?;
         writeln!(f, "  balance: {}", self.balance)?;
         writeln!(f, "  gas_limit_acc: {}", self.gas_limit_accumulate)?;
@@ -158,11 +179,11 @@ impl Display for AccountMetadata {
 
 impl JamEncode for AccountMetadata {
     fn size_hint(&self) -> usize {
-        0u8.size_hint() + self.code_hash.size_hint() + 8 * 5 + 4 * 4
+        self.version.size_hint() + self.code_hash.size_hint() + 8 * 5 + 4 * 4
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        0u8.encode_to(dest)?;
+        self.version.encode_to(dest)?;
         self.code_hash.encode_to(dest)?;
         self.balance.encode_to_fixed(dest, 8)?;
         self.gas_limit_accumulate.encode_to_fixed(dest, 8)?;
@@ -182,8 +203,8 @@ impl JamDecode for AccountMetadata {
     where
         Self: Sized,
     {
-        let _version = u8::decode(input)?; // TODO: check usage
         Ok(Self {
+            version: u8::decode(input)?,
             code_hash: CodeHash::decode(input)?,
             balance: Balance::decode_fixed(input, 8)?,
             gas_limit_accumulate: UnsignedGas::decode_fixed(input, 8)?,

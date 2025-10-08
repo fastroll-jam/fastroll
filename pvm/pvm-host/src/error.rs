@@ -1,4 +1,5 @@
 use fr_codec::JamCodecError;
+use fr_common::CoreIndex;
 use fr_crypto::error::CryptoError;
 use fr_limited_vec::LimitedVecError;
 use fr_pvm_core::{error::VMCoreError, state::memory::MemoryError};
@@ -41,6 +42,8 @@ pub enum HostCallError {
 /// PVM Host Call Partial State Error Codes
 #[derive(Debug, Error)]
 pub enum PartialStateError {
+    #[error("Invalid core index: {0}")]
+    InvalidAssignerCoreIndex(CoreIndex),
     #[error("Account not found from the global state")]
     AccountNotFoundFromGlobalState,
     #[error("Accumulator account is not initialized in the service accounts partial state")]

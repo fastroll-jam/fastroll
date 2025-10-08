@@ -139,7 +139,7 @@ async fn add_partial_state_change(
     accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState<StateManager>,
     mut accumulate_result_partial_state: AccumulatePartialState<StateManager>,
-) {
+) -> Result<(), PVMInvokeError> {
     if let (None, Some(new_staging_set)) = (
         &partial_state_union.new_staging_set,
         accumulate_result_partial_state.new_staging_set,
@@ -150,15 +150,18 @@ async fn add_partial_state_change(
     if partial_state_union.auth_queue != accumulate_result_partial_state.auth_queue {
         partial_state_union.auth_queue = accumulate_result_partial_state.auth_queue;
     }
+
     if partial_state_union.manager_service != accumulate_result_partial_state.manager_service {
         partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
     }
-    if partial_state_union.assign_services != accumulate_result_partial_state.assign_services {
-        partial_state_union.assign_services = accumulate_result_partial_state.assign_services
-    }
-    if partial_state_union.designate_service != accumulate_result_partial_state.designate_service {
-        partial_state_union.designate_service = accumulate_result_partial_state.designate_service;
-    }
+
+    partial_state_union.assign_services.last_confirmed =
+        accumulate_result_partial_state.assign_services.latest()?;
+    partial_state_union.designate_service.last_confirmed =
+        accumulate_result_partial_state.designate_service.latest();
+    partial_state_union.registrar_service.last_confirmed =
+        accumulate_result_partial_state.registrar_service.latest();
+
     if partial_state_union.always_accumulate_services
         != accumulate_result_partial_state.always_accumulate_services
     {
@@ -189,6 +192,8 @@ async fn add_partial_state_change(
                 .insert(service_id, sandbox.clone());
         }
     }
+
+    Ok(())
 }
 
 /// Integrates all provided preimages by a single-service accumulation into the partial state accounts sandbox.
@@ -241,29 +246,44 @@ async fn accumulate_parallel(
 ) -> Result<ParallelAccumulationResult, PVMInvokeError> {
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
 
-    // Group 1: Accumulate service accounts that are related to provided work digests,
-    // always-accumulate services and destinations of deferred transfers from the previous `Δ*` round.
-    let mut service_ids: BTreeSet<ServiceId> = reports
+    // `metered_service_ids` contains service IDs that are associate with digests / deferred transfers
+    // or are always-accumulate services.
+    let mut metered_service_ids: BTreeSet<ServiceId> = reports
         .iter()
         .flat_map(|wr| wr.digests.iter())
         .map(|wd| wd.service_id)
         .collect();
-    service_ids.extend(always_accumulate_services.keys().cloned());
-    service_ids.extend(
+    metered_service_ids.extend(always_accumulate_services.keys().cloned());
+    metered_service_ids.extend(
         prev_deferred_transfers
             .iter()
             .map(|t| t.to)
             .collect::<Vec<_>>(),
     );
 
-    let services_count = service_ids.len();
-    let mut service_gas_pairs = Vec::with_capacity(services_count);
+    let privileged_services = BTreeSet::from_iter(
+        partial_state_union
+            .assign_services
+            .last_confirmed
+            .iter()
+            .cloned()
+            .chain([
+                partial_state_union.registrar_service.last_confirmed,
+                partial_state_union.designate_service.last_confirmed,
+                partial_state_union.manager_service,
+            ]),
+    );
+
+    let mut all_service_ids = metered_service_ids.clone();
+    all_service_ids.extend(privileged_services);
+
+    let mut service_gas_pairs = Vec::with_capacity(metered_service_ids.len());
     let mut service_output_pairs = BTreeSet::new();
     let mut new_deferred_transfers = Vec::new();
 
     // Concurrent accumulate invocations grouped by service ids.
-    let mut handles = Vec::with_capacity(services_count);
-    for service_id in service_ids {
+    let mut handles = Vec::with_capacity(all_service_ids.len());
+    for service_id in all_service_ids {
         let state_manager_cloned = state_manager.clone();
         let prev_transfers_cloned = prev_deferred_transfers.clone();
         let reports_cloned = reports.clone();
@@ -287,100 +307,40 @@ async fn accumulate_parallel(
     }
 
     for handle in handles {
-        let accumulate_result = handle
+        if let Some(accumulate_result) = handle
             .await
-            .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??;
-        service_gas_pairs.push(AccumulationGasPair {
-            service: accumulate_result.accumulate_host,
-            gas: accumulate_result.gas_used,
-        });
-        if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
-            service_output_pairs.insert(AccumulationOutputPair {
-                service: accumulate_result.accumulate_host,
-                output_hash,
-            });
-        }
-        new_deferred_transfers.extend(accumulate_result.deferred_transfers);
-        add_partial_state_change(
-            state_manager.clone(),
-            accumulate_result.accumulate_host,
-            partial_state_union,
-            accumulate_result.partial_state,
-        )
-        .await;
-        add_provided_preimages(
-            state_manager.clone(),
-            partial_state_union,
-            accumulate_result.provided_preimages,
-            curr_timeslot_index,
-        )
-        .await;
-    }
-
-    // Group 2: Accumulate privileged services except the manager service,
-    // which will be accumulated lastly. Accumulation results of privileged services
-    // are not handled except for updating the partial state.
-    let privileged_services_except_manager =
-        BTreeSet::from_iter(partial_state_union.assign_services.iter().cloned().chain([
-            partial_state_union.registrar_service,
-            partial_state_union.designate_service,
-        ]));
-    let mut privileged_handles = Vec::with_capacity(service_gas_pairs.len());
-    for privileged_service_id in privileged_services_except_manager {
-        let state_manager_cloned = state_manager.clone();
-        let prev_transfers_cloned = prev_deferred_transfers.clone();
-        let reports_cloned = reports.clone();
-        let always_accumulate_services_cloned = always_accumulate_services.clone();
-        // each `Δ1` within the same `Δ*` batch has isolated view of the partial state
-        let partial_state_cloned = partial_state_union.clone();
-
-        let handle = tokio::spawn(async move {
-            accumulate_single_service(
-                state_manager_cloned,
-                partial_state_cloned,
-                prev_transfers_cloned,
-                reports_cloned,
-                always_accumulate_services_cloned,
-                privileged_service_id,
+            .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??
+        {
+            // Note: Accumulations of privileged services are not metered (accumulate outputs / gas usages)
+            if metered_service_ids.contains(&accumulate_result.accumulate_host) {
+                service_gas_pairs.push(AccumulationGasPair {
+                    service: accumulate_result.accumulate_host,
+                    gas: accumulate_result.gas_used,
+                });
+                if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
+                    service_output_pairs.insert(AccumulationOutputPair {
+                        service: accumulate_result.accumulate_host,
+                        output_hash,
+                    });
+                }
+            }
+            new_deferred_transfers.extend(accumulate_result.deferred_transfers);
+            add_partial_state_change(
+                state_manager.clone(),
+                accumulate_result.accumulate_host,
+                partial_state_union,
+                accumulate_result.partial_state,
+            )
+            .await?;
+            add_provided_preimages(
+                state_manager.clone(),
+                partial_state_union,
+                accumulate_result.provided_preimages,
                 curr_timeslot_index,
             )
-            .await
-        });
-        privileged_handles.push(handle);
+            .await;
+        }
     }
-
-    for handle in privileged_handles {
-        let accumulate_result = handle
-            .await
-            .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??;
-        add_partial_state_change(
-            state_manager.clone(),
-            accumulate_result.accumulate_host,
-            partial_state_union,
-            accumulate_result.partial_state,
-        )
-        .await;
-    }
-
-    // Group 3: Lastly, accumulate manager service, overriding changes from other privileged services
-    // and granting the manager service priority for privileged service mutations.
-    let manager_accumulate_result = accumulate_single_service(
-        state_manager.clone(),
-        partial_state_union.clone(),
-        prev_deferred_transfers.clone(),
-        reports.clone(),
-        always_accumulate_services.clone(),
-        partial_state_union.manager_service,
-        curr_timeslot_index,
-    )
-    .await?;
-    add_partial_state_change(
-        state_manager.clone(),
-        manager_accumulate_result.accumulate_host,
-        partial_state_union,
-        manager_accumulate_result.partial_state,
-    )
-    .await;
 
     let service_output_pairs = AccumulationOutputPairs(service_output_pairs);
 
@@ -436,7 +396,7 @@ async fn accumulate_single_service(
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
     curr_timeslot_index: TimeslotIndex,
-) -> Result<AccumulateResult<StateManager>, PVMInvokeError> {
+) -> Result<Option<AccumulateResult<StateManager>>, PVMInvokeError> {
     let mut gas_limit = always_accumulate_services
         .get(&service_id)
         .cloned()
