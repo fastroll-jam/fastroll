@@ -4,7 +4,7 @@ use crate::{
     error::StateManagerError,
     merkle_interface::{
         actor::{MerkleActor, MerkleCommand, MerkleManagerHandle},
-        manager::MerkleManager,
+        manager::{DBWriteSetWithRoot, MerkleManager},
     },
     provider::HostStateProvider,
     state_db::StateDB,
@@ -42,6 +42,11 @@ use std::{
 };
 use tokio::sync::mpsc;
 use tracing::instrument;
+
+pub struct StateCommitArtifact {
+    db_write_set_with_root: DBWriteSetWithRoot,
+    dirty_cache_entries: Vec<(StateKey, CacheEntry)>,
+}
 
 pub struct StateManager {
     state_db: StateDB,
@@ -490,6 +495,68 @@ impl StateManager {
         Ok(Some(state_encoded))
     }
 
+    /// Collects all dirty cache entries after state transition, then prepares artifacts for
+    /// the state commitment which can be staged and then commited later.
+    pub async fn prepare_dirty_cache_commit(
+        &self,
+    ) -> Result<Option<StateCommitArtifact>, StateManagerError> {
+        let dirty_cache_entries = self.cache.collect_dirty();
+        tracing::debug!(
+            "preparing commitment for {} dirty cache entries",
+            dirty_cache_entries.len()
+        );
+        if dirty_cache_entries.is_empty() {
+            return Ok(None);
+        }
+
+        if let Some(db_write_set_with_root) = self
+            .merkle_manager
+            .prepare_dirty_cache_commit(dirty_cache_entries.clone())
+            .await?
+        {
+            // Rollback the state cache after producing the artifact
+            self.rollback_dirty_cache();
+
+            Ok(Some(StateCommitArtifact {
+                db_write_set_with_root,
+                dirty_cache_entries,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Applies state commitment of the dirty cache entries that the given `StateCommitArtifact`
+    /// represents by consuming DB write sets within it.
+    pub async fn apply_dirty_cache_commit(
+        &self,
+        artifact: StateCommitArtifact,
+    ) -> Result<(), StateManagerError> {
+        // Prepare StateDB write batch
+        let mut state_db_write_batch = WriteBatch::default();
+        let state_db_cf = self.state_db.cf_handle()?;
+        for (k, v) in &artifact
+            .db_write_set_with_root
+            .db_write_set
+            .state_db_write_set
+        {
+            state_db_write_batch.put_cf(state_db_cf, k.as_db_key(), v.clone().into_db_value()?);
+        }
+
+        // Commit to the MerkleDB
+        self.merkle_manager
+            .apply_dirty_cache_commit(artifact.db_write_set_with_root)
+            .await?;
+
+        // Commit to the StateDB
+        self.commit_to_state_db(state_db_write_batch).await?;
+
+        // Sync up the state cache with the global state.
+        self.cache.sync_cache_status(&artifact.dirty_cache_entries);
+
+        Ok(())
+    }
+
     /// Collects all dirty cache entries after state transition, then directly commit them into
     /// `MerkleDB` and `StateDB` as a single synchronous batch write operation.
     /// After committing to the databases, marks the committed cache entries as clean.
@@ -501,11 +568,13 @@ impl StateManager {
             return Ok(());
         }
 
-        // Commit to StateDB
+        // Commit to MerkleDB and take the produced write set for the StateDB
         let state_db_writes = self
             .merkle_manager
             .commit_dirty_cache(dirty_entries.clone())
             .await?;
+
+        // Commit to the StateDB
         let mut state_db_write_batch = WriteBatch::default();
         let state_db_cf = self.state_db.cf_handle()?;
         for (k, v) in state_db_writes {
@@ -526,7 +595,9 @@ impl StateManager {
 
     /// Rolls back all uncommitted state changes.
     ///
-    /// This method should be called by the block processor when a block fails validation.
+    /// This method is called to drop dirty cache entries after staging prepared DB write set.
+    /// Also, this should be called by the block processor when a block fails validation.
+    ///
     /// It reverts the state cache to its last known clean state, discarding the pending state changes.
     pub fn rollback_dirty_cache(&self) {
         self.cache.rollback_dirty_cache()
