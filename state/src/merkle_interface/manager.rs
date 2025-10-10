@@ -16,7 +16,7 @@ use std::collections::HashSet;
 
 /// A write set prepared for the later commitment to `MerkleDB` & `StateDB`
 /// and the new Merkle root produced by them, which are the artifacts of dirty state cache processing.
-pub struct PreparedMerkleCommit {
+pub struct DBWriteSetWithRoot {
     pub new_merkle_root: MerkleRoot,
     pub db_write_set: DBWriteSet,
 }
@@ -647,48 +647,23 @@ impl MerkleManager {
         Ok(new_merkle_root)
     }
 
-    /// Generates a write batch for `MerkleDB` from the write set stored in the `MerkleChangeSet`.
-    fn generate_merkle_db_write_batch_from_change_set(
-        &mut self,
-    ) -> Result<MerkleDBWriteBatch, StateMerkleError> {
-        self.merkle_change_set
-            .db_write_set
-            .generate_merkle_db_write_batch(
-                self.merkle_db.nodes_cf_handle()?,
-                self.merkle_db.leaf_paths_cf_handle()?,
-            )
-    }
-
-    /// Populates the provided write set into `MerkleChangeSet` and then
-    /// generates a write batch for `MerkleDB`.
-    fn generate_merkle_db_write_batch_with_write_set(
+    /// Generates a write batch for `MerkleDB` from the provided write sets.
+    fn generate_merkle_db_write_batch_from_write_set(
         &mut self,
         nodes_write_set: &[MerkleDBNodesWrite],
         leaf_paths_write_set: &[MerkleDBLeafPathsWrite],
     ) -> Result<MerkleDBWriteBatch, StateMerkleError> {
-        // Put the provided write set into the `MerkleChangeSet`
-        self.merkle_change_set
-            .db_write_set
-            .merkle_db_nodes_write_set
-            .extend(nodes_write_set.iter().cloned());
-        self.merkle_change_set
-            .db_write_set
-            .merkle_db_leaf_paths_write_set
-            .extend(leaf_paths_write_set.iter().cloned());
+        let mut merkle_db_write_sets = DBWriteSet {
+            state_db_write_set: vec![], // not using this here
+            merkle_db_nodes_write_set: nodes_write_set.to_vec(),
+            merkle_db_leaf_paths_write_set: leaf_paths_write_set.to_vec(),
+        };
 
-        // Produce write batch for DBs
-        let write_batch = self.generate_merkle_db_write_batch_from_change_set()?;
-
-        // Cleanup the change set for later use
-        self.merkle_change_set
-            .db_write_set
-            .merkle_db_nodes_write_set
-            .clear();
-        self.merkle_change_set
-            .db_write_set
-            .merkle_db_leaf_paths_write_set
-            .clear();
-        Ok(write_batch)
+        let merkle_db_write_batch = merkle_db_write_sets.generate_merkle_db_write_batch(
+            self.merkle_db.nodes_cf_handle()?,
+            self.merkle_db.leaf_paths_cf_handle()?,
+        )?;
+        Ok(merkle_db_write_batch)
     }
 
     /// Commits the provided write batch into the `MerkleDB`.
@@ -703,12 +678,12 @@ impl MerkleManager {
             .await
     }
 
-    /// Processes the provided dirty state cache entries into `PreparedMerkleCommit` ready for later
+    /// Processes the provided dirty state cache entries into `DBWriteSetWithRoot` ready for later
     /// commitment to DBs.
-    pub async fn prepare_merkle_commit(
+    pub async fn prepare_dirty_cache_commit(
         &mut self,
         dirty_entries: &[(StateKey, CacheEntry)],
-    ) -> Result<Option<PreparedMerkleCommit>, StateMerkleError> {
+    ) -> Result<Option<DBWriteSetWithRoot>, StateMerkleError> {
         if dirty_entries.is_empty() {
             return Ok(None);
         }
@@ -741,7 +716,7 @@ impl MerkleManager {
         // Clear the MerkleStateChange
         self.merkle_change_set.clear();
 
-        Ok(Some(PreparedMerkleCommit {
+        Ok(Some(DBWriteSetWithRoot {
             new_merkle_root,
             db_write_set: DBWriteSet {
                 state_db_write_set,
@@ -751,11 +726,11 @@ impl MerkleManager {
         }))
     }
 
-    pub async fn apply_prepared_merkle_commit(
+    pub async fn apply_dirty_cache_commit(
         &mut self,
-        prepared: PreparedMerkleCommit,
+        prepared: DBWriteSetWithRoot,
     ) -> Result<(), StateMerkleError> {
-        let merkle_db_write_batch = self.generate_merkle_db_write_batch_with_write_set(
+        let merkle_db_write_batch = self.generate_merkle_db_write_batch_from_write_set(
             &prepared.db_write_set.merkle_db_nodes_write_set,
             &prepared.db_write_set.merkle_db_leaf_paths_write_set,
         )?;
@@ -783,13 +758,13 @@ impl MerkleManager {
         &mut self,
         dirty_entries: &[(StateKey, CacheEntry)],
     ) -> Result<Vec<StateDBWrite>, StateMerkleError> {
-        let Some(prepared) = self.prepare_merkle_commit(dirty_entries).await? else {
+        let Some(prepared) = self.prepare_dirty_cache_commit(dirty_entries).await? else {
             // Merkle trie unchanged
             return Ok(vec![]);
         };
 
         let state_db_write_set = prepared.db_write_set.state_db_write_set.clone();
-        self.apply_prepared_merkle_commit(prepared).await?;
+        self.apply_dirty_cache_commit(prepared).await?;
         Ok(state_db_write_set)
     }
 }

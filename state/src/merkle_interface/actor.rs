@@ -2,7 +2,7 @@
 use crate::{
     cache::CacheEntry,
     error::StateManagerError,
-    merkle_interface::manager::{MerkleManager, PreparedMerkleCommit},
+    merkle_interface::manager::{DBWriteSetWithRoot, MerkleManager},
 };
 use fr_common::{MerkleRoot, StateKey};
 use fr_state_merkle_v2::{
@@ -12,23 +12,27 @@ use fr_state_merkle_v2::{
 use tokio::sync::{mpsc, oneshot};
 
 pub(crate) enum MerkleCommand {
-    GetMerkleRoot {
-        resp: oneshot::Sender<MerkleRoot>,
-    },
+    /// Get the current Merkle root from the `MerkleDB`.
+    GetMerkleRoot { resp: oneshot::Sender<MerkleRoot> },
+    /// Retrieves a leaf node data that corresponds to the given state key from the `MerkleDB`, if exists.
     Retrieve {
         state_key: StateKey,
         resp: oneshot::Sender<Result<Option<LeafNodeData>, StateMerkleError>>,
     },
+    /// Processes and commits the provided dirty state cache entries directly into the `MerkleDB`.
+    /// Equivalent to combination of `PrepareDirtyCacheCommit` & `ApplyDirtyCacheCommit`
     CommitDirtyCache {
         dirty_entries: Vec<(StateKey, CacheEntry)>,
         resp: oneshot::Sender<Result<Vec<StateDBWrite>, StateMerkleError>>,
     },
-    PrepareMerkleCommit {
+    /// Prepares `DBWriteSetWithRoot` by processing the provided dirty state cache entries.
+    PrepareDirtyCacheCommit {
         dirty_entries: Vec<(StateKey, CacheEntry)>,
-        resp: oneshot::Sender<Result<Option<PreparedMerkleCommit>, StateMerkleError>>,
+        resp: oneshot::Sender<Result<Option<DBWriteSetWithRoot>, StateMerkleError>>,
     },
-    ApplyPreparedMerkleCommit {
-        prepared: PreparedMerkleCommit,
+    /// Commits the prepared `DBWriteSetWithRoot` into the `MerkleDB`.
+    ApplyDirtyCacheCommit {
+        prepared: DBWriteSetWithRoot,
         resp: oneshot::Sender<Result<(), StateMerkleError>>,
     },
 }
@@ -82,12 +86,12 @@ impl MerkleManagerHandle {
             .map_err(|_| StateManagerError::MerkleActorClosed)??)
     }
 
-    pub(crate) async fn prepare_merkle_commit(
+    pub(crate) async fn prepare_dirty_cache_commit(
         &self,
         dirty_entries: Vec<(StateKey, CacheEntry)>,
-    ) -> Result<Option<PreparedMerkleCommit>, StateManagerError> {
+    ) -> Result<Option<DBWriteSetWithRoot>, StateManagerError> {
         let (resp, recv) = oneshot::channel();
-        let command = MerkleCommand::PrepareMerkleCommit {
+        let command = MerkleCommand::PrepareDirtyCacheCommit {
             dirty_entries,
             resp,
         };
@@ -100,12 +104,12 @@ impl MerkleManagerHandle {
             .map_err(|_| StateManagerError::MerkleActorClosed)??)
     }
 
-    pub(crate) async fn apply_prepared_merkle_commit(
+    pub(crate) async fn apply_dirty_cache_commit(
         &self,
-        prepared: PreparedMerkleCommit,
+        prepared: DBWriteSetWithRoot,
     ) -> Result<(), StateManagerError> {
         let (resp, recv) = oneshot::channel();
-        let command = MerkleCommand::ApplyPreparedMerkleCommit { prepared, resp };
+        let command = MerkleCommand::ApplyDirtyCacheCommit { prepared, resp };
         self.sender
             .send(command)
             .await
@@ -150,15 +154,18 @@ impl MerkleActor {
                         .await;
                     let _ = resp.send(commit_result);
                 }
-                MerkleCommand::PrepareMerkleCommit {
+                MerkleCommand::PrepareDirtyCacheCommit {
                     dirty_entries,
                     resp,
                 } => {
-                    let prepare_result = self.manager.prepare_merkle_commit(&dirty_entries).await;
+                    let prepare_result = self
+                        .manager
+                        .prepare_dirty_cache_commit(&dirty_entries)
+                        .await;
                     let _ = resp.send(prepare_result);
                 }
-                MerkleCommand::ApplyPreparedMerkleCommit { prepared, resp } => {
-                    let apply_result = self.manager.apply_prepared_merkle_commit(prepared).await;
+                MerkleCommand::ApplyDirtyCacheCommit { prepared, resp } => {
+                    let apply_result = self.manager.apply_dirty_cache_commit(prepared).await;
                     let _ = resp.send(apply_result);
                 }
             }

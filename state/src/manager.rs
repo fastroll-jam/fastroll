@@ -490,7 +490,7 @@ impl StateManager {
         Ok(Some(state_encoded))
     }
 
-    /// Collects all dirty cache entries after state transition, then commit them into
+    /// Collects all dirty cache entries after state transition, then directly commit them into
     /// `MerkleDB` and `StateDB` as a single synchronous batch write operation.
     /// After committing to the databases, marks the committed cache entries as clean.
     #[instrument(level = "debug", skip(self), name = "commit_cache")]
