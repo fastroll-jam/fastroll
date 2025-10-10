@@ -14,7 +14,7 @@ use fr_block::{
     },
 };
 use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, EntropyHash, MerkleRoot, StateRoot, X_E, X_F, X_T};
+use fr_common::{ByteEncodable, EntropyHash, StateRoot, X_E, X_F, X_T};
 use fr_crypto::{
     error::CryptoError, traits::VrfSignature, types::BandersnatchPubKey,
     vrf::bandersnatch_vrf::VrfVerifier,
@@ -26,6 +26,7 @@ use fr_extrinsics::validation::{
 };
 use fr_state::{
     error::StateManagerError,
+    manager::StateCommitArtifact,
     types::{SlotSealer, Timeslot},
 };
 use fr_storage::node_storage::NodeStorage;
@@ -93,6 +94,23 @@ pub enum BlockImportError {
     JoinError(#[from] tokio::task::JoinError),
 }
 
+#[derive(Clone, Copy)]
+pub enum BlockCommitMode {
+    /// Processes the block and immediately commit the block into DBs, finalizing the block.
+    Immediate,
+    /// Processes the block and produces DB write set for later commitment on block finalization.
+    StageOnly,
+}
+
+pub struct BlockImportOutput {
+    /// The new state root after the block import.
+    pub post_state_root: StateRoot,
+    /// The account state change set.
+    pub account_state_changes: AccountStateChanges,
+    /// The optional export of state commit artifact; only included in `StageOnly` block commit mode.
+    pub state_commit_artifact: Option<StateCommitArtifact>,
+}
+
 pub struct BlockImporter;
 impl BlockImporter {
     pub async fn run_block_importer(
@@ -108,12 +126,20 @@ impl BlockImporter {
                 }
             };
             let timeslot_index = block.header.timeslot_index();
-            match Self::import_block(storage.clone(), block, false, false).await {
-                Ok((post_state_root, _)) => {
+            match Self::import_block(
+                storage.clone(),
+                block,
+                false,
+                false,
+                BlockCommitMode::Immediate,
+            )
+            .await
+            {
+                Ok(output) => {
                     tracing::info!("✅ Block validated ({header_hash}) (slot: {timeslot_index})");
                     if let Err(e) = storage
                         .post_state_root_db()
-                        .set_post_state_root(&header_hash, post_state_root.clone())
+                        .set_post_state_root(&header_hash, output.post_state_root.clone())
                         .await
                     {
                         tracing::error!("Failed to set post state root of the block: {e:?}");
@@ -133,15 +159,21 @@ impl BlockImporter {
         block: Block,
         is_first_fuzz_block: bool,
         with_ancestors: bool,
-    ) -> Result<(StateRoot, AccountStateChanges), BlockImportError> {
+        block_commit_mode: BlockCommitMode,
+    ) -> Result<BlockImportOutput, BlockImportError> {
         tracing::info!(
             "📥 Block imported (slot={})(header_hash={})",
             block.header.timeslot_index(),
             &block.header.hash()?,
         );
-        let block_import_result =
-            Self::validate_block(storage.clone(), &block, is_first_fuzz_block, with_ancestors)
-                .await?;
+        let block_import_output = Self::validate_block(
+            storage.clone(),
+            &block,
+            is_first_fuzz_block,
+            with_ancestors,
+            block_commit_mode,
+        )
+        .await?;
 
         // Store the block header to the block header DB & ancestor set
         let header_db = storage.header_db();
@@ -149,7 +181,7 @@ impl BlockImporter {
             .insert_header(block.header.hash()?, block.header)
             .await?;
 
-        Ok(block_import_result)
+        Ok(block_import_output)
     }
 
     async fn validate_block(
@@ -157,22 +189,27 @@ impl BlockImporter {
         block: &Block,
         is_first_fuzz_block: bool,
         with_ancestors: bool,
-    ) -> Result<(StateRoot, AccountStateChanges), BlockImportError> {
+        block_commit_mode: BlockCommitMode,
+    ) -> Result<BlockImportOutput, BlockImportError> {
         if block.is_genesis() {
             // Skip validation for the genesis block
-            let (post_state_root, account_state_changes) =
-                Self::run_state_transition(&storage, block, with_ancestors).await?;
-            return Ok((post_state_root, account_state_changes));
+            let output =
+                Self::run_state_transition(&storage, block, with_ancestors, block_commit_mode)
+                    .await?;
+            return Ok(output);
         }
 
         // Validate header fields (prior to STF)
         Self::validate_block_header_prior_stf(&storage, block, is_first_fuzz_block).await?;
         // Re-execute STF
-        let (post_state_root, account_state_changes) =
-            Self::run_state_transition(&storage, block, with_ancestors).await?;
+        let output =
+            Self::run_state_transition(&storage, block, with_ancestors, block_commit_mode).await?;
+
         // Set best header
-        storage.header_db().set_best_header(block.header.clone());
-        Ok((post_state_root, account_state_changes))
+        if matches!(block_commit_mode, BlockCommitMode::Immediate) {
+            storage.header_db().set_best_header(block.header.clone());
+        }
+        Ok(output)
     }
 
     /// Note: Currently, each STF validates Xt types as well. Up-front Xt validations might work
@@ -454,7 +491,8 @@ impl BlockImporter {
         storage: &NodeStorage,
         block: &Block,
         with_ancestors: bool,
-    ) -> Result<(MerkleRoot, AccountStateChanges), BlockImportError> {
+        block_commit_mode: BlockCommitMode,
+    ) -> Result<BlockImportOutput, BlockImportError> {
         let account_state_changes = if block.is_genesis() {
             let output = BlockExecutor::run_genesis_state_transition(storage, block).await?;
             BlockExecutor::append_beefy_belt_and_block_history(
@@ -491,10 +529,32 @@ impl BlockImporter {
             .await?;
             output.account_state_changes
         };
-        storage.state_manager().commit_dirty_cache().await?;
-        Ok((
-            storage.state_manager().merkle_root().await?,
+
+        let mut state_commit_artifact = None;
+        let post_state_root = match block_commit_mode {
+            BlockCommitMode::Immediate => {
+                storage.state_manager().commit_dirty_cache().await?;
+                storage.state_manager().merkle_root().await?
+            }
+            BlockCommitMode::StageOnly => {
+                if let Some(artifact) = storage.state_manager().prepare_dirty_cache_commit().await?
+                {
+                    let root = artifact.state_root().clone();
+                    state_commit_artifact = Some(artifact);
+                    root
+                } else {
+                    // State is unchanged
+                    let root = storage.state_manager().merkle_root().await?;
+                    storage.state_manager().rollback_dirty_cache();
+                    root
+                }
+            }
+        };
+
+        Ok(BlockImportOutput {
+            post_state_root,
             account_state_changes,
-        ))
+            state_commit_artifact,
+        })
     }
 }
