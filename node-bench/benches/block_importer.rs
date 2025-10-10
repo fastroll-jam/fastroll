@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Bencher, Criterion};
-use fr_node::roles::importer::BlockImporter;
+use fr_node::roles::importer::{BlockCommitMode, BlockImporter};
 use fr_state::state_utils::add_all_simple_state_entries;
 use fr_storage::node_storage::NodeStorage;
 use fr_test_utils::importer_harness::{get_parent_block_header, BlockImportHarness, TestCase};
@@ -79,10 +79,11 @@ fn bench_block_import(c: &mut Criterion) {
                         test_case.block.clone(),
                         false,
                         false,
+                        BlockCommitMode::Immediate,
                     )
                     .await
                     {
-                        Ok((post_state_root, _account_state_changes)) => post_state_root,
+                        Ok(output) => output.post_state_root,
                         Err(e) => {
                             panic!("Block import failed during benchmarking: {e:?}");
                         }

@@ -43,9 +43,16 @@ use std::{
 use tokio::sync::mpsc;
 use tracing::instrument;
 
+#[derive(Clone)]
 pub struct StateCommitArtifact {
     db_write_set_with_root: DBWriteSetWithRoot,
     dirty_cache_entries: Vec<(StateKey, CacheEntry)>,
+}
+
+impl StateCommitArtifact {
+    pub fn state_root(&self) -> &MerkleRoot {
+        &self.db_write_set_with_root.new_merkle_root
+    }
 }
 
 pub struct StateManager {
@@ -530,7 +537,7 @@ impl StateManager {
     /// represents by consuming DB write sets within it.
     pub async fn apply_dirty_cache_commit(
         &self,
-        artifact: StateCommitArtifact,
+        artifact: &StateCommitArtifact,
     ) -> Result<(), StateManagerError> {
         // Prepare StateDB write batch
         let mut state_db_write_batch = WriteBatch::default();
@@ -545,14 +552,15 @@ impl StateManager {
 
         // Commit to the MerkleDB
         self.merkle_manager
-            .apply_dirty_cache_commit(artifact.db_write_set_with_root)
+            .apply_dirty_cache_commit(artifact.db_write_set_with_root.clone())
             .await?;
 
         // Commit to the StateDB
         self.commit_to_state_db(state_db_write_batch).await?;
 
         // Sync up the state cache with the global state.
-        self.cache.sync_cache_status(&artifact.dirty_cache_entries);
+        self.cache
+            .apply_deferred_commit(&artifact.dirty_cache_entries);
 
         Ok(())
     }
@@ -583,7 +591,7 @@ impl StateManager {
         self.commit_to_state_db(state_db_write_batch).await?;
 
         // Sync up the state cache with the global state.
-        self.cache.sync_cache_status(&dirty_entries);
+        self.cache.apply_direct_commit(&dirty_entries);
 
         Ok(())
     }

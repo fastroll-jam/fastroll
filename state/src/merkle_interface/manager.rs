@@ -16,6 +16,7 @@ use std::collections::HashSet;
 
 /// A write set prepared for the later commitment to `MerkleDB` & `StateDB`
 /// and the new Merkle root produced by them, which are the artifacts of dirty state cache processing.
+#[derive(Clone)]
 pub struct DBWriteSetWithRoot {
     pub new_merkle_root: MerkleRoot,
     pub db_write_set: DBWriteSet,

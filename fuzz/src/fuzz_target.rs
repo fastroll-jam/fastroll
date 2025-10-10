@@ -6,17 +6,27 @@ use crate::{
     utils::{validate_socket_path, StreamUtils},
 };
 use fr_block::{
-    ancestors::AncestorEntry, header_db::BlockHeaderDBError,
-    post_state_root_db::PostStateRootDbError, types::block::BlockHeaderError,
+    ancestors::AncestorEntry,
+    header_db::BlockHeaderDBError,
+    post_state_root_db::PostStateRootDbError,
+    types::block::{Block, BlockHeader, BlockHeaderError},
 };
 use fr_codec::JamCodecError;
 use fr_common::{ByteSequence, CommonTypeError};
 use fr_config::StorageConfig;
 use fr_limited_vec::LimitedVecError;
-use fr_node::roles::importer::BlockImporter;
-use fr_state::error::StateManagerError;
+use fr_node::{
+    reexports::AccountStateChanges,
+    roles::importer::{BlockCommitMode, BlockImportOutput, BlockImporter},
+};
+use fr_state::{error::StateManagerError, manager::StateCommitArtifact};
 use fr_storage::node_storage::NodeStorage;
-use std::{collections::BTreeSet, io::Error as IoError, string::FromUtf8Error, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap},
+    io::Error as IoError,
+    string::FromUtf8Error,
+    sync::Arc,
+};
 use tempfile::tempdir;
 use thiserror::Error;
 use tokio::{
@@ -78,11 +88,48 @@ impl LatestStateKeys {
     }
 }
 
+/// A block header and its uncommitted state change artifacts
+/// that can be either committed or discarded after forks get resolved.
+#[derive(Clone)]
+struct StagedBlock {
+    header: BlockHeader,
+    account_state_changes: AccountStateChanges,
+    state_commit_artifact: Option<StateCommitArtifact>,
+}
+
+/// The state that keeps minimal context to support simple forking.
+#[derive(Default)]
+struct SimpleForkState {
+    /// The header hash of the last finalized block.
+    last_finalized: Option<HeaderHash>,
+    /// The collection of blocks that are staged but not committed or dropped yet.
+    staged_blocks: HashMap<HeaderHash, StagedBlock>,
+}
+
+impl SimpleForkState {
+    fn last_finalized(&self) -> Option<&HeaderHash> {
+        self.last_finalized.as_ref()
+    }
+
+    fn set_last_finalized(&mut self, last_finalized: HeaderHash) {
+        self.last_finalized = Some(last_finalized);
+    }
+
+    fn insert_staged_block(&mut self, header_hash: HeaderHash, block: StagedBlock) {
+        self.staged_blocks.insert(header_hash, block);
+    }
+
+    fn take_staged_block(&mut self, header_hash: &HeaderHash) -> Option<StagedBlock> {
+        self.staged_blocks.remove(header_hash)
+    }
+}
+
 pub struct FuzzTargetRunner {
     pub(crate) node_storage: Arc<NodeStorage>,
     latest_state_keys: LatestStateKeys,
     target_peer_info: PeerInfo,
     fuzz_features: FuzzFeatures,
+    fork_state: SimpleForkState,
 }
 
 impl FuzzTargetRunner {
@@ -98,6 +145,7 @@ impl FuzzTargetRunner {
             latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
             fuzz_features: FuzzFeatures::default(),
+            fork_state: SimpleForkState::default(),
         }
     }
 
@@ -114,6 +162,84 @@ impl FuzzTargetRunner {
         self.node_storage()
             .header_db()
             .batch_insert_to_ancestor_set(entries)?;
+        Ok(())
+    }
+
+    fn apply_account_state_changes(&mut self, changes: &AccountStateChanges) {
+        for change in changes.inner.values() {
+            for added_key in &change.added_state_keys {
+                self.latest_state_keys.insert_state_key(added_key.clone());
+            }
+            for removed_key in &change.removed_state_keys {
+                self.latest_state_keys.remove_state_key(removed_key.clone());
+            }
+        }
+    }
+
+    fn determine_block_commit_mode(&self, block: &Block) -> BlockCommitMode {
+        if !self.fuzz_features.with_forking || block.is_genesis() {
+            return BlockCommitMode::Immediate;
+        }
+
+        if let Some(finalized_parent) = self.fork_state.last_finalized() {
+            if block.header.parent_hash() == finalized_parent {
+                // The imported block is extending the finalized block; simple forking occurred
+                return BlockCommitMode::StageOnly;
+            }
+        }
+
+        BlockCommitMode::Immediate
+    }
+
+    fn stage_block(
+        &mut self,
+        header_hash: HeaderHash,
+        header: BlockHeader,
+        account_state_changes: AccountStateChanges,
+        state_commit_artifact: Option<StateCommitArtifact>,
+    ) {
+        self.fork_state.insert_staged_block(
+            header_hash,
+            StagedBlock {
+                header,
+                account_state_changes,
+                state_commit_artifact,
+            },
+        );
+    }
+
+    async fn apply_staged_block_commit(
+        &mut self,
+        header_hash: HeaderHash,
+        staged_block: StagedBlock,
+    ) -> Result<(), FuzzTargetError> {
+        if let Some(artifact) = &staged_block.state_commit_artifact {
+            self.node_storage()
+                .state_manager()
+                .apply_dirty_cache_commit(artifact)
+                .await?;
+        }
+        self.apply_account_state_changes(&staged_block.account_state_changes);
+        self.node_storage()
+            .header_db()
+            .set_best_header(staged_block.header);
+        self.fork_state.set_last_finalized(header_hash);
+        Ok(())
+    }
+
+    /// Resolves simple forking by finalizing a staged block if the new block is extending it.
+    async fn finalize_if_parent_staged(
+        &mut self,
+        staged_parent_hash: &HeaderHash,
+    ) -> Result<(), FuzzTargetError> {
+        if let Some(staged_block) = self.fork_state.take_staged_block(staged_parent_hash) {
+            // Apply state commitment of the new finalized block
+            self.apply_staged_block_commit(staged_parent_hash.clone(), staged_block)
+                .await?;
+
+            // Clear the staged blocks of the fork state
+            self.fork_state.staged_blocks.clear();
+        }
         Ok(())
     }
 
@@ -233,6 +359,11 @@ impl FuzzTargetRunner {
                 state_manager.commit_dirty_cache().await?;
                 let state_root = state_manager.merkle_root().await?;
 
+                // Initialize the simple fork state
+                self.fork_state = SimpleForkState::default();
+                self.fork_state
+                    .set_last_finalized(parent_header_hash.clone());
+
                 // Initialize `BlockHeaderDB` & `PostStateRootDB`
                 storage.header_db().set_best_header(parent_header);
                 storage
@@ -260,23 +391,42 @@ impl FuzzTargetRunner {
                 let header_hash = block.header.hash()?;
                 self.latest_state_keys
                     .update_header_hash(header_hash.clone());
+
+                // Resolve forks if the new block is extending one of the staged blocks
+                self.finalize_if_parent_staged(block.header.parent_hash())
+                    .await?;
+
+                let block_commit_mode = self.determine_block_commit_mode(&block);
+
+                let block_header = block.header.clone();
                 match BlockImporter::import_block(
                     storage.clone(),
                     block,
                     *is_first_block,
                     self.fuzz_features.with_ancestors,
+                    block_commit_mode,
                 )
                 .await
                 {
-                    Ok((post_state_root, account_state_changes)) => {
-                        account_state_changes.inner.values().for_each(|change| {
-                            for added_key in &change.added_state_keys {
-                                self.latest_state_keys.insert_state_key(added_key.clone());
+                    Ok(BlockImportOutput {
+                        post_state_root,
+                        account_state_changes,
+                        state_commit_artifact,
+                    }) => {
+                        match block_commit_mode {
+                            BlockCommitMode::Immediate => {
+                                self.apply_account_state_changes(&account_state_changes);
+                                self.fork_state.set_last_finalized(header_hash.clone());
                             }
-                            for removed_key in &change.removed_state_keys {
-                                self.latest_state_keys.remove_state_key(removed_key.clone());
+                            BlockCommitMode::StageOnly => {
+                                self.stage_block(
+                                    header_hash.clone(),
+                                    block_header,
+                                    account_state_changes,
+                                    state_commit_artifact,
+                                );
                             }
-                        });
+                        }
 
                         // Update `PostStateRootDB`
                         storage

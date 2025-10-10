@@ -7,7 +7,10 @@ use fr_node::{
     genesis::{genesis_simple_state, load_genesis_block},
     jam_node::JamNode,
     keystore::dev_account_profile::DevNodeAccountProfile,
-    roles::{author::BlockAuthor, importer::BlockImporter},
+    roles::{
+        author::BlockAuthor,
+        importer::{BlockCommitMode, BlockImporter},
+    },
 };
 use fr_state::state_utils::add_all_simple_state_entries;
 use fr_storage::node_storage::NodeStorage;
@@ -85,9 +88,15 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
         init_with_genesis_state(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9998, 0, 0)).await?;
 
     // Block importer role
-    let (importer_post_state_root, _) =
-        BlockImporter::import_block(importer_node.storage(), new_block, false, false).await?;
-    assert_eq!(author_post_state_root, importer_post_state_root);
+    let output = BlockImporter::import_block(
+        importer_node.storage(),
+        new_block,
+        false,
+        false,
+        BlockCommitMode::Immediate,
+    )
+    .await?;
+    assert_eq!(author_post_state_root, output.post_state_root);
 
     Ok(())
 }

@@ -6,7 +6,7 @@ use fr_common::{
     utils::tracing::setup_timed_tracing, ByteArray, ByteSequence, StateKey, StateRoot,
 };
 use fr_config::StorageConfig;
-use fr_node::roles::importer::BlockImporter;
+use fr_node::roles::importer::{BlockCommitMode, BlockImporter};
 use fr_state::{
     manager::StateManager,
     state_utils::{add_all_simple_state_entries, get_simple_state_key, StateKeyConstant},
@@ -170,8 +170,10 @@ impl BlockImportHarness {
         storage: Arc<NodeStorage>,
         block: Block,
     ) -> Result<(StateRoot, AccountStateChanges), Box<dyn Error>> {
-        let import_result = BlockImporter::import_block(storage, block, false, false).await?;
-        Ok(import_result)
+        let output =
+            BlockImporter::import_block(storage, block, false, false, BlockCommitMode::Immediate)
+                .await?;
+        Ok((output.post_state_root, output.account_state_changes))
     }
 
     async fn _extract_post_state() -> Result<RawState, Box<dyn Error>> {

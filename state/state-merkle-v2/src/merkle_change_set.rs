@@ -20,7 +20,7 @@ pub struct MerkleDBWriteBatch {
     pub(crate) leaf_paths: WriteBatch,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct DBWriteSet {
     pub state_db_write_set: Vec<StateDBWrite>,
     pub merkle_db_nodes_write_set: Vec<MerkleDBNodesWrite>,

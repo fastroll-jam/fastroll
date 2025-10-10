@@ -177,10 +177,11 @@ impl StateCache {
             .collect()
     }
 
-    /// Syncs up the state cache with the global state, by removing cache entries that are deleted
-    /// from the global state and marking added or updated entries as clean.
-    pub(crate) fn sync_cache_status(&self, dirty_entries: &[(StateKey, CacheEntry)]) {
-        for (key, entry) in dirty_entries.iter() {
+    /// Syncs up the state cache with the global state after direct state commitment from the
+    /// dirty state cache, by removing cache entries that are deleted from the global state and
+    /// marking added or updated entries as clean.
+    pub(crate) fn apply_direct_commit(&self, dirty_entries_from_cache: &[(StateKey, CacheEntry)]) {
+        for (key, entry) in dirty_entries_from_cache.iter() {
             // Remove cache entries that are removed from the global state
             if let CacheEntryStatus::Dirty(StateMut::Remove) = entry.status {
                 self.inner.invalidate(key);
@@ -191,6 +192,34 @@ impl StateCache {
         }
         self.inner.sync();
         self.clear_dirty_state_keys();
+    }
+
+    /// Applies the provided dirty cache entries from a state commit artifact of staged block
+    /// marking inserted and updated entries as clean snapshots and evicting removals.
+    /// This is used when a staged block is finalized, after the cache had already
+    /// been rolled back when the block was staged.
+    pub(crate) fn apply_deferred_commit(
+        &self,
+        dirty_entries_from_staged_block: &[(StateKey, CacheEntry)],
+    ) {
+        for (key, entry) in dirty_entries_from_staged_block.iter() {
+            match entry.status {
+                CacheEntryStatus::Dirty(StateMut::Remove) => {
+                    self.inner.invalidate(key);
+                }
+                CacheEntryStatus::Dirty(StateMut::Add)
+                | CacheEntryStatus::Dirty(StateMut::Update) => {
+                    let mut clean_entry = entry.clone();
+                    clean_entry.mark_clean_and_snapshot();
+                    self.inner.insert(key.clone(), clean_entry);
+                }
+                CacheEntryStatus::Clean => {
+                    // This should not happen, but keep the cache entry as-is
+                    self.inner.insert(key.clone(), entry.clone());
+                }
+            }
+        }
+        self.inner.sync();
     }
 
     /// Rolls back all dirty cache entries to the clean status.
