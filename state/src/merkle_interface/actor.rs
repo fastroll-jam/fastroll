@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 use crate::{
-    cache::CacheEntry, error::StateManagerError, merkle_interface::manager::MerkleManager,
+    cache::CacheEntry,
+    error::StateManagerError,
+    merkle_interface::manager::{MerkleManager, PreparedMerkleCommit},
 };
 use fr_common::{MerkleRoot, StateKey};
 use fr_state_merkle_v2::{
@@ -20,6 +22,14 @@ pub(crate) enum MerkleCommand {
     CommitDirtyCache {
         dirty_entries: Vec<(StateKey, CacheEntry)>,
         resp: oneshot::Sender<Result<Vec<StateDBWrite>, StateMerkleError>>,
+    },
+    PrepareMerkleCommit {
+        dirty_entries: Vec<(StateKey, CacheEntry)>,
+        resp: oneshot::Sender<Result<Option<PreparedMerkleCommit>, StateMerkleError>>,
+    },
+    ApplyPreparedMerkleCommit {
+        prepared: PreparedMerkleCommit,
+        resp: oneshot::Sender<Result<(), StateMerkleError>>,
     },
 }
 
@@ -71,6 +81,39 @@ impl MerkleManagerHandle {
             .await
             .map_err(|_| StateManagerError::MerkleActorClosed)??)
     }
+
+    pub(crate) async fn prepare_merkle_commit(
+        &self,
+        dirty_entries: Vec<(StateKey, CacheEntry)>,
+    ) -> Result<Option<PreparedMerkleCommit>, StateManagerError> {
+        let (resp, recv) = oneshot::channel();
+        let command = MerkleCommand::PrepareMerkleCommit {
+            dirty_entries,
+            resp,
+        };
+        self.sender
+            .send(command)
+            .await
+            .map_err(|_| StateManagerError::MerkleActorClosed)?;
+        Ok(recv
+            .await
+            .map_err(|_| StateManagerError::MerkleActorClosed)??)
+    }
+
+    pub(crate) async fn apply_prepared_merkle_commit(
+        &self,
+        prepared: PreparedMerkleCommit,
+    ) -> Result<(), StateManagerError> {
+        let (resp, recv) = oneshot::channel();
+        let command = MerkleCommand::ApplyPreparedMerkleCommit { prepared, resp };
+        self.sender
+            .send(command)
+            .await
+            .map_err(|_| StateManagerError::MerkleActorClosed)?;
+        Ok(recv
+            .await
+            .map_err(|_| StateManagerError::MerkleActorClosed)??)
+    }
 }
 
 /// An actor that holds `MerkleManager` and processes `MerkleCommand` requests.
@@ -106,6 +149,17 @@ impl MerkleActor {
                         )
                         .await;
                     let _ = resp.send(commit_result);
+                }
+                MerkleCommand::PrepareMerkleCommit {
+                    dirty_entries,
+                    resp,
+                } => {
+                    let prepare_result = self.manager.prepare_merkle_commit(&dirty_entries).await;
+                    let _ = resp.send(prepare_result);
+                }
+                MerkleCommand::ApplyPreparedMerkleCommit { prepared, resp } => {
+                    let apply_result = self.manager.apply_prepared_merkle_commit(prepared).await;
+                    let _ = resp.send(apply_result);
                 }
             }
         }
