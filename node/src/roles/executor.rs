@@ -38,7 +38,7 @@ use fr_transition::{
 };
 use thiserror::Error;
 use tokio::try_join;
-use tracing::instrument;
+use tracing::{debug_span, instrument};
 
 #[derive(Debug, Error)]
 pub enum BlockExecutionError {
@@ -93,13 +93,24 @@ impl BlockExecutor {
         let curr_timeslot = storage.state_manager().get_timeslot().await?;
         let epoch_progressed = prev_timeslot.epoch() < curr_timeslot.epoch();
 
+        // Finalize `RingCache` after nullifying validator keys in the offenders set
+        // of the current Disputes Xt.
+        let offenders = disputes_xt.collect_offender_keys();
+        let state_manager = storage.state_manager();
+        state_manager.nullify_offenders_from_staging_ring_cache(offenders.as_ref())?;
+
+        // Rotate `RingCache` if this block is the first block of a new epoch
+        if epoch_progressed {
+            state_manager.commit_and_rotate_ring_cache();
+        }
+
         // --- Spawn STF tasks
 
         // Disputes STF
         let manager = storage.state_manager();
         let disputes_xt_cloned = disputes_xt.clone();
         let disputes_jh = spawn_timed("disputes_stf", async move {
-            transition_disputes(manager, &disputes_xt_cloned, prev_timeslot).await
+            transition_disputes(manager, &disputes_xt_cloned, offenders.items, prev_timeslot).await
         });
 
         // Entropy STF (on-epoch-change transition only)
@@ -140,19 +151,23 @@ impl BlockExecutor {
         active_set_res?;
         history_res?;
 
-        // Safrole STF
-        let manager = storage.state_manager();
-        spawn_timed("safrole_stf", async move {
-            transition_safrole(
-                manager,
-                &prev_timeslot,
-                &curr_timeslot,
-                epoch_progressed,
-                &tickets_xt,
-            )
-            .await
-        })
-        .await??;
+        {
+            let span = debug_span!("safrole_stf");
+            let _e = span.enter();
+            // Safrole STF
+            let manager = storage.state_manager();
+            spawn_timed("safrole_stf", async move {
+                transition_safrole(
+                    manager,
+                    &prev_timeslot,
+                    &curr_timeslot,
+                    epoch_progressed,
+                    &tickets_xt,
+                )
+                .await
+            })
+            .await??;
+        }
 
         // Collect header markers
         let safrole_markers =

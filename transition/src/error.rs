@@ -9,6 +9,7 @@ use fr_state::{
     types::{PendingReportsError, SlotSealerError},
 };
 use thiserror::Error;
+use tokio::task::JoinError;
 
 #[derive(Debug, Error)]
 pub enum TransitionError {
@@ -39,4 +40,6 @@ pub enum TransitionError {
     MerkleError(#[from] MerkleError),
     #[error("PVMInvokeError: {0}")]
     PVMInvokeError(#[from] PVMInvokeError),
+    #[error("JoinError: {0}")]
+    JoinError(#[from] JoinError),
 }

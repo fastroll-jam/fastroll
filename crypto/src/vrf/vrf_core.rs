@@ -212,7 +212,6 @@ pub(crate) struct RingVrfVerifierCore {
 }
 
 impl RingVrfVerifierCore {
-    #[instrument(level = "debug", skip_all, name = "construct_verifier")]
     pub(crate) fn new(ring: Vec<Public>) -> Self {
         let pts: Vec<_> = ring.iter().map(|pk| pk.0).collect();
         let verifier_key = ring_proof_params().verifier_key(&pts);

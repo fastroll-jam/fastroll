@@ -18,16 +18,20 @@ use crate::{
         AccountPreimagesEntry, AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet,
         AuthPool, AuthQueue, BlockHistory, DisputesState, EpochEntropy, LastAccumulateOutputs,
         OnChainStatistics, PastSet, PendingReports, SafroleState, SlotSealer, StagingSet, Timeslot,
+        ValidatorSet,
     },
 };
 use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
-    CodeHash, EpochIndex, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey,
-    StorageKey, TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
+    CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey, StorageKey,
+    TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_config::StorageConfig;
-use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
+use fr_crypto::{
+    types::{BandersnatchRingRoot, Ed25519PubKey, ValidatorKeySet},
+    vrf::bandersnatch_vrf::RingVrfVerifier,
+};
 use fr_db::{
     core::{
         cached_db::{CacheItem, DBKey},
@@ -41,7 +45,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 use tokio::sync::mpsc;
-use tracing::instrument;
+use tracing::{debug_span, instrument};
 
 #[derive(Clone)]
 pub struct StateCommitArtifact {
@@ -55,11 +59,43 @@ impl StateCommitArtifact {
     }
 }
 
+#[derive(Clone)]
+pub struct RingContext {
+    pub inserted_at: TimeslotIndex,
+    pub validator_set: ValidatorKeySet,
+    pub verifier: RingVrfVerifier,
+    pub ring_root: BandersnatchRingRoot,
+}
+
+#[derive(Default)]
+struct RingCache {
+    /// Ring context cached for Tickets Xt validation in the current epoch.
+    curr: Option<RingContext>,
+    /// Speculatively computed Ring VRF verifier and its context
+    /// cached for the next per-epoch Safrole state transition.
+    staging: Option<RingContext>,
+}
+
+impl RingCache {
+    fn curr(&self) -> Option<&RingContext> {
+        self.curr.as_ref()
+    }
+
+    fn staging(&self) -> Option<&RingContext> {
+        self.staging.as_ref()
+    }
+
+    fn rotate(&mut self) {
+        self.curr = self.staging.clone();
+    }
+}
+
 pub struct StateManager {
     state_db: StateDB,
     cache: StateCache,
     merkle_manager: MerkleManagerHandle,
-    ring_vrf_verifier_cache: RwLock<Option<(EpochIndex, RingVrfVerifier)>>,
+    ring_cache: RwLock<RingCache>,
+    last_staging_set_transition_slot: RwLock<TimeslotIndex>,
 }
 
 macro_rules! impl_simple_state_accessors {
@@ -188,39 +224,145 @@ impl StateManager {
             merkle_manager: MerkleManagerHandle {
                 sender: merkle_mpsc_send,
             },
-            ring_vrf_verifier_cache: RwLock::new(None),
+            ring_cache: RwLock::new(RingCache::default()),
+            last_staging_set_transition_slot: RwLock::new(0),
         }
     }
 
-    pub async fn get_or_generate_ring_vrf_verifier(
+    pub fn last_staging_set_transition_slot(&self) -> TimeslotIndex {
+        *self.last_staging_set_transition_slot.read().unwrap()
+    }
+
+    pub fn update_last_staging_set_transition_slot(&self, slot: TimeslotIndex) {
+        let mut guard = self.last_staging_set_transition_slot.write().unwrap();
+        *guard = slot;
+    }
+
+    /// Gets cached ring context or generates one, if not found from the cache,
+    /// for the TicketsXt validation for the current epoch.
+    /// In general, this should be found from the cache.
+    pub async fn get_or_generate_curr_ring_context(
         &self,
-    ) -> Result<RingVrfVerifier, StateManagerError> {
-        let curr_epoch_index = self.get_timeslot().await?.epoch();
+        curr_timeslot_index: TimeslotIndex,
+        validator_set: &ValidatorKeySet,
+    ) -> Result<(RingVrfVerifier, BandersnatchRingRoot), StateManagerError> {
         // Check the cache
-        if let Some((epoch_index, verifier)) = self.ring_vrf_verifier_cache.read().unwrap().as_ref()
+        if let Some(RingContext {
+            inserted_at: _inserted_at,
+            validator_set: _validator_set,
+            verifier,
+            ring_root,
+        }) = self.ring_cache.read().unwrap().curr()
         {
-            if *epoch_index == curr_epoch_index {
-                return Ok(verifier.clone());
+            return Ok((verifier.clone(), ring_root.clone()));
+        }
+
+        // Generate `RingVrfVerifier` with the current pending set after per-epoch Safrole STF (γP′)
+        // and cache it to the `StateManager`.
+        let verifier = RingVrfVerifier::new(validator_set)?;
+        let ring_root = verifier.compute_ring_root()?;
+        let ring_context = RingContext {
+            inserted_at: curr_timeslot_index,
+            validator_set: validator_set.clone(),
+            verifier: verifier.clone(),
+            ring_root: ring_root.clone(),
+        };
+
+        let mut guard = self.ring_cache.write().unwrap();
+        guard.curr = Some(ring_context);
+        Ok((verifier, ring_root))
+    }
+
+    /// Gets cached ring context or generates one, if not found from the cache,
+    /// for the next per-epoch Safrole transition.
+    pub async fn get_or_generate_staging_ring_context(
+        &self,
+        curr_timeslot_index: TimeslotIndex,
+        validator_set: &ValidatorKeySet,
+    ) -> Result<(RingVrfVerifier, BandersnatchRingRoot), StateManagerError> {
+        // Check the cache
+        if let Some(RingContext {
+            inserted_at,
+            validator_set: _validator_set,
+            verifier,
+            ring_root,
+        }) = self.ring_cache.read().unwrap().staging()
+        {
+            // The cache entry is valid only if StagingSet was not mutated after its insertion
+            if self.last_staging_set_transition_slot() <= *inserted_at {
+                return Ok((verifier.clone(), ring_root.clone()));
             }
         }
-        // Generate `RingVrfVerifier` with the current pending set (γP′) and cache it to the `StateManager`
-        let curr_pending_set = self.get_safrole().await?.pending_set;
-        let verifier = RingVrfVerifier::new(&curr_pending_set)?;
-        self.update_ring_vrf_verifier_cache(verifier.clone())
-            .await?;
-        Ok(verifier)
+
+        // Generate `RingVrfVerifier` with the current pending set after per-epoch Safrole STF (γP′)
+        // and cache it to the `StateManager`.
+        let verifier = {
+            let span = debug_span!("new_ring_verifier");
+            let _e = span.enter();
+            RingVrfVerifier::new(validator_set)?
+        };
+        let ring_root = verifier.compute_ring_root()?;
+        self.update_staging_ring_cache_entry(RingContext {
+            inserted_at: curr_timeslot_index,
+            validator_set: validator_set.clone(),
+            verifier: verifier.clone(),
+            ring_root: ring_root.clone(),
+        });
+        Ok((verifier, ring_root))
     }
 
-    pub async fn update_ring_vrf_verifier_cache(
+    /// Updates the `staging` ring cache entry.
+    ///
+    /// This is triggered by StagingSet transition, speculatively computing RingVRFVerifier
+    /// that could be used for the next per-epoch Safrole state transition.
+    pub fn update_staging_ring_cache_entry(&self, ring_cache_entry: RingContext) {
+        let mut guard = self.ring_cache.write().unwrap();
+        if let Some(entry) = guard.staging() {
+            if entry.inserted_at >= ring_cache_entry.inserted_at {
+                // Do not update if the incoming cache entry is outdated
+                return;
+            }
+        }
+        guard.staging = Some(ring_cache_entry);
+    }
+
+    /// Commits and rotates the ring cache, advancing `staging` to `curr`.
+    ///
+    /// This is invoked at the very beginning of epoch-changing STFs, so that if StagingSet gets
+    /// updated in the same block, it can be cached into the right place (`staging`).
+    pub fn commit_and_rotate_ring_cache(&self) {
+        let mut guard = self.ring_cache.write().unwrap();
+        guard.rotate();
+    }
+
+    /// Invalidates any offenders in the `staging` ring cache, recomputing the `RingVRFVerifier` if needed.
+    ///
+    /// This should be checked in every block with Disputes Xt.
+    pub fn nullify_offenders_from_staging_ring_cache(
         &self,
-        verifier: RingVrfVerifier,
+        new_offenders: &[Ed25519PubKey],
     ) -> Result<(), StateManagerError> {
-        let curr_epoch_index = self.get_timeslot().await?.epoch();
-        self.ring_vrf_verifier_cache
-            .write()
-            .unwrap()
-            .replace((curr_epoch_index, verifier));
+        let mut guard = self.ring_cache.write().unwrap();
+        if let Some(ref mut staging_entry) = guard.staging {
+            let has_offender = staging_entry
+                .validator_set
+                .nullify_punished_validators(new_offenders);
+            if has_offender {
+                // Recompute the verifier and the ring root
+                let verifier = RingVrfVerifier::new(&staging_entry.validator_set)?;
+                let ring_root = verifier.compute_ring_root()?;
+                staging_entry.verifier = verifier;
+                staging_entry.ring_root = ring_root;
+            }
+        }
         Ok(())
+    }
+
+    /// Returns clones of the current and staging ring cache entries.
+    /// Note: test-only
+    pub fn ring_cache_snapshot(&self) -> (Option<RingContext>, Option<RingContext>) {
+        let guard = self.ring_cache.read().unwrap();
+        (guard.curr.clone(), guard.staging.clone())
     }
 
     pub async fn get_raw_state_entry(

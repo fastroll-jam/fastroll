@@ -1,4 +1,4 @@
-use crate::error::TransitionError;
+use crate::{error::TransitionError, ring_cache::schedule_ring_cache_update};
 use fr_pvm_invocation::prelude::AccumulatePartialState;
 use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager};
 use std::sync::Arc;
@@ -9,6 +9,19 @@ pub(crate) async fn run_privileged_transitions(
 ) -> Result<(), TransitionError> {
     // Transition staging set
     if let Some(new_staging_set) = partial_state_union.new_staging_set {
+        // Schedule ring cache update with a new `RingVrfVerifier` and its ring root.
+        let new_staging_set_cloned = new_staging_set.clone();
+        let curr_punish_set = state_manager.get_disputes().await?.punish_set;
+        let curr_timeslot = state_manager.get_timeslot().await?;
+        let state_manager_cloned = state_manager.clone();
+        // Fire and forget: speculatively construct the new ring vrf verifier
+        schedule_ring_cache_update(
+            state_manager_cloned,
+            curr_timeslot.slot(),
+            new_staging_set_cloned,
+            curr_punish_set,
+        );
+
         state_manager
             .with_mut_staging_set(
                 StateMut::Update,
@@ -18,6 +31,7 @@ pub(crate) async fn run_privileged_transitions(
                 },
             )
             .await?;
+        state_manager.update_last_staging_set_transition_slot(curr_timeslot.slot());
     }
 
     // Transition auth queue

@@ -77,7 +77,13 @@ impl StateTransitionTest for DisputesTest {
         // Run state transitions.
         transition_reports_eliminate_invalid(state_manager.clone(), &disputes, pre_timeslot)
             .await?;
-        transition_disputes(state_manager, &disputes, pre_timeslot).await?;
+        transition_disputes(
+            state_manager,
+            &disputes,
+            offenders_marker.items.clone(),
+            pre_timeslot,
+        )
+        .await?;
         new_header.set_offenders_marker(offenders_marker);
 
         Ok(())

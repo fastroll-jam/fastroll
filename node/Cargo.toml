@@ -21,6 +21,7 @@ fr-state = { workspace = true }
 fr-storage = { workspace = true }
 fr-transition = { workspace = true }
 clap = { workspace = true }
+rayon = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

@@ -4,7 +4,7 @@ use crate::{
 };
 use fr_clock::{TimeProvider, UnixTimeProvider};
 use fr_codec::prelude::*;
-use fr_common::{TimeslotIndex, COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
+use fr_common::{EpochIndex, TimeslotIndex, COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
 
 /// Time timeslot index.
 ///
@@ -64,7 +64,7 @@ impl Timeslot {
         self.0
     }
 
-    pub fn epoch(&self) -> u32 {
+    pub fn epoch(&self) -> EpochIndex {
         self.0 / EPOCH_LENGTH as u32
     }
 

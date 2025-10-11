@@ -42,12 +42,12 @@ fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Result<Vec<Ticket>, Crypt
 ///     retrieved from the `SafroleState` and a context that includes the secondary history component
 ///     of the current entropy state and the ticket attempt identifier.
 pub struct TicketsXtValidator {
-    state_manger: Arc<StateManager>,
+    state_manager: Arc<StateManager>,
 }
 
 impl TicketsXtValidator {
-    pub fn new(state_manger: Arc<StateManager>) -> Self {
-        Self { state_manger }
+    pub fn new(state_manager: Arc<StateManager>) -> Self {
+        Self { state_manager }
     }
 
     /// Validates the entire `TicketsXt`.
@@ -58,7 +58,8 @@ impl TicketsXtValidator {
         }
 
         // Check the slot phase
-        let current_slot_phase = self.state_manger.get_timeslot().await?.slot_phase();
+        let curr_timeslot = self.state_manager.get_timeslot().await?;
+        let current_slot_phase = curr_timeslot.slot_phase();
         if current_slot_phase >= TICKET_CONTEST_DURATION as u32 && !extrinsic.is_empty() {
             return Err(XtError::TicketSubmissionClosed(current_slot_phase));
         }
@@ -95,7 +96,8 @@ impl TicketsXtValidator {
             let span = debug_span!("accumulator_dup_check");
             let _e = span.enter();
             // Duplication check (ticket accumulator)
-            let curr_ticket_accumulator = self.state_manger.get_safrole().await?.ticket_accumulator;
+            let curr_ticket_accumulator =
+                self.state_manager.get_safrole().await?.ticket_accumulator;
             for ticket in &new_tickets {
                 if curr_ticket_accumulator.contains(ticket) {
                     return Err(XtError::DuplicateTicket);
@@ -132,15 +134,16 @@ impl TicketsXtValidator {
             }
         }
 
-        // Get or generate `RingVrfVerifier` from the state manager cache.
-        // In general this should be found from the cache since it is stored from the Safrole STF
+        // Get or generate `RingVrfVerifier` from the state manager ring cache.
+        // In general, this should be found from the cache since it is stored from the Safrole STF
         // on epoch progress.
-        let verifier = self
-            .state_manger
-            .get_or_generate_ring_vrf_verifier()
+        let curr_pending_set = self.state_manager.get_safrole().await?.pending_set; // Called after per-epoch Safrole STF
+        let (verifier, _ring_root) = self
+            .state_manager
+            .get_or_generate_curr_ring_context(curr_timeslot.slot(), &curr_pending_set)
             .await?;
 
-        let epoch_entropy = self.state_manger.get_epoch_entropy().await?;
+        let epoch_entropy = self.state_manager.get_epoch_entropy().await?;
         let entropy_2 = epoch_entropy.second_history();
 
         // Validate each entry
