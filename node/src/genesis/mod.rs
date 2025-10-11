@@ -20,7 +20,7 @@ pub fn load_genesis_block() -> Block {
     Block::from(genesis_block_header)
 }
 
-fn load_genesis_validator_set() -> ValidatorKeySet {
+pub fn load_genesis_validator_set() -> ValidatorKeySet {
     let genesis_validator_set: GenesisValidatorKeySet = serde_json::from_str(GENESIS_VALIDATOR_SET)
         .expect("Failed to parse genesis validator set JSON file");
     ValidatorKeySet::from(genesis_validator_set)

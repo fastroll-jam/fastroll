@@ -20,6 +20,7 @@ fr-pvm-types = { workspace = true }
 fr-state = { workspace = true }
 fr-test-utils = { workspace = true }
 fr-transition = { workspace = true }
+fr-node = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }

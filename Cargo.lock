@@ -1092,6 +1092,7 @@ dependencies = [
  "fr-crypto",
  "fr-erasure-coding",
  "fr-extrinsics",
+ "fr-node",
  "fr-pvm-invocation",
  "fr-pvm-types",
  "fr-state",

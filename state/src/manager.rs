@@ -238,7 +238,7 @@ impl StateManager {
         *guard = slot;
     }
 
-    /// Gets cached ring context or generated one, if not found from the cache,
+    /// Gets cached ring context or generates one, if not found from the cache,
     /// for the TicketsXt validation for the current epoch.
     /// In general, this should be found from the cache.
     pub async fn get_or_generate_curr_ring_context(
@@ -273,7 +273,7 @@ impl StateManager {
         Ok((verifier, ring_root))
     }
 
-    /// Gets cached ring context or generated one, if not found from the cache,
+    /// Gets cached ring context or generates one, if not found from the cache,
     /// for the next per-epoch Safrole transition.
     pub async fn get_or_generate_staging_ring_context(
         &self,
@@ -356,6 +356,13 @@ impl StateManager {
             }
         }
         Ok(())
+    }
+
+    /// Returns clones of the current and staging ring cache entries.
+    /// Note: test-only
+    pub fn ring_cache_snapshot(&self) -> (Option<RingContext>, Option<RingContext>) {
+        let guard = self.ring_cache.read().unwrap();
+        (guard.curr.clone(), guard.staging.clone())
     }
 
     pub async fn get_raw_state_entry(
