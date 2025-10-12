@@ -1,5 +1,5 @@
 use crate::error::PartialStateError;
-use fr_common::{CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey, CORE_COUNT};
+use fr_common::{Balance, CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey, CORE_COUNT};
 use fr_limited_vec::FixedVec;
 use fr_state::{
     error::StateManagerError,
@@ -276,6 +276,29 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         if self.contains_key(&service_id) || state_provider.account_exists(service_id).await? {
             Ok(true)
         } else {
+            Ok(false)
+        }
+    }
+
+    pub async fn account_exists_and_not_removed(
+        &mut self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+    ) -> Result<bool, PartialStateError> {
+        if let Some(account_sandbox) = self.get_account_sandbox(state_provider, service_id).await? {
+            if matches!(
+                account_sandbox.metadata.entry.status,
+                SandboxEntryStatus::Removed
+            ) {
+                // Account exists in the global state but removed from the sandbox
+                Ok(false)
+            } else {
+                // Account exists in the global state and not removed from the sandbox,
+                // or is the new account added into the sandbox but not created in the global state yet.
+                Ok(true)
+            }
+        } else {
+            // Account doesn't exist both in the global state and the sandbox
             Ok(false)
         }
     }
@@ -1195,5 +1218,51 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             registrar_service: RegistrarServicePartialState::new(registrar_service),
             always_accumulate_services,
         })
+    }
+
+    pub async fn subtract_account_balance(
+        &mut self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+        amount: Balance,
+    ) -> Result<(), PartialStateError> {
+        let account_metadata = self
+            .accounts_sandbox
+            .get_mut_account_metadata(state_provider.clone(), service_id)
+            .await?
+            .ok_or(PartialStateError::AccumulatorAccountNotInitialized)?;
+
+        let subtracted_amount = account_metadata
+            .balance
+            .checked_sub(amount)
+            .ok_or(PartialStateError::AccountBalanceUnderflow(service_id))?;
+        account_metadata.balance = subtracted_amount;
+        self.accounts_sandbox
+            .mark_account_metadata_updated(state_provider, service_id)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn add_account_balance(
+        &mut self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+        amount: Balance,
+    ) -> Result<(), PartialStateError> {
+        let account_metadata = self
+            .accounts_sandbox
+            .get_mut_account_metadata(state_provider.clone(), service_id)
+            .await?
+            .ok_or(PartialStateError::AccountBalanceOverflow(service_id))?;
+
+        let added_amount = account_metadata
+            .balance
+            .checked_add(amount)
+            .ok_or(PartialStateError::AccumulatorAccountNotInitialized)?;
+        account_metadata.balance = added_amount;
+        self.accounts_sandbox
+            .mark_account_metadata_updated(state_provider, service_id)
+            .await?;
+        Ok(())
     }
 }

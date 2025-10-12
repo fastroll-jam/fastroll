@@ -1,5 +1,5 @@
 use fr_codec::JamCodecError;
-use fr_common::CoreIndex;
+use fr_common::{CoreIndex, ServiceId};
 use fr_crypto::error::CryptoError;
 use fr_limited_vec::LimitedVecError;
 use fr_pvm_core::{error::VMCoreError, state::memory::MemoryError};
@@ -48,6 +48,10 @@ pub enum PartialStateError {
     AccountNotFoundFromGlobalState,
     #[error("Accumulator account is not initialized in the service accounts partial state")]
     AccumulatorAccountNotInitialized,
+    #[error("Account ({0}) balance underflowed")]
+    AccountBalanceUnderflow(ServiceId),
+    #[error("Account ({0}) balance overflowed")]
+    AccountBalanceOverflow(ServiceId),
     #[error("LimitedVecError: {0}")]
     LimitedVecError(#[from] LimitedVecError),
     #[error("StateManagerError: {0}")]

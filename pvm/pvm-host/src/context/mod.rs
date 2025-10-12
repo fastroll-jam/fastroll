@@ -350,22 +350,9 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         state_provider: Arc<S>,
         amount: Balance,
     ) -> Result<(), HostCallError> {
-        let account_metadata = self
-            .partial_state
-            .accounts_sandbox
-            .get_mut_account_metadata(state_provider.clone(), self.accumulate_host)
-            .await?
-            .ok_or(HostCallError::PartialStateError(
-                PartialStateError::AccumulatorAccountNotInitialized,
-            ))?;
-
-        // Explicitly checked from callsites (host functions) that this has positive value.
-        account_metadata.balance -= amount;
         self.partial_state
-            .accounts_sandbox
-            .mark_account_metadata_updated(state_provider, self.accumulate_host)
+            .subtract_account_balance(state_provider, self.accumulate_host, amount)
             .await?;
-
         Ok(())
     }
 
@@ -374,24 +361,9 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         state_provider: Arc<S>,
         amount: Balance,
     ) -> Result<(), HostCallError> {
-        let account_metadata = self
-            .partial_state
-            .accounts_sandbox
-            .get_mut_account_metadata(state_provider.clone(), self.accumulate_host)
-            .await?
-            .ok_or(HostCallError::PartialStateError(
-                PartialStateError::AccumulatorAccountNotInitialized,
-            ))?;
-
-        let added_amount = account_metadata.balance.checked_add(amount).ok_or(
-            HostCallError::PartialStateError(PartialStateError::AccumulatorAccountNotInitialized),
-        )?;
-        account_metadata.balance = added_amount;
         self.partial_state
-            .accounts_sandbox
-            .mark_account_metadata_updated(state_provider, self.accumulate_host)
+            .add_account_balance(state_provider, self.accumulate_host, amount)
             .await?;
-
         Ok(())
     }
 
