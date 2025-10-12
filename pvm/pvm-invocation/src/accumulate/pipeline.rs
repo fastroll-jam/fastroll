@@ -196,7 +196,11 @@ async fn add_partial_state_change(
 
     // Integrate new accounts: all accounts other than the accumulate host are new accounts
     for (&service_id, sandbox) in accumulate_result_partial_state.accounts_sandbox.iter() {
-        if service_id != accumulate_host {
+        if service_id != accumulate_host
+            && !partial_state_union
+                .accounts_sandbox
+                .contains_key(&service_id)
+        {
             partial_state_union
                 .accounts_sandbox
                 .insert(service_id, sandbox.clone());
