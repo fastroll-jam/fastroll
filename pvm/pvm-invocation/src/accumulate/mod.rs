@@ -117,7 +117,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         // and is not ejected.
         let accumulate_host_exists = partial_state
             .accounts_sandbox
-            .account_exists_and_not_removed(state_manager.clone(), args.accumulate_host)
+            .account_exists_active(state_manager.clone(), args.accumulate_host)
             .await?;
         if !accumulate_host_exists {
             return Ok(None);

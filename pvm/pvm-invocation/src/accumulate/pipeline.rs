@@ -257,28 +257,16 @@ async fn accumulate_parallel(
     tracing::info!("Δ* invoked");
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
 
-    // `metered_service_ids` contains service IDs that are associate with digests / deferred transfers
-    // or are always-accumulate services.
-    let mut metered_service_ids: BTreeSet<ServiceId> = reports
+    // Accumulating service groups: 1) With Digests 2) Transfer Receivers 3) Always-accumulates 4) Privileged Services
+    let services_with_digests: BTreeSet<ServiceId> = reports
         .iter()
         .flat_map(|wr| wr.digests.iter())
         .map(|wd| wd.service_id)
         .collect();
-    metered_service_ids.extend(always_accumulate_services.keys().cloned());
-    metered_service_ids.extend(
-        prev_deferred_transfers
-            .iter()
-            .map(|t| t.to)
-            .collect::<Vec<_>>(),
-    );
-
-    let services_with_reports: BTreeSet<ServiceId> = reports
-        .iter()
-        .flat_map(|wr| wr.digests.iter().map(|wd| wd.service_id))
-        .collect();
-    let mut services_to_meter = services_with_reports.clone();
-    services_to_meter.extend(always_accumulate_services.keys().cloned());
-
+    let services_with_transfers: BTreeSet<ServiceId> =
+        prev_deferred_transfers.iter().map(|t| t.to).collect();
+    let always_accumulate_service_ids: BTreeSet<ServiceId> =
+        always_accumulate_services.keys().cloned().collect();
     let privileged_services = BTreeSet::from_iter(
         partial_state_union
             .assign_services
@@ -292,10 +280,15 @@ async fn accumulate_parallel(
             ]),
     );
 
-    let mut all_service_ids = metered_service_ids.clone();
+    let mut metered_services = services_with_digests.clone();
+    metered_services.extend(always_accumulate_service_ids.clone());
+
+    let mut all_service_ids: BTreeSet<ServiceId> = services_with_digests;
+    all_service_ids.extend(always_accumulate_service_ids);
+    all_service_ids.extend(services_with_transfers);
     all_service_ids.extend(privileged_services);
 
-    let mut service_gas_pairs = Vec::with_capacity(metered_service_ids.len());
+    let mut service_gas_pairs = Vec::new();
     let mut service_output_pairs = BTreeSet::new();
     let mut new_deferred_transfers = Vec::new();
 
@@ -330,7 +323,7 @@ async fn accumulate_parallel(
             .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??
         {
             // Note: Accumulations of privileged services are not metered (accumulate outputs / gas usages)
-            if services_to_meter.contains(&accumulate_result.accumulate_host) {
+            if metered_services.contains(&accumulate_result.accumulate_host) {
                 service_gas_pairs.push(AccumulationGasPair {
                     service: accumulate_result.accumulate_host,
                     gas: accumulate_result.gas_used,

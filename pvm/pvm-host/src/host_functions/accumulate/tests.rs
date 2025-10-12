@@ -1422,7 +1422,7 @@ mod new_tests {
             assert!(
                 x.partial_state
                     .accounts_sandbox
-                    .account_exists(state_provider.clone(), expected_new_service_id)
+                    .account_exists_anywhere(state_provider.clone(), expected_new_service_id)
                     .await?
             );
 
@@ -1516,7 +1516,7 @@ mod new_tests {
             !prev_x
                 .partial_state
                 .accounts_sandbox
-                .account_exists(state_provider.clone(), expected_new_service_id)
+                .account_exists_anywhere(state_provider.clone(), expected_new_service_id)
                 .await?
         );
 
@@ -1576,7 +1576,7 @@ mod new_tests {
             !prev_x
                 .partial_state
                 .accounts_sandbox
-                .account_exists(state_provider.clone(), expected_new_service_id)
+                .account_exists_anywhere(state_provider.clone(), expected_new_service_id)
                 .await?
         );
 
@@ -1632,7 +1632,7 @@ mod new_tests {
         assert!(
             !x.partial_state
                 .accounts_sandbox
-                .account_exists(state_provider, x.next_new_service_id)
+                .account_exists_anywhere(state_provider, x.next_new_service_id)
                 .await?
         );
         Ok(())
@@ -1669,7 +1669,7 @@ mod new_tests {
         assert!(
             !x.partial_state
                 .accounts_sandbox
-                .account_exists(state_provider, x.next_new_service_id)
+                .account_exists_anywhere(state_provider, x.next_new_service_id)
                 .await?
         );
         Ok(())
@@ -1706,7 +1706,7 @@ mod new_tests {
         assert!(
             !x.partial_state
                 .accounts_sandbox
-                .account_exists(state_provider, x.next_new_service_id)
+                .account_exists_anywhere(state_provider, x.next_new_service_id)
                 .await?
         );
         Ok(())
@@ -1747,7 +1747,7 @@ mod new_tests {
         assert!(
             !x.partial_state
                 .accounts_sandbox
-                .account_exists(state_provider, x.next_new_service_id)
+                .account_exists_anywhere(state_provider, x.next_new_service_id)
                 .await?
         );
         Ok(())
@@ -2565,7 +2565,7 @@ mod eject_tests {
         assert!(
             !x.partial_state
                 .accounts_sandbox
-                .account_exists(state_provider.clone(), fixture.eject_service)
+                .account_exists_anywhere(state_provider.clone(), fixture.eject_service)
                 .await?
                 || x.partial_state
                     .accounts_sandbox

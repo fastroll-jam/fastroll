@@ -268,7 +268,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         Ok(())
     }
 
-    pub async fn account_exists(
+    /// Returns `true` if the given service ID is already known, either in the accounts sandbox
+    /// or in the global state. Even if the sandbox entry is marked for removed, returns `true`.
+    pub async fn account_exists_anywhere(
         &self,
         state_provider: Arc<S>,
         service_id: ServiceId,
@@ -280,7 +282,10 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         }
     }
 
-    pub async fn account_exists_and_not_removed(
+    /// Returns `true` only when the sandbox still has a live copy of the account:
+    /// the entry exists and hasn’t been marked for removal, or it was newly added but
+    /// not yet added to the global state.
+    pub async fn account_exists_active(
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
