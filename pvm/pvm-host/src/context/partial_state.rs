@@ -1010,10 +1010,10 @@ pub struct AssignServicesPartialState {
     pub last_confirmed: AssignServices,
     /// The changed assigner service ids by the accumulation of the manager service within the
     /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
-    pub(crate) change_by_manager: Option<AssignServices>,
+    pub change_by_manager: Option<AssignServices>,
     /// The changed assigner service ids by the assigner services themselves within the current
     /// parallel accumulation round.
-    pub(crate) change_by_self: HashMap<CoreIndex, ServiceId>,
+    pub change_by_self: HashMap<CoreIndex, ServiceId>,
 }
 
 impl AssignServicesPartialState {
@@ -1022,6 +1022,38 @@ impl AssignServicesPartialState {
             last_confirmed: assign_services,
             change_by_manager: None,
             change_by_self: HashMap::new(),
+        }
+    }
+
+    /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
+    /// while prioritize changes by manager services.
+    pub fn merge_changes_from(&mut self, other: &AssignServicesPartialState) {
+        if let Some(manager_assigners) = &other.change_by_manager {
+            for (core_idx, assigner_update_by_manager) in manager_assigners.iter().enumerate() {
+                let original = *other
+                    .last_confirmed
+                    .get(core_idx)
+                    .expect("core index must be within bounds");
+                if *assigner_update_by_manager != original {
+                    if let Some(assigner) = self.last_confirmed.get_mut(core_idx) {
+                        *assigner = *assigner_update_by_manager;
+                    }
+                }
+            }
+        }
+
+        for (&core_idx, &assigner_update_by_self) in &other.change_by_self {
+            let original = *other
+                .last_confirmed
+                .get(core_idx as usize)
+                .expect("core index must be within bounds");
+            if assigner_update_by_self != original {
+                if let Some(assigner) = self.last_confirmed.get_mut(core_idx as usize) {
+                    if *assigner == original {
+                        *assigner = assigner_update_by_self;
+                    }
+                }
+            }
         }
     }
 
@@ -1050,10 +1082,10 @@ pub struct DesignateServicePartialState {
     pub last_confirmed: ServiceId,
     /// The changed designate service id by the accumulation of the manager service within the
     /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
-    pub(crate) change_by_manager: Option<ServiceId>,
+    pub change_by_manager: Option<ServiceId>,
     /// The changed designate service id by the designate service itself within the current
     /// parallel accumulation round.
-    pub(crate) change_by_self: Option<ServiceId>,
+    pub change_by_self: Option<ServiceId>,
 }
 
 impl DesignateServicePartialState {
@@ -1062,6 +1094,24 @@ impl DesignateServicePartialState {
             last_confirmed: designate_service,
             change_by_self: None,
             change_by_manager: None,
+        }
+    }
+
+    /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
+    /// while prioritize changes by manager services.
+    pub fn merge_changes_from(&mut self, other: &DesignateServicePartialState) {
+        let original = other.last_confirmed;
+        if let Some(manager_change) = other.change_by_manager {
+            if manager_change != original {
+                self.last_confirmed = manager_change;
+                return;
+            }
+        }
+
+        if let Some(self_change) = other.change_by_self {
+            if self_change != original && self.last_confirmed == original {
+                self.last_confirmed = self_change;
+            }
         }
     }
 
@@ -1086,10 +1136,10 @@ pub struct RegistrarServicePartialState {
     pub last_confirmed: ServiceId,
     /// The changed registrar service id by the accumulation of the manager service within the
     /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
-    pub(crate) change_by_manager: Option<ServiceId>,
+    pub change_by_manager: Option<ServiceId>,
     /// The changed registrar service id by the registrar service itself within the current
     /// parallel accumulation round.
-    pub(crate) change_by_self: Option<ServiceId>,
+    pub change_by_self: Option<ServiceId>,
 }
 
 impl RegistrarServicePartialState {
@@ -1098,6 +1148,24 @@ impl RegistrarServicePartialState {
             last_confirmed: registrar_service,
             change_by_self: None,
             change_by_manager: None,
+        }
+    }
+
+    /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
+    /// while prioritize changes by manager services.
+    pub fn merge_changes_from(&mut self, other: &RegistrarServicePartialState) {
+        let original = other.last_confirmed;
+        if let Some(manager_change) = other.change_by_manager {
+            if manager_change != original {
+                self.last_confirmed = manager_change;
+                return;
+            }
+        }
+
+        if let Some(self_change) = other.change_by_self {
+            if self_change != original && self.last_confirmed == original {
+                self.last_confirmed = self_change;
+            }
         }
     }
 

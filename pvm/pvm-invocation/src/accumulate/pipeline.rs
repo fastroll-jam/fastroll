@@ -152,6 +152,7 @@ async fn add_partial_state_change(
     partial_state_union: &mut AccumulatePartialState<StateManager>,
     mut accumulate_result_partial_state: AccumulatePartialState<StateManager>,
 ) -> Result<(), PVMInvokeError> {
+    // Merge StagingSet changes
     if let (None, Some(new_staging_set)) = (
         &partial_state_union.new_staging_set,
         accumulate_result_partial_state.new_staging_set,
@@ -159,31 +160,50 @@ async fn add_partial_state_change(
         partial_state_union.new_staging_set = Some(new_staging_set);
     }
 
-    if partial_state_union.auth_queue != accumulate_result_partial_state.auth_queue {
-        partial_state_union.auth_queue = accumulate_result_partial_state.auth_queue;
+    // Merge AuthQueue changes
+    let original_assigners = &accumulate_result_partial_state
+        .assign_services
+        .last_confirmed;
+
+    // Update per-core auth queues for cores whose assigner matches the current accumulate host.
+    for (core_idx, assigner) in original_assigners.iter().enumerate() {
+        if *assigner == accumulate_host {
+            if let (Some(source_queue), Some(union_queue)) = (
+                accumulate_result_partial_state.auth_queue.0.get(core_idx),
+                partial_state_union.auth_queue.0.get_mut(core_idx),
+            ) {
+                if union_queue != source_queue {
+                    *union_queue = source_queue.clone();
+                }
+            }
+        }
     }
 
-    if partial_state_union.manager_service != accumulate_result_partial_state.manager_service {
+    // Merge PrivilegedServices changes
+
+    // Extra check - only manager can mutate manager / always-accumulate services
+    let manager_invoked_bless = accumulate_result_partial_state
+        .assign_services
+        .change_by_manager
+        .is_some();
+    if manager_invoked_bless {
         partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
+        partial_state_union.always_accumulate_services = accumulate_result_partial_state
+            .always_accumulate_services
+            .clone();
     }
 
-    partial_state_union.assign_services.last_confirmed =
-        accumulate_result_partial_state.assign_services.updated();
+    partial_state_union
+        .assign_services
+        .merge_changes_from(&accumulate_result_partial_state.assign_services);
 
-    if let Some(latest_change) = accumulate_result_partial_state.designate_service.updated() {
-        partial_state_union.designate_service.last_confirmed = latest_change;
-    }
+    partial_state_union
+        .designate_service
+        .merge_changes_from(&accumulate_result_partial_state.designate_service);
 
-    if let Some(latest_change) = accumulate_result_partial_state.registrar_service.updated() {
-        partial_state_union.registrar_service.last_confirmed = latest_change;
-    }
-
-    if partial_state_union.always_accumulate_services
-        != accumulate_result_partial_state.always_accumulate_services
-    {
-        partial_state_union.always_accumulate_services =
-            accumulate_result_partial_state.always_accumulate_services;
-    }
+    partial_state_union
+        .registrar_service
+        .merge_changes_from(&accumulate_result_partial_state.registrar_service);
 
     // Accumulate host state change
     let accumulate_host_sandbox = partial_state_union
