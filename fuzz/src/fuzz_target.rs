@@ -18,15 +18,11 @@ use fr_limited_vec::LimitedVecError;
 use fr_node::{
     reexports::AccountStateChanges,
     roles::importer::{BlockCommitMode, BlockImportOutput, BlockImporter},
+    simple_forking::{SimpleForkState, StagedBlock},
 };
 use fr_state::{error::StateManagerError, manager::StateCommitArtifact};
 use fr_storage::node_storage::NodeStorage;
-use std::{
-    collections::{BTreeSet, HashMap},
-    io::Error as IoError,
-    string::FromUtf8Error,
-    sync::Arc,
-};
+use std::{collections::BTreeSet, io::Error as IoError, string::FromUtf8Error, sync::Arc};
 use tempfile::tempdir;
 use thiserror::Error;
 use tokio::{
@@ -85,42 +81,6 @@ impl LatestStateKeys {
 
     fn remove_state_key(&mut self, state_key: TrieKey) {
         self.state_keys.remove(&state_key);
-    }
-}
-
-/// A block header and its uncommitted state change artifacts
-/// that can be either committed or discarded after forks get resolved.
-#[derive(Clone)]
-struct StagedBlock {
-    header: BlockHeader,
-    account_state_changes: AccountStateChanges,
-    state_commit_artifact: Option<StateCommitArtifact>,
-}
-
-/// The state that keeps minimal context to support simple forking.
-#[derive(Default)]
-struct SimpleForkState {
-    /// The header hash of the last finalized block.
-    last_finalized: Option<HeaderHash>,
-    /// The collection of blocks that are staged but not committed or dropped yet.
-    staged_blocks: HashMap<HeaderHash, StagedBlock>,
-}
-
-impl SimpleForkState {
-    fn last_finalized(&self) -> Option<&HeaderHash> {
-        self.last_finalized.as_ref()
-    }
-
-    fn set_last_finalized(&mut self, last_finalized: HeaderHash) {
-        self.last_finalized = Some(last_finalized);
-    }
-
-    fn insert_staged_block(&mut self, header_hash: HeaderHash, block: StagedBlock) {
-        self.staged_blocks.insert(header_hash, block);
-    }
-
-    fn take_staged_block(&mut self, header_hash: &HeaderHash) -> Option<StagedBlock> {
-        self.staged_blocks.remove(header_hash)
     }
 }
 

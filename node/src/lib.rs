@@ -3,6 +3,7 @@ pub mod jam_node;
 pub mod keystore;
 pub mod roles;
 pub mod scheduler;
+pub mod simple_forking;
 pub mod utils;
 
 pub mod reexports {
