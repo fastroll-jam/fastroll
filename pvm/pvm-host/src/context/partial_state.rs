@@ -1027,13 +1027,17 @@ impl AssignServicesPartialState {
 
     pub fn updated(&self) -> AssignServices {
         if let Some(change_by_manager) = &self.change_by_manager {
-            return change_by_manager.clone();
+            if change_by_manager != &self.last_confirmed {
+                return change_by_manager.clone();
+            }
         }
 
         let mut updated = self.last_confirmed.clone();
         for (k, v) in &self.change_by_self {
             if let Some(assigner_mut) = updated.get_mut(*k as usize) {
-                *assigner_mut = *v;
+                if assigner_mut != v {
+                    *assigner_mut = *v;
+                }
             }
         }
         updated
@@ -1062,11 +1066,17 @@ impl DesignateServicePartialState {
     }
 
     pub fn updated(&self) -> Option<ServiceId> {
-        match (self.change_by_manager, self.change_by_self) {
-            (Some(change), _) => Some(change),
-            (None, Some(change)) => Some(change),
-            (None, None) => None,
+        if let Some(manager_change) = self.change_by_manager {
+            if manager_change != self.last_confirmed {
+                return Some(manager_change);
+            }
         }
+        if let Some(self_change) = self.change_by_self {
+            if self_change != self.last_confirmed {
+                return Some(self_change);
+            }
+        }
+        None
     }
 }
 
@@ -1092,11 +1102,17 @@ impl RegistrarServicePartialState {
     }
 
     pub fn updated(&self) -> Option<ServiceId> {
-        match (self.change_by_manager, self.change_by_self) {
-            (Some(change), _) => Some(change),
-            (None, Some(change)) => Some(change),
-            (None, None) => None,
+        if let Some(manager_change) = self.change_by_manager {
+            if manager_change != self.last_confirmed {
+                return Some(manager_change);
+            }
         }
+        if let Some(self_change) = self.change_by_self {
+            if self_change != self.last_confirmed {
+                return Some(self_change);
+            }
+        }
+        None
     }
 }
 
