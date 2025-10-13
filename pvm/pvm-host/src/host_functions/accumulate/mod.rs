@@ -334,7 +334,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let new_small_service_id_already_taken = x
             .partial_state
             .accounts_sandbox
-            .account_exists(state_provider.clone(), new_small_service_id)
+            .account_exists_anywhere(state_provider.clone(), new_small_service_id)
             .await?;
 
         if has_small_service_id && new_small_service_id_already_taken {

@@ -19,8 +19,8 @@ use fr_transition::{
 use std::{convert::TryFrom, error::Error, sync::Arc, time::Duration};
 use tokio::time::{sleep, Instant};
 
-const WAIT_TIMEOUT: Duration = Duration::from_secs(1);
-const WAIT_POLL_INTERVAL: Duration = Duration::from_millis(10);
+const WAIT_TIMEOUT: Duration = Duration::from_secs(20);
+const WAIT_POLL_INTERVAL: Duration = Duration::from_millis(30);
 
 fn genesis_validator_set() -> ValidatorKeySet {
     load_genesis_validator_set()

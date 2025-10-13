@@ -6,7 +6,9 @@ use fr_common::{
     workloads::work_report::WorkReport, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
 };
 use fr_crypto::{hash, Blake2b256};
-use fr_pvm_host::context::partial_state::AccumulatePartialState;
+use fr_pvm_host::context::partial_state::{
+    AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus,
+};
 use fr_pvm_types::{
     invoke_args::{AccumulateInputs, AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
     invoke_results::{
@@ -80,19 +82,34 @@ pub async fn accumulate_outer(
     let mut deferred_transfers = Vec::new();
 
     loop {
-        if report_idx >= reports.len() {
+        let has_reports_remaining = report_idx < reports.len();
+        let has_deferred_transfers = !deferred_transfers.is_empty();
+        if !has_reports_remaining && !has_deferred_transfers && always_accumulate_services.is_none()
+        {
             break;
         }
 
         // All always-accumulate services must be processed in the initial loop.
         let always_accumulate_services = always_accumulate_services.take().unwrap_or_default();
 
-        let processable_reports_prediction =
-            max_processable_reports(&reports[report_idx..], remaining_gas_limit);
+        let processable_reports_prediction = if has_reports_remaining {
+            max_processable_reports(&reports[report_idx..], remaining_gas_limit)
+        } else {
+            0
+        };
 
-        if processable_reports_prediction == 0 {
+        if processable_reports_prediction == 0
+            && !has_deferred_transfers
+            && always_accumulate_services.is_empty()
+        {
             break;
         }
+
+        let reports_to_process = if processable_reports_prediction > 0 {
+            reports[report_idx..report_idx + processable_reports_prediction].to_vec()
+        } else {
+            Vec::new()
+        };
 
         let ParallelAccumulationResult {
             service_gas_pairs,
@@ -101,7 +118,7 @@ pub async fn accumulate_outer(
         } = accumulate_parallel(
             state_manager.clone(),
             Arc::new(deferred_transfers),
-            Arc::new(reports[report_idx..report_idx + processable_reports_prediction].to_vec()),
+            Arc::new(reports_to_process),
             Arc::new(always_accumulate_services),
             &mut partial_state_union,
         )
@@ -134,12 +151,14 @@ struct ParallelAccumulationResult {
     service_output_pairs: AccumulationOutputPairs,
 }
 
+/// Merges changes produced by a single-service accumulation into the `partial_state_union`.
 async fn add_partial_state_change(
     state_manager: Arc<StateManager>,
     accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState<StateManager>,
     mut accumulate_result_partial_state: AccumulatePartialState<StateManager>,
 ) -> Result<(), PVMInvokeError> {
+    // Merge StagingSet changes
     if let (None, Some(new_staging_set)) = (
         &partial_state_union.new_staging_set,
         accumulate_result_partial_state.new_staging_set,
@@ -147,51 +166,94 @@ async fn add_partial_state_change(
         partial_state_union.new_staging_set = Some(new_staging_set);
     }
 
-    if partial_state_union.auth_queue != accumulate_result_partial_state.auth_queue {
-        partial_state_union.auth_queue = accumulate_result_partial_state.auth_queue;
+    // Merge AuthQueue changes
+    let original_assigners = &accumulate_result_partial_state
+        .assign_services
+        .last_confirmed;
+
+    // Update per-core auth queues for cores whose assigner matches the current accumulate host.
+    for (core_idx, assigner) in original_assigners.iter().enumerate() {
+        if *assigner == accumulate_host {
+            if let (Some(source_queue), Some(union_queue)) = (
+                accumulate_result_partial_state.auth_queue.0.get(core_idx),
+                partial_state_union.auth_queue.0.get_mut(core_idx),
+            ) {
+                if union_queue != source_queue {
+                    *union_queue = source_queue.clone();
+                }
+            }
+        }
     }
 
-    if partial_state_union.manager_service != accumulate_result_partial_state.manager_service {
+    // Merge PrivilegedServices changes
+
+    // Extra check - only manager can mutate manager / always-accumulate services
+    let manager_invoked_bless = accumulate_result_partial_state
+        .assign_services
+        .change_by_manager
+        .is_some();
+    if manager_invoked_bless {
         partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
+        partial_state_union.always_accumulate_services = accumulate_result_partial_state
+            .always_accumulate_services
+            .clone();
     }
 
-    partial_state_union.assign_services.last_confirmed =
-        accumulate_result_partial_state.assign_services.latest()?;
-    partial_state_union.designate_service.last_confirmed =
-        accumulate_result_partial_state.designate_service.latest();
-    partial_state_union.registrar_service.last_confirmed =
-        accumulate_result_partial_state.registrar_service.latest();
+    partial_state_union
+        .assign_services
+        .merge_changes_from(&accumulate_result_partial_state.assign_services);
 
-    if partial_state_union.always_accumulate_services
-        != accumulate_result_partial_state.always_accumulate_services
-    {
-        partial_state_union.always_accumulate_services =
-            accumulate_result_partial_state.always_accumulate_services;
-    }
+    partial_state_union
+        .designate_service
+        .merge_changes_from(&accumulate_result_partial_state.designate_service);
+
+    partial_state_union
+        .registrar_service
+        .merge_changes_from(&accumulate_result_partial_state.registrar_service);
 
     // Accumulate host state change
     let accumulate_host_sandbox = partial_state_union
         .accounts_sandbox
         .get_mut_account_sandbox(state_manager.clone(), accumulate_host)
-        .await
-        .unwrap()
+        .await?
         .expect("should not be None");
     *accumulate_host_sandbox = accumulate_result_partial_state
         .accounts_sandbox
         .get_account_sandbox(state_manager, accumulate_host)
-        .await
-        .unwrap()
+        .await?
         .cloned()
         .expect("should not be None");
 
-    // Integrate new accounts: all accounts other than the accumulate host are new accounts
-    for (&service_id, sandbox) in accumulate_result_partial_state.accounts_sandbox.iter() {
-        if service_id != accumulate_host {
-            partial_state_union
-                .accounts_sandbox
-                .insert(service_id, sandbox.clone());
-        }
-    }
+    // Integrate new accounts and ejected accounts.
+    // Note: no account other than the accumulate host is ever touched except for the
+    // `NEW` & `EJECT` hostcalls.
+    accumulate_result_partial_state
+        .accounts_sandbox
+        .iter()
+        .filter(|(&service_id, _)| service_id != accumulate_host)
+        .for_each(|(&service_id, sandbox)| {
+            match sandbox.metadata.status() {
+                SandboxEntryStatus::Added => {
+                    // Additional guard to avoid entries from the `partial_state_union` with `Added`
+                    // status being copied into the later accumulations and overwriting any updates.
+                    #[allow(clippy::map_entry)]
+                    if !partial_state_union
+                        .accounts_sandbox
+                        .contains_key(&service_id)
+                    {
+                        partial_state_union
+                            .accounts_sandbox
+                            .insert(service_id, sandbox.clone());
+                    }
+                }
+                SandboxEntryStatus::Removed => {
+                    partial_state_union
+                        .accounts_sandbox
+                        .insert(service_id, sandbox.clone());
+                }
+                _ => {}
+            }
+        });
 
     Ok(())
 }
@@ -244,23 +306,19 @@ async fn accumulate_parallel(
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     partial_state_union: &mut AccumulatePartialState<StateManager>,
 ) -> Result<ParallelAccumulationResult, PVMInvokeError> {
+    tracing::info!("Δ* invoked");
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
 
-    // `metered_service_ids` contains service IDs that are associate with digests / deferred transfers
-    // or are always-accumulate services.
-    let mut metered_service_ids: BTreeSet<ServiceId> = reports
+    // Accumulating service groups: 1) With Digests 2) Transfer Receivers 3) Always-accumulates 4) Privileged Services
+    let services_with_digests: BTreeSet<ServiceId> = reports
         .iter()
         .flat_map(|wr| wr.digests.iter())
         .map(|wd| wd.service_id)
         .collect();
-    metered_service_ids.extend(always_accumulate_services.keys().cloned());
-    metered_service_ids.extend(
-        prev_deferred_transfers
-            .iter()
-            .map(|t| t.to)
-            .collect::<Vec<_>>(),
-    );
-
+    let services_with_transfers: BTreeSet<ServiceId> =
+        prev_deferred_transfers.iter().map(|t| t.to).collect();
+    let always_accumulate_service_ids: BTreeSet<ServiceId> =
+        always_accumulate_services.keys().cloned().collect();
     let privileged_services = BTreeSet::from_iter(
         partial_state_union
             .assign_services
@@ -274,10 +332,15 @@ async fn accumulate_parallel(
             ]),
     );
 
-    let mut all_service_ids = metered_service_ids.clone();
+    let mut metered_services = services_with_digests.clone();
+    metered_services.extend(always_accumulate_service_ids.clone());
+
+    let mut all_service_ids: BTreeSet<ServiceId> = services_with_digests;
+    all_service_ids.extend(always_accumulate_service_ids);
+    all_service_ids.extend(services_with_transfers);
     all_service_ids.extend(privileged_services);
 
-    let mut service_gas_pairs = Vec::with_capacity(metered_service_ids.len());
+    let mut service_gas_pairs = Vec::new();
     let mut service_output_pairs = BTreeSet::new();
     let mut new_deferred_transfers = Vec::new();
 
@@ -312,7 +375,7 @@ async fn accumulate_parallel(
             .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??
         {
             // Note: Accumulations of privileged services are not metered (accumulate outputs / gas usages)
-            if metered_service_ids.contains(&accumulate_result.accumulate_host) {
+            if metered_services.contains(&accumulate_result.accumulate_host) {
                 service_gas_pairs.push(AccumulationGasPair {
                     service: accumulate_result.accumulate_host,
                     gas: accumulate_result.gas_used,

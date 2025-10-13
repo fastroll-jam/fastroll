@@ -4,7 +4,8 @@ pub mod utils;
 use crate::error::PVMInvokeError;
 use fr_codec::prelude::*;
 use fr_common::{
-    Hash32, Octets, ServiceId, TimeslotIndex, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE,
+    Balance, Hash32, Octets, ServiceId, TimeslotIndex, UnsignedGas, HASH_SIZE,
+    MAX_SERVICE_CODE_SIZE,
 };
 use fr_pvm_host::{
     context::{
@@ -67,6 +68,34 @@ pub struct AccumulateInvocation<S> {
     _phantom: PhantomData<S>,
 }
 impl<S: HostStateProvider> AccumulateInvocation<S> {
+    async fn receive_deferred_transfer(
+        state_manager: Arc<StateManager>,
+        partial_state: &mut AccumulatePartialState<StateManager>,
+        accumulate_host: ServiceId,
+        recv_amount: Balance,
+    ) -> Result<(), PVMInvokeError> {
+        // Add the received amount to the partial state of the accumulate host.
+        partial_state
+            .add_account_balance(state_manager.clone(), accumulate_host, recv_amount)
+            .await?;
+
+        // Mutate the state cache to apply the received amount
+        let account_exists_in_state = state_manager.account_exists(accumulate_host).await?;
+        if account_exists_in_state {
+            state_manager
+                .with_mut_account_metadata(
+                    StateMut::Update,
+                    accumulate_host,
+                    |metadata| -> Result<(), StateManagerError> {
+                        metadata.add_balance(recv_amount);
+                        Ok(())
+                    },
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
     /// Accumulate invocation function
     ///
     /// # Arguments
@@ -79,29 +108,32 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
     #[instrument(level = "debug", skip_all, name = "acc")]
     pub(crate) async fn accumulate(
         state_manager: Arc<StateManager>,
-        partial_state: AccumulatePartialState<StateManager>,
+        mut partial_state: AccumulatePartialState<StateManager>,
         args: &AccumulateInvokeArgs,
     ) -> Result<Option<AccumulateResult<StateManager>>, PVMInvokeError> {
         tracing::info!("Ψ_A (accumulate) invoked. s={}", args.accumulate_host);
 
-        // Check if the accumulate host exists
-        if !state_manager.account_exists(args.accumulate_host).await? {
+        // Check if the accumulate host exists either in the global state or the partial state
+        // and is not ejected.
+        let accumulate_host_exists = partial_state
+            .accounts_sandbox
+            .account_exists_active(state_manager.clone(), args.accumulate_host)
+            .await?;
+        if !accumulate_host_exists {
             return Ok(None);
         }
 
-        // Update accumulate host account's balance to apply deferred transfers
+        // Update accumulate host account's balance to apply deferred transfers, both in the
+        // partial state and the global state cache
         let recv_amount = args.inputs.deferred_transfers_amount();
         if recv_amount > 0 {
-            state_manager
-                .with_mut_account_metadata(
-                    StateMut::Update,
-                    args.accumulate_host,
-                    |metadata| -> Result<(), StateManagerError> {
-                        metadata.add_balance(recv_amount);
-                        Ok(())
-                    },
-                )
-                .await?;
+            Self::receive_deferred_transfer(
+                state_manager.clone(),
+                &mut partial_state,
+                args.accumulate_host,
+                recv_amount,
+            )
+            .await?;
         }
 
         let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
@@ -109,15 +141,35 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
                 "Accumulate service code not found. s={}",
                 args.accumulate_host
             );
-            // Early exit; No-op
-            return Ok(None);
+            // Early exit; propagate partial state mutations (e.g., received transfers amount)
+            // Here, retain only the changes by the accumulate host since we don't want to overwrite
+            // the partial_state_union with the given partial_state arg, which might have been updated
+            // by other service's accumulation.
+            partial_state
+                .accounts_sandbox
+                .retain(|service_id, _| *service_id == args.accumulate_host);
+            return Ok(Some(AccumulateResult {
+                partial_state,
+                accumulate_host: args.accumulate_host,
+                ..Default::default()
+            }));
         };
 
         let code_len = account_code.code().len();
         if code_len > MAX_SERVICE_CODE_SIZE {
             tracing::warn!("Accumulate service code exceeds maximum allowed.");
-            // Early exit; No-op
-            return Ok(None);
+            // Early exit; propagate partial state mutations (e.g., received transfers amount)
+            // Here, retain only the changes by the accumulate host since we don't want to overwrite
+            // the partial_state_union with the given partial_state arg, which might have been updated
+            // by other service's accumulation.
+            partial_state
+                .accounts_sandbox
+                .retain(|service_id, _| *service_id == args.accumulate_host);
+            return Ok(Some(AccumulateResult {
+                partial_state,
+                accumulate_host: args.accumulate_host,
+                ..Default::default()
+            }));
         }
         tracing::debug!("Account code length: {code_len} octets");
 

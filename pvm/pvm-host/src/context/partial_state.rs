@@ -1,6 +1,5 @@
 use crate::error::PartialStateError;
-use fr_common::{CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey, CORE_COUNT};
-use fr_limited_vec::FixedVec;
+use fr_common::{Balance, CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey};
 use fr_state::{
     error::StateManagerError,
     provider::HostStateProvider,
@@ -268,7 +267,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         Ok(())
     }
 
-    pub async fn account_exists(
+    /// Returns `true` if the given service ID is already known, either in the accounts sandbox
+    /// or in the global state. Even if the sandbox entry is marked for removed, returns `true`.
+    pub async fn account_exists_anywhere(
         &self,
         state_provider: Arc<S>,
         service_id: ServiceId,
@@ -276,6 +277,32 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         if self.contains_key(&service_id) || state_provider.account_exists(service_id).await? {
             Ok(true)
         } else {
+            Ok(false)
+        }
+    }
+
+    /// Returns `true` only when the sandbox still has a live copy of the account:
+    /// the entry exists and hasn’t been marked for removal, or it was newly added but
+    /// not yet added to the global state.
+    pub async fn account_exists_active(
+        &mut self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+    ) -> Result<bool, PartialStateError> {
+        if let Some(account_sandbox) = self.get_account_sandbox(state_provider, service_id).await? {
+            if matches!(
+                account_sandbox.metadata.entry.status,
+                SandboxEntryStatus::Removed
+            ) {
+                // Account exists in the global state but removed from the sandbox
+                Ok(false)
+            } else {
+                // Account exists in the global state and not removed from the sandbox,
+                // or is the new account added into the sandbox but not created in the global state yet.
+                Ok(true)
+            }
+        } else {
+            // Account doesn't exist both in the global state and the sandbox
             Ok(false)
         }
     }
@@ -983,10 +1010,10 @@ pub struct AssignServicesPartialState {
     pub last_confirmed: AssignServices,
     /// The changed assigner service ids by the accumulation of the manager service within the
     /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
-    pub(crate) change_by_manager: Option<AssignServices>,
+    pub change_by_manager: Option<AssignServices>,
     /// The changed assigner service ids by the assigner services themselves within the current
     /// parallel accumulation round.
-    pub(crate) change_by_self: FixedVec<Option<ServiceId>, CORE_COUNT>,
+    pub change_by_self: HashMap<CoreIndex, ServiceId>,
 }
 
 impl AssignServicesPartialState {
@@ -994,37 +1021,58 @@ impl AssignServicesPartialState {
         Self {
             last_confirmed: assign_services,
             change_by_manager: None,
-            change_by_self: FixedVec::default(),
+            change_by_self: HashMap::new(),
         }
     }
 
-    pub fn latest_by_core_index(
-        &self,
-        core_index: CoreIndex,
-    ) -> Result<ServiceId, PartialStateError> {
-        if let Some(change_by_manager) = &self.change_by_manager {
-            return Ok(*change_by_manager
-                .get(core_index as usize)
-                .ok_or(PartialStateError::InvalidAssignerCoreIndex(core_index))?);
+    /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
+    /// while prioritize changes by manager services.
+    pub fn merge_changes_from(&mut self, other: &AssignServicesPartialState) {
+        if let Some(manager_assigners) = &other.change_by_manager {
+            for (core_idx, assigner_update_by_manager) in manager_assigners.iter().enumerate() {
+                let original = *other
+                    .last_confirmed
+                    .get(core_idx)
+                    .expect("core index must be within bounds");
+                if *assigner_update_by_manager != original {
+                    if let Some(assigner) = self.last_confirmed.get_mut(core_idx) {
+                        *assigner = *assigner_update_by_manager;
+                    }
+                }
+            }
         }
 
-        match self
-            .change_by_self
-            .get(core_index as usize)
-            .ok_or(PartialStateError::InvalidAssignerCoreIndex(core_index))?
-        {
-            Some(change) => Ok(*change),
-            None => Ok(*self
+        for (&core_idx, &assigner_update_by_self) in &other.change_by_self {
+            let original = *other
                 .last_confirmed
-                .get(core_index as usize)
-                .ok_or(PartialStateError::InvalidAssignerCoreIndex(core_index))?),
+                .get(core_idx as usize)
+                .expect("core index must be within bounds");
+            if assigner_update_by_self != original {
+                if let Some(assigner) = self.last_confirmed.get_mut(core_idx as usize) {
+                    if *assigner == original {
+                        *assigner = assigner_update_by_self;
+                    }
+                }
+            }
         }
     }
 
-    pub fn latest(&self) -> Result<AssignServices, PartialStateError> {
-        (0..CORE_COUNT)
-            .map(|index| self.latest_by_core_index(index as CoreIndex))
-            .collect()
+    pub fn updated(&self) -> AssignServices {
+        if let Some(change_by_manager) = &self.change_by_manager {
+            if change_by_manager != &self.last_confirmed {
+                return change_by_manager.clone();
+            }
+        }
+
+        let mut updated = self.last_confirmed.clone();
+        for (k, v) in &self.change_by_self {
+            if let Some(assigner_mut) = updated.get_mut(*k as usize) {
+                if assigner_mut != v {
+                    *assigner_mut = *v;
+                }
+            }
+        }
+        updated
     }
 }
 
@@ -1034,10 +1082,10 @@ pub struct DesignateServicePartialState {
     pub last_confirmed: ServiceId,
     /// The changed designate service id by the accumulation of the manager service within the
     /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
-    pub(crate) change_by_manager: Option<ServiceId>,
+    pub change_by_manager: Option<ServiceId>,
     /// The changed designate service id by the designate service itself within the current
     /// parallel accumulation round.
-    pub(crate) change_by_self: Option<ServiceId>,
+    pub change_by_self: Option<ServiceId>,
 }
 
 impl DesignateServicePartialState {
@@ -1049,12 +1097,36 @@ impl DesignateServicePartialState {
         }
     }
 
-    pub fn latest(&self) -> ServiceId {
-        match (self.change_by_manager, self.change_by_self) {
-            (Some(change), _) => change,
-            (None, Some(change)) => change,
-            (None, None) => self.last_confirmed,
+    /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
+    /// while prioritize changes by manager services.
+    pub fn merge_changes_from(&mut self, other: &DesignateServicePartialState) {
+        let original = other.last_confirmed;
+        if let Some(manager_change) = other.change_by_manager {
+            if manager_change != original {
+                self.last_confirmed = manager_change;
+                return;
+            }
         }
+
+        if let Some(self_change) = other.change_by_self {
+            if self_change != original && self.last_confirmed == original {
+                self.last_confirmed = self_change;
+            }
+        }
+    }
+
+    pub fn updated(&self) -> Option<ServiceId> {
+        if let Some(manager_change) = self.change_by_manager {
+            if manager_change != self.last_confirmed {
+                return Some(manager_change);
+            }
+        }
+        if let Some(self_change) = self.change_by_self {
+            if self_change != self.last_confirmed {
+                return Some(self_change);
+            }
+        }
+        None
     }
 }
 
@@ -1064,10 +1136,10 @@ pub struct RegistrarServicePartialState {
     pub last_confirmed: ServiceId,
     /// The changed registrar service id by the accumulation of the manager service within the
     /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
-    pub(crate) change_by_manager: Option<ServiceId>,
+    pub change_by_manager: Option<ServiceId>,
     /// The changed registrar service id by the registrar service itself within the current
     /// parallel accumulation round.
-    pub(crate) change_by_self: Option<ServiceId>,
+    pub change_by_self: Option<ServiceId>,
 }
 
 impl RegistrarServicePartialState {
@@ -1079,12 +1151,36 @@ impl RegistrarServicePartialState {
         }
     }
 
-    pub fn latest(&self) -> ServiceId {
-        match (self.change_by_manager, self.change_by_self) {
-            (Some(change), _) => change,
-            (None, Some(change)) => change,
-            (None, None) => self.last_confirmed,
+    /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
+    /// while prioritize changes by manager services.
+    pub fn merge_changes_from(&mut self, other: &RegistrarServicePartialState) {
+        let original = other.last_confirmed;
+        if let Some(manager_change) = other.change_by_manager {
+            if manager_change != original {
+                self.last_confirmed = manager_change;
+                return;
+            }
         }
+
+        if let Some(self_change) = other.change_by_self {
+            if self_change != original && self.last_confirmed == original {
+                self.last_confirmed = self_change;
+            }
+        }
+    }
+
+    pub fn updated(&self) -> Option<ServiceId> {
+        if let Some(manager_change) = self.change_by_manager {
+            if manager_change != self.last_confirmed {
+                return Some(manager_change);
+            }
+        }
+        if let Some(self_change) = self.change_by_self {
+            if self_change != self.last_confirmed {
+                return Some(self_change);
+            }
+        }
+        None
     }
 }
 
@@ -1195,5 +1291,51 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             registrar_service: RegistrarServicePartialState::new(registrar_service),
             always_accumulate_services,
         })
+    }
+
+    pub async fn subtract_account_balance(
+        &mut self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+        amount: Balance,
+    ) -> Result<(), PartialStateError> {
+        let account_metadata = self
+            .accounts_sandbox
+            .get_mut_account_metadata(state_provider.clone(), service_id)
+            .await?
+            .ok_or(PartialStateError::AccumulatorAccountNotInitialized)?;
+
+        let subtracted_amount = account_metadata
+            .balance
+            .checked_sub(amount)
+            .ok_or(PartialStateError::AccountBalanceUnderflow(service_id))?;
+        account_metadata.balance = subtracted_amount;
+        self.accounts_sandbox
+            .mark_account_metadata_updated(state_provider, service_id)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn add_account_balance(
+        &mut self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+        amount: Balance,
+    ) -> Result<(), PartialStateError> {
+        let account_metadata = self
+            .accounts_sandbox
+            .get_mut_account_metadata(state_provider.clone(), service_id)
+            .await?
+            .ok_or(PartialStateError::AccountBalanceOverflow(service_id))?;
+
+        let added_amount = account_metadata
+            .balance
+            .checked_add(amount)
+            .ok_or(PartialStateError::AccumulatorAccountNotInitialized)?;
+        account_metadata.balance = added_amount;
+        self.accounts_sandbox
+            .mark_account_metadata_updated(state_provider, service_id)
+            .await?;
+        Ok(())
     }
 }

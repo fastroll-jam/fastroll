@@ -61,8 +61,7 @@ impl AccumulateStats {
                     digests_count: service_digests_counts
                         .get(&service_id)
                         .cloned()
-                        .expect("Digest stats should exist")
-                        as u32,
+                        .unwrap_or_default() as u32,
                 },
             );
         }
