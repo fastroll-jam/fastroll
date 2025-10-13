@@ -98,7 +98,10 @@ pub async fn accumulate_outer(
             0
         };
 
-        if processable_reports_prediction == 0 && !has_deferred_transfers {
+        if processable_reports_prediction == 0
+            && !has_deferred_transfers
+            && always_accumulate_services.is_empty()
+        {
             break;
         }
 
