@@ -6,7 +6,9 @@ use fr_common::{
     workloads::work_report::WorkReport, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
 };
 use fr_crypto::{hash, Blake2b256};
-use fr_pvm_host::context::partial_state::AccumulatePartialState;
+use fr_pvm_host::context::partial_state::{
+    AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus,
+};
 use fr_pvm_types::{
     invoke_args::{AccumulateInputs, AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
     invoke_results::{
@@ -146,6 +148,7 @@ struct ParallelAccumulationResult {
     service_output_pairs: AccumulationOutputPairs,
 }
 
+/// Merges changes produced by a single-service accumulation into the `partial_state_union`.
 async fn add_partial_state_change(
     state_manager: Arc<StateManager>,
     accumulate_host: ServiceId,
@@ -218,18 +221,36 @@ async fn add_partial_state_change(
         .cloned()
         .expect("should not be None");
 
-    // Integrate new accounts: all accounts other than the accumulate host are new accounts
-    for (&service_id, sandbox) in accumulate_result_partial_state.accounts_sandbox.iter() {
-        if service_id != accumulate_host
-            && !partial_state_union
-                .accounts_sandbox
-                .contains_key(&service_id)
-        {
-            partial_state_union
-                .accounts_sandbox
-                .insert(service_id, sandbox.clone());
-        }
-    }
+    // Integrate new accounts and ejected accounts.
+    // Note: no account other than the accumulate host is ever touched except for the
+    // `NEW` & `EJECT` hostcalls.
+    accumulate_result_partial_state
+        .accounts_sandbox
+        .iter()
+        .filter(|(&service_id, _)| service_id != accumulate_host)
+        .for_each(|(&service_id, sandbox)| {
+            match sandbox.metadata.status() {
+                SandboxEntryStatus::Added => {
+                    // Additional guard to avoid entries from the `partial_state_union` with `Added`
+                    // status being copied into the later accumulations and overwriting any updates.
+                    #[allow(clippy::map_entry)]
+                    if !partial_state_union
+                        .accounts_sandbox
+                        .contains_key(&service_id)
+                    {
+                        partial_state_union
+                            .accounts_sandbox
+                            .insert(service_id, sandbox.clone());
+                    }
+                }
+                SandboxEntryStatus::Removed => {
+                    partial_state_union
+                        .accounts_sandbox
+                        .insert(service_id, sandbox.clone());
+                }
+                _ => {}
+            }
+        });
 
     Ok(())
 }
