@@ -20,7 +20,6 @@ use fr_crypto::{
     types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys},
     Blake2b256,
 };
-use fr_limited_vec::FixedVec;
 use fr_pvm_core::state::state_change::HostCallVMStateChange;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
@@ -33,7 +32,7 @@ use fr_state::types::{
     AccountLookupsEntryTimeslots, AccountMetadata, AccountPreimagesEntry, AlwaysAccumulateServices,
     AuthQueue, CoreAuthQueue, PrivilegedServices, StagingSet, Timeslot,
 };
-use std::{error::Error, ops::Range, sync::Arc};
+use std::{collections::HashMap, error::Error, ops::Range, sync::Arc};
 
 mod bless_tests {
     use super::*;
@@ -218,7 +217,7 @@ mod bless_tests {
         );
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT])
+            HashMap::new()
         );
         assert_eq!(
             x.partial_state.designate_service.change_by_manager,
@@ -262,7 +261,7 @@ mod bless_tests {
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT])
+            HashMap::new()
         );
         assert!(x
             .partial_state
@@ -309,11 +308,10 @@ mod bless_tests {
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager); // Should remain unchanged
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
-        let mut assign_services_vec = vec![Some(fixture.assign_services[0])];
-        assign_services_vec.resize(CORE_COUNT, None);
+        let assign_services_vec = vec![(0, fixture.assign_services[0])];
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::try_from(assign_services_vec).unwrap()
+            HashMap::from_iter(assign_services_vec)
         );
         assert!(x
             .partial_state
@@ -361,7 +359,7 @@ mod bless_tests {
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT])
+            HashMap::new()
         );
         assert!(x
             .partial_state
@@ -410,7 +408,7 @@ mod bless_tests {
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT]),
+            HashMap::new()
         );
         assert!(x
             .partial_state
@@ -459,7 +457,7 @@ mod bless_tests {
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT]),
+            HashMap::new()
         );
         assert!(x
             .partial_state
@@ -508,7 +506,7 @@ mod bless_tests {
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT]),
+            HashMap::new()
         );
         assert!(x
             .partial_state
@@ -553,7 +551,7 @@ mod bless_tests {
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT]),
+            HashMap::new()
         );
         assert!(x
             .partial_state
@@ -599,7 +597,7 @@ mod bless_tests {
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT]),
+            HashMap::new()
         );
         assert!(x
             .partial_state
@@ -799,8 +797,11 @@ mod assign_tests {
         assert_eq!(x.partial_state.auth_queue, fixture.updated_auth_queue);
         assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
-            x.partial_state.assign_services.change_by_self[fixture.core_index as usize],
-            Some(fixture.new_assign_service as ServiceId)
+            x.partial_state
+                .assign_services
+                .change_by_self
+                .get(&(fixture.core_index as CoreIndex)),
+            Some(&(fixture.new_assign_service as ServiceId))
         );
         Ok(())
     }
@@ -825,7 +826,7 @@ mod assign_tests {
         assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT])
+            HashMap::new()
         );
         Ok(())
     }
@@ -854,7 +855,7 @@ mod assign_tests {
         assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT])
+            HashMap::new()
         );
         Ok(())
     }
@@ -886,7 +887,7 @@ mod assign_tests {
         assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT])
+            HashMap::new()
         );
         Ok(())
     }
@@ -917,7 +918,7 @@ mod assign_tests {
         assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
-            FixedVec::from_iter([None; CORE_COUNT])
+            HashMap::new()
         );
         Ok(())
     }

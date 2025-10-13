@@ -314,8 +314,10 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
                 .for_each(
                     |((core_index, prev_assign_service_id), (_, new_assign_service_id))| {
                         if accumulate_host == *prev_assign_service_id {
-                            self.partial_state.assign_services.change_by_self[core_index] =
-                                Some(*new_assign_service_id);
+                            self.partial_state
+                                .assign_services
+                                .change_by_self
+                                .insert(core_index as CoreIndex, *new_assign_service_id);
                         }
                     },
                 );
@@ -330,7 +332,10 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
     }
 
     pub fn assign_new_core_assign_service(&mut self, core_index: usize, assign_service: ServiceId) {
-        self.partial_state.assign_services.change_by_self[core_index] = Some(assign_service);
+        self.partial_state
+            .assign_services
+            .change_by_self
+            .insert(core_index as CoreIndex, assign_service);
     }
 
     pub fn assign_core_auth_queue(

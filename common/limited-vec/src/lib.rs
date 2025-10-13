@@ -195,6 +195,10 @@ where
         self.inner.get(index)
     }
 
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        self.inner.get_mut(index)
+    }
+
     pub fn as_slice(&self) -> &[T] {
         self.inner.as_slice()
     }

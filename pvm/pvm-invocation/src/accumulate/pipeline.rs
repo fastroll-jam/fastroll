@@ -168,11 +168,15 @@ async fn add_partial_state_change(
     }
 
     partial_state_union.assign_services.last_confirmed =
-        accumulate_result_partial_state.assign_services.latest()?;
-    partial_state_union.designate_service.last_confirmed =
-        accumulate_result_partial_state.designate_service.latest();
-    partial_state_union.registrar_service.last_confirmed =
-        accumulate_result_partial_state.registrar_service.latest();
+        accumulate_result_partial_state.assign_services.updated();
+
+    if let Some(latest_change) = accumulate_result_partial_state.designate_service.updated() {
+        partial_state_union.designate_service.last_confirmed = latest_change;
+    }
+
+    if let Some(latest_change) = accumulate_result_partial_state.registrar_service.updated() {
+        partial_state_union.registrar_service.last_confirmed = latest_change;
+    }
 
     if partial_state_union.always_accumulate_services
         != accumulate_result_partial_state.always_accumulate_services

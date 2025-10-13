@@ -1,6 +1,5 @@
 use crate::error::PartialStateError;
-use fr_common::{Balance, CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey, CORE_COUNT};
-use fr_limited_vec::FixedVec;
+use fr_common::{Balance, CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey};
 use fr_state::{
     error::StateManagerError,
     provider::HostStateProvider,
@@ -1014,7 +1013,7 @@ pub struct AssignServicesPartialState {
     pub(crate) change_by_manager: Option<AssignServices>,
     /// The changed assigner service ids by the assigner services themselves within the current
     /// parallel accumulation round.
-    pub(crate) change_by_self: FixedVec<Option<ServiceId>, CORE_COUNT>,
+    pub(crate) change_by_self: HashMap<CoreIndex, ServiceId>,
 }
 
 impl AssignServicesPartialState {
@@ -1022,37 +1021,22 @@ impl AssignServicesPartialState {
         Self {
             last_confirmed: assign_services,
             change_by_manager: None,
-            change_by_self: FixedVec::default(),
+            change_by_self: HashMap::new(),
         }
     }
 
-    pub fn latest_by_core_index(
-        &self,
-        core_index: CoreIndex,
-    ) -> Result<ServiceId, PartialStateError> {
+    pub fn updated(&self) -> AssignServices {
         if let Some(change_by_manager) = &self.change_by_manager {
-            return Ok(*change_by_manager
-                .get(core_index as usize)
-                .ok_or(PartialStateError::InvalidAssignerCoreIndex(core_index))?);
+            return change_by_manager.clone();
         }
 
-        match self
-            .change_by_self
-            .get(core_index as usize)
-            .ok_or(PartialStateError::InvalidAssignerCoreIndex(core_index))?
-        {
-            Some(change) => Ok(*change),
-            None => Ok(*self
-                .last_confirmed
-                .get(core_index as usize)
-                .ok_or(PartialStateError::InvalidAssignerCoreIndex(core_index))?),
+        let mut updated = self.last_confirmed.clone();
+        for (k, v) in &self.change_by_self {
+            if let Some(assigner_mut) = updated.get_mut(*k as usize) {
+                *assigner_mut = *v;
+            }
         }
-    }
-
-    pub fn latest(&self) -> Result<AssignServices, PartialStateError> {
-        (0..CORE_COUNT)
-            .map(|index| self.latest_by_core_index(index as CoreIndex))
-            .collect()
+        updated
     }
 }
 
@@ -1077,11 +1061,11 @@ impl DesignateServicePartialState {
         }
     }
 
-    pub fn latest(&self) -> ServiceId {
+    pub fn updated(&self) -> Option<ServiceId> {
         match (self.change_by_manager, self.change_by_self) {
-            (Some(change), _) => change,
-            (None, Some(change)) => change,
-            (None, None) => self.last_confirmed,
+            (Some(change), _) => Some(change),
+            (None, Some(change)) => Some(change),
+            (None, None) => None,
         }
     }
 }
@@ -1107,11 +1091,11 @@ impl RegistrarServicePartialState {
         }
     }
 
-    pub fn latest(&self) -> ServiceId {
+    pub fn updated(&self) -> Option<ServiceId> {
         match (self.change_by_manager, self.change_by_self) {
-            (Some(change), _) => change,
-            (None, Some(change)) => change,
-            (None, None) => self.last_confirmed,
+            (Some(change), _) => Some(change),
+            (None, Some(change)) => Some(change),
+            (None, None) => None,
         }
     }
 }
