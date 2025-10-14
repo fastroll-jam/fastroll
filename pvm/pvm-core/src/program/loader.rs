@@ -1,9 +1,12 @@
 use crate::{
     error::VMCoreError,
     interpreter::Interpreter,
-    program::{instruction::opcode::Opcode, types::program_state::ProgramState},
+    program::{
+        instruction::opcode::Opcode,
+        types::program_state::{OpcodeBitmask, ProgramState},
+    },
 };
-use bit_vec::BitVec;
+use bitvec::prelude::*;
 use fr_codec::prelude::*;
 use fr_pvm_types::common::MemAddress;
 
@@ -34,7 +37,7 @@ impl ProgramLoader {
     /// Used by `Ψ`.
     pub fn deblob_program_code(
         mut code: &[u8],
-    ) -> Result<(Vec<u8>, BitVec, Vec<MemAddress>), VMCoreError> {
+    ) -> Result<(Vec<u8>, OpcodeBitmask, Vec<MemAddress>), VMCoreError> {
         let input = &mut code;
 
         // Decode the length of the jump table (|j|)
@@ -72,7 +75,12 @@ impl ProgramLoader {
         program.basic_block_start_indices.insert(0);
         let instructions_len = program.instructions.len();
         for n in 1..instructions_len {
-            if let Some(true) = program.opcode_bitmask.get(n) {
+            if program
+                .opcode_bitmask
+                .get(n)
+                .map(|bit| *bit)
+                .unwrap_or(false)
+            {
                 if let Some(&op_val) = program.instructions.get(n) {
                     let op = Opcode::from_u8(op_val);
                     if op.is_termination_opcode() {

@@ -1,4 +1,4 @@
-use bit_vec::BitVec;
+use bitvec::prelude::*;
 use fr_block::types::{
     block::{
         Block, BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey, EpochValidators,

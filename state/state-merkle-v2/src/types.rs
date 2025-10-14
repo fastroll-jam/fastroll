@@ -442,42 +442,43 @@ impl MerklePath {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::merkle_path;
     use fr_common::StateHash;
 
     #[test]
     fn test_merkle_path_sibling() {
-        let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
+        let path = merkle_path![1, 0, 1, 1];
         let sibling = path.sibling();
-        let sibling_expected = Some(MerklePath(bitvec![u8, Msb0; 1, 0, 1, 0]));
+        let sibling_expected = Some(merkle_path![1, 0, 1, 0]);
         assert_eq!(sibling, sibling_expected);
     }
 
     #[test]
     fn test_merkle_path_left_child() {
-        let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
+        let path = merkle_path![1, 0, 1, 1];
         let left_child = path.left_child();
-        let left_child_expected = Some(MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 0]));
+        let left_child_expected = Some(merkle_path![1, 0, 1, 1, 0]);
         assert_eq!(left_child, left_child_expected);
     }
 
     #[test]
     fn test_merkle_path_right_child() {
-        let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
+        let path = merkle_path![1, 0, 1, 1];
         let right_child = path.right_child();
-        let right_child_expected = Some(MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1, 1]));
+        let right_child_expected = Some(merkle_path![1, 0, 1, 1, 1]);
         assert_eq!(right_child, right_child_expected);
     }
 
     #[test]
     fn test_all_paths_to_root() {
-        let path = MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1]);
+        let path = merkle_path![1, 0, 1, 1];
         let all_paths_to_root = path.all_paths_to_root();
         assert_eq!(all_paths_to_root.len(), 5);
-        assert!(all_paths_to_root.contains(&MerklePath(bitvec![u8, Msb0; 1, 0, 1, 1])));
-        assert!(all_paths_to_root.contains(&MerklePath(bitvec![u8, Msb0; 1, 0, 1])));
-        assert!(all_paths_to_root.contains(&MerklePath(bitvec![u8, Msb0; 1, 0])));
-        assert!(all_paths_to_root.contains(&MerklePath(bitvec![u8, Msb0; 1])));
-        assert!(all_paths_to_root.contains(&MerklePath::root()));
+        assert!(all_paths_to_root.contains(&merkle_path![1, 0, 1, 1]));
+        assert!(all_paths_to_root.contains(&merkle_path![1, 0, 1]));
+        assert!(all_paths_to_root.contains(&merkle_path![1, 0]));
+        assert!(all_paths_to_root.contains(&merkle_path![1]));
+        assert!(all_paths_to_root.contains(&merkle_path![]));
     }
 
     #[test]

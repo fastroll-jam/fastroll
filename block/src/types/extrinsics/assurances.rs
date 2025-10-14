@@ -1,5 +1,5 @@
 use crate::types::extrinsics::{XtEntry, XtType};
-use bit_vec::BitVec;
+use bitvec::prelude::*;
 use fr_codec::prelude::*;
 use fr_common::{
     BlockHeaderHash, CoreIndex, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
@@ -50,7 +50,7 @@ impl AssurancesXt {
                 .assuring_cores_bitvec
                 .iter()
                 .enumerate()
-                .for_each(|(i, assured)| counts[i] += assured as usize);
+                .for_each(|(i, assured)| counts[i] += (*assured) as usize);
             counts
         })
     }
@@ -61,7 +61,7 @@ pub struct AssurancesXtEntry {
     /// `a`: The parent block hash.
     pub anchor_parent_hash: BlockHeaderHash,
     /// `f`: A bit sequence of length `CORE_COUNT` representing indices of cores this entry assures.
-    pub assuring_cores_bitvec: BitVec,
+    pub assuring_cores_bitvec: BitVec<u8, Lsb0>,
     /// `v`: The validator index.
     pub validator_index: ValidatorIndex,
     /// `s`: The signature of the validator.

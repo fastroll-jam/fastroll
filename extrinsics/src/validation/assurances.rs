@@ -110,7 +110,7 @@ impl AssurancesXtValidator {
         let pending_reports = self.state_manager.get_pending_reports().await?;
         for (core_index, bit) in entry.assuring_cores_bitvec.iter().enumerate() {
             // Cannot assure availability of a core without a pending report
-            if bit && pending_reports.0[core_index].is_none() {
+            if *bit && pending_reports.0[core_index].is_none() {
                 return Err(XtError::NoPendingReportForCore(
                     core_index as CoreIndex,
                     entry.validator_index,

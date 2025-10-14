@@ -1,7 +1,9 @@
 use crate::program::instruction::opcode::Opcode;
-use bit_vec::BitVec;
+use bitvec::prelude::*;
 use fr_pvm_types::common::MemAddress;
 use std::collections::HashSet;
+
+pub type OpcodeBitmask = BitVec<u8, Lsb0>;
 
 /// Immutable VM state (program components)
 ///
@@ -13,7 +15,7 @@ pub struct ProgramState {
     /// `j`: Dynamic jump table.
     pub jump_table: Vec<MemAddress>,
     /// `k`: Opcode bitmask.
-    pub opcode_bitmask: BitVec,
+    pub opcode_bitmask: OpcodeBitmask,
     /// Opcode indices that are beginning of basic-blocks.
     pub basic_block_start_indices: HashSet<usize>,
     /// Boolean flag indicating whether program is loaded.
@@ -27,7 +29,7 @@ impl ProgramState {
             .iter()
             .zip(self.opcode_bitmask.iter())
             .for_each(|(byte, opcode)| {
-                if opcode {
+                if *opcode {
                     tracing::trace!("Op: {:?}", Opcode::from_u8(*byte));
                 }
             })

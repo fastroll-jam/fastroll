@@ -799,7 +799,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
-        let set_bits = VMUtils::u64_to_bits(rs1_val).count_ones();
+        let set_bits = VMUtils::u64_to_bits(rs1_val).count_ones() as u64;
         continue_with_reg_write!(vm_state, program_state, ins.rd()?, set_bits)
     }
 
@@ -812,7 +812,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
-        let set_bits = VMUtils::u32_to_bits(rs1_val).count_ones();
+        let set_bits = VMUtils::u32_to_bits(rs1_val).count_ones() as u64;
         continue_with_reg_write!(vm_state, program_state, ins.rd()?, set_bits)
     }
 
