@@ -141,14 +141,18 @@ impl BlockHeaderDB {
 
         // Insert to DB
         let mut batch = WriteBatch::default();
+        let mut header_writes = Vec::with_capacity(headers.len());
         for (header_hash, header) in headers {
+            header_writes.push((header_hash.clone(), Some(header.clone())));
             batch.put_cf(
                 self.cf_handle()?,
                 header_hash.as_slice(),
                 header.into_db_value()?,
             );
         }
-        self.db.commit_write_batch(batch).await?;
+        self.db
+            .commit_write_batch_and_sync_cache(batch, &header_writes)
+            .await?;
         Ok(())
     }
 

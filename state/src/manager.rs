@@ -24,8 +24,8 @@ use crate::{
 use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
-    CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey, StorageKey,
-    TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
+    CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateHash, StateKey,
+    StorageKey, TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_config::StorageConfig;
 use fr_crypto::{
@@ -682,13 +682,16 @@ impl StateManager {
         artifact: &StateCommitArtifact,
     ) -> Result<(), StateManagerError> {
         // Prepare StateDB write batch
-        let mut state_db_write_batch = WriteBatch::default();
-        let state_db_cf = self.state_db.cf_handle()?;
-        for (k, v) in &artifact
+        let state_db_write_set = &artifact
             .db_write_set_with_root
             .db_write_set
-            .state_db_write_set
-        {
+            .state_db_write_set;
+
+        let mut state_db_write_batch = WriteBatch::default();
+        let mut state_writes = Vec::with_capacity(state_db_write_set.len());
+        let state_db_cf = self.state_db.cf_handle()?;
+        for (k, v) in state_db_write_set {
+            state_writes.push((k.clone(), Some(v.clone())));
             state_db_write_batch.put_cf(state_db_cf, k.as_db_key(), v.clone().into_db_value()?);
         }
 
@@ -698,7 +701,8 @@ impl StateManager {
             .await?;
 
         // Commit to the StateDB
-        self.commit_to_state_db(state_db_write_batch).await?;
+        self.commit_to_state_db(state_db_write_batch, &state_writes)
+            .await?;
 
         // Sync up the state cache with the global state.
         self.cache
@@ -726,11 +730,14 @@ impl StateManager {
 
         // Commit to the StateDB
         let mut state_db_write_batch = WriteBatch::default();
+        let mut state_writes = Vec::with_capacity(state_db_writes.len());
         let state_db_cf = self.state_db.cf_handle()?;
         for (k, v) in state_db_writes {
+            state_writes.push((k.clone(), Some(v.clone())));
             state_db_write_batch.put_cf(state_db_cf, k.as_db_key(), v.into_db_value()?);
         }
-        self.commit_to_state_db(state_db_write_batch).await?;
+        self.commit_to_state_db(state_db_write_batch, &state_writes)
+            .await?;
 
         // Sync up the state cache with the global state.
         self.cache.apply_direct_commit(&dirty_entries);
@@ -738,8 +745,14 @@ impl StateManager {
         Ok(())
     }
 
-    async fn commit_to_state_db(&self, batch: WriteBatch) -> Result<(), StateManagerError> {
-        self.state_db.commit_write_batch(batch).await?;
+    async fn commit_to_state_db(
+        &self,
+        batch: WriteBatch,
+        state_writes: &[(StateHash, Option<Vec<u8>>)],
+    ) -> Result<(), StateManagerError> {
+        self.state_db
+            .commit_write_batch_and_sync_cache(batch, state_writes)
+            .await?;
         Ok(())
     }
 
