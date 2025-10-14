@@ -152,12 +152,6 @@ where
         Ok(())
     }
 
-    // FIXME: Deprecate (use `commit_write_batch_and_update_cache` instead)
-    /// Commit a write batch to the state column family.
-    pub async fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), CachedDBError> {
-        Ok(self.core.commit_write_batch(batch).await?)
-    }
-
     pub async fn commit_write_batch_and_sync_cache(
         &self,
         batch: WriteBatch,

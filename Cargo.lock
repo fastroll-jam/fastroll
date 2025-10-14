@@ -1282,21 +1282,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fr-state-merkle"
-version = "0.1.17"
-dependencies = [
- "bit-vec",
- "fr-codec",
- "fr-common",
- "fr-crypto",
- "fr-db",
- "hex",
- "mini-moka",
- "thiserror 2.0.16",
- "tracing",
-]
-
-[[package]]
 name = "fr-state-merkle-v2"
 version = "0.1.17"
 dependencies = [

@@ -26,7 +26,6 @@ members = [
     "pvm/pvm-invocation",
     "pvm/pvm-types",
     "state",
-    "state/state-merkle",
     "state/state-merkle-v2",
     "storage",
     "test-utils",
@@ -66,7 +65,6 @@ fr-pvm-interface = { path = "pvm/pvm-interface" }
 fr-pvm-invocation = { path = "pvm/pvm-invocation" }
 fr-pvm-types = { path = "pvm/pvm-types" }
 fr-state = { path = "state" }
-fr-state-merkle = { path = "state/state-merkle" }
 fr-state-merkle-v2 = { path = "state/state-merkle-v2" }
 fr-storage = { path = "storage" }
 fr-test-utils = { path = "test-utils" }
