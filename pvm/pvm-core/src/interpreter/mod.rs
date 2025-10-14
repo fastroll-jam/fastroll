@@ -3,14 +3,13 @@ use crate::{
     program::{
         instruction::{opcode::Opcode as OP, set::InstructionSet as IS, Instruction},
         loader::ProgramLoader,
-        types::program_state::ProgramState,
+        types::program_state::{OpcodeBitmask, ProgramState},
     },
     state::{
         state_change::{VMStateChange, VMStateMutator},
         vm_state::VMState,
     },
 };
-use bit_vec::BitVec;
 use fr_pvm_types::{
     common::RegValue,
     constants::{MAX_INST_BLOB_LENGTH, MAX_SKIP_DISTANCE},
@@ -27,10 +26,11 @@ pub struct Interpreter;
 impl Interpreter {
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask
-    pub(crate) fn skip(curr_opcode_index: usize, opcode_bitmask: &BitVec) -> usize {
+    pub(crate) fn skip(curr_opcode_index: usize, opcode_bitmask: &OpcodeBitmask) -> usize {
         for skip_distance in 0..=MAX_SKIP_DISTANCE {
             if opcode_bitmask
                 .get(curr_opcode_index + 1 + skip_distance)
+                .map(|bit| *bit)
                 .unwrap_or(true)
             {
                 return skip_distance;

@@ -8,7 +8,7 @@
 //! As the JAM protocol utilizes a modified version of the original SCALE codec, this library retains
 //! much of its overall structure while significantly simplifying and adapting the implementation
 //! to conform to the codec specifications defined in the Graypaper.
-use bit_vec::BitVec;
+use bitvec::prelude::*;
 #[cfg(feature = "derive")]
 pub use fr_codec_derive::*;
 use fr_limited_vec::{FixedVec, LimitedVec};
@@ -404,7 +404,7 @@ where
     }
 }
 
-impl JamEncode for BitVec {
+impl JamEncode for BitVec<u8, Lsb0> {
     fn size_hint(&self) -> usize {
         let length_size = self.len().div_ceil(8).size_hint();
         length_size + self.len().div_ceil(8)
@@ -420,7 +420,7 @@ impl JamEncode for BitVec {
     }
 }
 
-impl JamDecode for BitVec {
+impl JamDecode for BitVec<u8, Lsb0> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         // Decode the length first
         let len = usize::decode(input)?;
@@ -626,7 +626,7 @@ impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
 impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
 impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
-impl JamEncodeFixed for BitVec {
+impl JamEncodeFixed for BitVec<u8, Lsb0> {
     const SIZE_UNIT: SizeUnit = SizeUnit::Bits;
 
     fn encode_to_fixed<T: JamOutput>(
@@ -647,7 +647,7 @@ impl JamEncodeFixed for BitVec {
         let mut bit_count = 0;
 
         for bit in self.iter() {
-            if bit {
+            if *bit {
                 current_byte |= 1 << bit_count;
             }
             bit_count += 1;
@@ -667,7 +667,7 @@ impl JamEncodeFixed for BitVec {
     }
 }
 
-impl JamDecodeFixed for BitVec {
+impl JamDecodeFixed for BitVec<u8, Lsb0> {
     const SIZE_UNIT: SizeUnit = SizeUnit::Bits;
 
     fn decode_fixed<I: JamInput>(input: &mut I, size_in_bits: usize) -> Result<Self, JamCodecError>
@@ -740,8 +740,7 @@ mod tests {
         let encoded = value.encode().unwrap();
         println!("\nValue: {value:?}");
         println!("Encoded: {encoded:02X?}");
-        let mut slice = &encoded[..];
-        let decoded = T::decode(&mut slice).unwrap();
+        let decoded = T::decode(&mut encoded.as_slice()).unwrap();
         println!("Decoded: {decoded:?}");
         if value != decoded {
             println!("Mismatch: original {value:?} != decoded {decoded:?}");
@@ -852,17 +851,15 @@ mod tests {
     #[test]
     fn test_decode_fixed() {
         let encoded = [0x78, 0x56, 0x34, 0x12];
-        let mut slice = &encoded[..];
-        let decoded = u32::decode_fixed(&mut slice, 4).unwrap();
+        let decoded = u32::decode_fixed(&mut encoded.as_slice(), 4).unwrap();
         assert_eq!(decoded, 0x12345678);
     }
 
     #[test]
     fn test_decode_fixed_invalid_size() {
         let encoded = [0x78, 0x56, 0x34, 0x12];
-        let mut slice = &encoded[..];
         assert!(matches!(
-            u16::decode_fixed(&mut slice, 4),
+            u16::decode_fixed(&mut encoded.as_slice(), 4),
             Err(JamCodecError::InvalidSize(_))
         ));
     }
@@ -873,31 +870,27 @@ mod tests {
         let none = None;
         let encoded_none = none.encode().unwrap();
         assert_eq!(encoded_none, vec![0]);
-        let mut slice_none = &encoded_none[..];
-        let decoded_none = Option::<u32>::decode(&mut slice_none).unwrap();
+        let decoded_none = Option::<u32>::decode(&mut encoded_none.as_slice()).unwrap();
         assert_eq!(none, decoded_none);
 
         // Test Some
         let some = Some(42);
         let encoded_some = some.encode().unwrap();
         assert_eq!(encoded_some, vec![1, 42]);
-        let mut slice_some = &encoded_some[..];
-        let decoded_some = Option::<u32>::decode(&mut slice_some).unwrap();
+        let decoded_some = Option::<u32>::decode(&mut encoded_some.as_slice()).unwrap();
         assert_eq!(some, decoded_some);
 
         // Test Some with a larger value
         let some_large = Some(1_000_000);
         let encoded_some_large = some_large.encode().unwrap();
         assert_eq!(encoded_some_large, vec![1, 207, 64, 66]);
-        let mut slice_some_large = &encoded_some_large[..];
-        let decoded_some_large = Option::<u32>::decode(&mut slice_some_large).unwrap();
+        let decoded_some_large = Option::<u32>::decode(&mut encoded_some_large.as_slice()).unwrap();
         assert_eq!(some_large, decoded_some_large);
 
         // Test invalid encoding
         let invalid_encoding = [2]; // 2 is not a valid presence marker
-        let mut slice_invalid = &invalid_encoding[..];
         assert!(matches!(
-            Option::<u32>::decode(&mut slice_invalid),
+            Option::<u32>::decode(&mut invalid_encoding.as_slice()),
             Err(JamCodecError::InputError(_))
         ));
     }
@@ -908,16 +901,14 @@ mod tests {
         let arr4 = [1, 2, 3, 4];
         let encoded_arr4 = arr4.encode().unwrap();
         assert_eq!(encoded_arr4, vec![1, 2, 3, 4]);
-        let mut slice_arr4 = &encoded_arr4[..];
-        let decoded_arr4 = <[u8; 4]>::decode(&mut slice_arr4).unwrap();
+        let decoded_arr4 = <[u8; 4]>::decode(&mut encoded_arr4.as_slice()).unwrap();
         assert_eq!(arr4, decoded_arr4);
 
         // Test [u8; 0] (empty array)
         let arr0: [u8; 0] = [];
         let encoded_arr0 = arr0.encode().unwrap();
         assert_eq!(encoded_arr0, vec![]);
-        let mut slice_arr0 = &encoded_arr0[..];
-        let decoded_arr0: [u8; 0] = <[u8; 0]>::decode(&mut slice_arr0).unwrap();
+        let decoded_arr0: [u8; 0] = <[u8; 0]>::decode(&mut encoded_arr0.as_slice()).unwrap();
         assert_eq!(arr0, decoded_arr0);
 
         // Test [u8; 32] (hash value, etc.)
@@ -928,32 +919,29 @@ mod tests {
         let encoded_arr32 = arr32.encode().unwrap();
 
         assert_eq!(encoded_arr32, (1..=32).collect::<Vec<_>>());
-        let mut slice_arr32 = &encoded_arr32[..];
-        let decoded_arr32: [u8; 32] = <[u8; 32]>::decode(&mut slice_arr32).unwrap();
+        let decoded_arr32: [u8; 32] = <[u8; 32]>::decode(&mut encoded_arr32.as_slice()).unwrap();
         assert_eq!(arr32, decoded_arr32);
 
         // Test [u32; 3]
         let arr_u32: [u32; 3] = [1, 1000, 1_000_000];
         let encoded_arr_u32 = arr_u32.encode().unwrap();
         assert_eq!(encoded_arr_u32, vec![1, 131, 232, 207, 64, 66]);
-        let mut slice_arr_u32 = &encoded_arr_u32[..];
-        let decoded_arr_u32: [u32; 3] = <[u32; 3]>::decode(&mut slice_arr_u32).unwrap();
+        let decoded_arr_u32: [u32; 3] =
+            <[u32; 3]>::decode(&mut encoded_arr_u32.as_slice()).unwrap();
         assert_eq!(arr_u32, decoded_arr_u32);
 
         // Test [Option<u8>; 2]
         let arr_opt: [Option<u8>; 2] = [Some(42), None];
         let encoded_arr_opt = arr_opt.encode().unwrap();
         assert_eq!(encoded_arr_opt, vec![1, 42, 0]);
-        let mut slice_arr_opt = &encoded_arr_opt[..];
         let decoded_arr_opt: [Option<u8>; 2] =
-            <[Option<u8>; 2]>::decode(&mut slice_arr_opt).unwrap();
+            <[Option<u8>; 2]>::decode(&mut encoded_arr_opt.as_slice()).unwrap();
         assert_eq!(arr_opt, decoded_arr_opt);
 
         // Test decoding with insufficient input
         let insufficient_data = [1, 2, 3];
-        let mut slice_insufficient = &insufficient_data[..];
         assert!(matches!(
-            <[u8; 4]>::decode(&mut slice_insufficient),
+            <[u8; 4]>::decode(&mut insufficient_data.as_slice()),
             Err(JamCodecError::InputError(_))
         ));
     }
@@ -964,39 +952,34 @@ mod tests {
         let empty_vec: Vec<u32> = vec![];
         let encoded_empty = empty_vec.encode().unwrap();
         assert_eq!(encoded_empty, vec![0]); // Just the length (0) encoded
-        let mut slice_empty = &encoded_empty[..];
-        let decoded_empty = Vec::<u32>::decode(&mut slice_empty).unwrap();
+        let decoded_empty = Vec::<u32>::decode(&mut encoded_empty.as_slice()).unwrap();
         assert_eq!(empty_vec, decoded_empty);
 
         // Test Vec with small integers
         let small_vec = vec![1, 2, 3];
         let encoded_small = small_vec.encode().unwrap();
         assert_eq!(encoded_small, vec![3, 1, 2, 3]); // Length (3) followed by elements
-        let mut slice_small = &encoded_small[..];
-        let decoded_small = Vec::<u8>::decode(&mut slice_small).unwrap();
+        let decoded_small = Vec::<u8>::decode(&mut encoded_small.as_slice()).unwrap();
         assert_eq!(small_vec, decoded_small);
 
         // Test Vec with larger integers
         let large_vec = vec![1, 1000, 1_000_000];
         let encoded_large = large_vec.encode().unwrap();
         assert_eq!(encoded_large, vec![3, 1, 131, 232, 207, 64, 66]);
-        let mut slice_large = &encoded_large[..];
-        let decoded_large = Vec::<u32>::decode(&mut slice_large).unwrap();
+        let decoded_large = Vec::<u32>::decode(&mut encoded_large.as_slice()).unwrap();
         assert_eq!(large_vec, decoded_large);
 
         // Test Vec of Option<u8>
         let opt_vec = vec![Some(42), None, Some(255)];
         let encoded_opt = opt_vec.encode().unwrap();
         assert_eq!(encoded_opt, vec![3, 1, 42, 0, 1, 1 << 7, 255]);
-        let mut slice_opt = &encoded_opt[..];
-        let decoded_opt = Vec::<Option<u8>>::decode(&mut slice_opt).unwrap();
+        let decoded_opt = Vec::<Option<u8>>::decode(&mut encoded_opt.as_slice()).unwrap();
         assert_eq!(opt_vec, decoded_opt);
 
         // Test decoding with insufficient input
         let insufficient_data = [3, 1, 2]; // Claims to have 3 elements but only has 2
-        let mut slice_insufficient = &insufficient_data[..];
         assert!(matches!(
-            Vec::<u8>::decode(&mut slice_insufficient),
+            Vec::<u8>::decode(&mut insufficient_data.as_slice()),
             Err(JamCodecError::InputError(_))
         ));
     }
@@ -1007,8 +990,7 @@ mod tests {
         let encoded = bv.encode().unwrap();
         assert_eq!(encoded, vec![0]); // Just the length (0) encoded
 
-        let mut slice = &encoded[..];
-        let decoded = BitVec::decode(&mut slice).unwrap();
+        let decoded = BitVec::decode(&mut encoded.as_slice()).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -1018,8 +1000,7 @@ mod tests {
         let encoded = bv.encode_fixed(0).expect("Fixed encoding must succeed");
         assert_eq!(encoded, vec![]); // empty array
 
-        let mut slice = &encoded[..];
-        let decoded = BitVec::decode_fixed(&mut slice, 0).unwrap();
+        let decoded = BitVec::decode_fixed(&mut encoded.as_slice(), 0).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -1033,8 +1014,7 @@ mod tests {
         let encoded = bv.encode().unwrap();
         assert_eq!(encoded, vec![3, 0b00000101]);
 
-        let mut slice = &encoded[..];
-        let decoded = BitVec::decode(&mut slice).unwrap();
+        let decoded = BitVec::decode(&mut encoded.as_slice()).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -1048,8 +1028,7 @@ mod tests {
         let encoded = bv.encode_fixed(3).expect("Fixed encoding must succeed");
         assert_eq!(encoded, vec![0b00000101]);
 
-        let mut slice = &encoded[..];
-        let decoded = BitVec::decode_fixed(&mut slice, 3).unwrap();
+        let decoded = BitVec::decode_fixed(&mut encoded.as_slice(), 3).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -1063,8 +1042,7 @@ mod tests {
         let encoded = bv.encode().unwrap();
         assert_eq!(encoded, vec![20, 0b01010101, 0b01010101, 0b00000101]);
 
-        let mut slice = &encoded[..];
-        let decoded = BitVec::decode(&mut slice).unwrap();
+        let decoded = BitVec::decode(&mut encoded.as_slice()).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -1078,8 +1056,7 @@ mod tests {
         let encoded = bv.encode_fixed(20).expect("Fixed encoding must succeed");
         assert_eq!(encoded, vec![0b01010101, 0b01010101, 0b00000101]);
 
-        let mut slice = &encoded[..];
-        let decoded = BitVec::decode_fixed(&mut slice, 20).unwrap();
+        let decoded = BitVec::decode_fixed(&mut encoded.as_slice(), 20).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -1091,8 +1068,7 @@ mod tests {
         }
 
         let encoded = bv.encode().unwrap();
-        let mut slice = &encoded[..];
-        let decoded = BitVec::decode(&mut slice).unwrap();
+        let decoded = BitVec::decode(&mut encoded.as_slice()).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -1104,8 +1080,7 @@ mod tests {
         }
 
         let encoded = bv.encode_fixed(1000).expect("Fixed encoding must succeed");
-        let mut slice = &encoded[..];
-        let decoded = BitVec::decode_fixed(&mut slice, 1000).unwrap();
+        let decoded = BitVec::decode_fixed(&mut encoded.as_slice(), 1000).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -1167,8 +1142,7 @@ mod tests {
         let encoded = map.encode().unwrap();
         assert_eq!(encoded, vec![0]);
 
-        let mut slice = &encoded[..];
-        let decoded = BTreeMap::<u32, Vec<u8>>::decode(&mut slice).unwrap();
+        let decoded = BTreeMap::<u32, Vec<u8>>::decode(&mut encoded.as_slice()).unwrap();
         assert_eq!(map, decoded);
     }
 
@@ -1180,21 +1154,22 @@ mod tests {
         map.insert(3u32, vec![7, 8, 9]);
 
         let encoded = map.encode().unwrap();
-        let mut slice = &encoded[..];
-        let decoded = BTreeMap::<u32, Vec<u8>>::decode(&mut slice).unwrap();
+        let decoded = BTreeMap::<u32, Vec<u8>>::decode(&mut encoded.as_slice()).unwrap();
         assert_eq!(map, decoded);
     }
 
     #[test]
     fn test_map_complex() {
         let mut map = BTreeMap::new();
-        map.insert(10u32, BitVec::from_bytes(&[0b10101010]));
-        map.insert(20u32, BitVec::from_bytes(&[0b11001100, 0b11110000]));
-        map.insert(30u32, BitVec::from_bytes(&[0b11111111]));
+        map.insert(10u32, bitvec![u8, Lsb0; 1, 0, 1, 0, 1, 0, 1, 0]);
+        map.insert(
+            20u32,
+            bitvec![u8, Lsb0; 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0],
+        );
+        map.insert(30u32, bitvec![u8, Lsb0; 1, 1, 1, 1, 1, 1, 1, 1]);
 
         let encoded = map.encode().unwrap();
-        let mut slice = &encoded[..];
-        let decoded = BTreeMap::<u32, BitVec>::decode(&mut slice).unwrap();
+        let decoded = BTreeMap::decode(&mut encoded.as_slice()).unwrap();
         assert_eq!(map, decoded);
     }
 
@@ -1213,8 +1188,8 @@ mod tests {
         outer_map.insert(200u32, inner_map2);
 
         let encoded = outer_map.encode().unwrap();
-        let mut slice = &encoded[..];
-        let decoded = BTreeMap::<u32, BTreeMap<u8, Vec<u8>>>::decode(&mut slice).unwrap();
+        let decoded =
+            BTreeMap::<u32, BTreeMap<u8, Vec<u8>>>::decode(&mut encoded.as_slice()).unwrap();
         assert_eq!(outer_map, decoded);
     }
 }

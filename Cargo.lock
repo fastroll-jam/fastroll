@@ -344,12 +344,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bit-vec"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
-
-[[package]]
 name = "bitflags"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -927,7 +921,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 name = "fr-asn-types"
 version = "0.1.17"
 dependencies = [
- "bit-vec",
+ "bitvec",
  "fr-block",
  "fr-codec",
  "fr-common",
@@ -941,7 +935,7 @@ dependencies = [
 name = "fr-block"
 version = "0.1.17"
 dependencies = [
- "bit-vec",
+ "bitvec",
  "fr-codec",
  "fr-common",
  "fr-crypto",
@@ -963,7 +957,7 @@ dependencies = [
 name = "fr-codec"
 version = "0.1.17"
 dependencies = [
- "bit-vec",
+ "bitvec",
  "fr-codec-derive",
  "fr-limited-vec",
  "thiserror 2.0.16",
@@ -1185,7 +1179,7 @@ dependencies = [
 name = "fr-pvm-core"
 version = "0.1.17"
 dependencies = [
- "bit-vec",
+ "bitvec",
  "fr-codec",
  "fr-common",
  "fr-pvm-types",

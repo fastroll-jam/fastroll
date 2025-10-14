@@ -14,5 +14,5 @@ fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-merkle = { workspace = true }
 fr-state = { workspace = true }
-bit-vec = { workspace = true }
+bitvec = { workspace = true }
 serde = { workspace = true }

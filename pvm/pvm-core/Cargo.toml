@@ -10,6 +10,6 @@ repository.workspace = true
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-pvm-types = { workspace = true }
-bit-vec = { workspace = true }
+bitvec = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

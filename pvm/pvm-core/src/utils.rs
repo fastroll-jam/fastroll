@@ -1,5 +1,5 @@
 use crate::program::instruction::ImmSize;
-use bit_vec::BitVec;
+use bitvec::prelude::*;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{INIT_ZONE_SIZE, PAGE_SIZE},
@@ -204,10 +204,10 @@ impl VMUtils {
     /// A vector of booleans representing the binary form of the input,
     /// or None if `n` is greater than 8.
     #[allow(dead_code)]
-    pub(crate) fn int_to_bits(x: u64, n: u64) -> Option<BitVec> {
+    pub(crate) fn int_to_bits(x: u64, n: u64) -> Option<BitVec<u8, Lsb0>> {
         match n {
             0..=8 => {
-                let mut result = BitVec::from_elem((8 * n) as usize, false);
+                let mut result = bitvec![u8, Lsb0; 0; (8 * n) as usize];
                 for i in 0..(8 * n) {
                     result.set(i as usize, (x >> i) & 1 == 1);
                 }
@@ -218,9 +218,9 @@ impl VMUtils {
     }
 
     /// `B_n` function with `n = 4`
-    pub fn u32_to_bits(x: u32) -> BitVec {
+    pub fn u32_to_bits(x: u32) -> BitVec<u8, Lsb0> {
         let n = 4;
-        let mut result = BitVec::from_elem((8 * n) as usize, false);
+        let mut result = bitvec![u8, Lsb0; 0; (8 * n) as usize];
         for i in 0..(8 * n) {
             result.set(i as usize, (x >> i) & 1 == 1);
         }
@@ -228,9 +228,9 @@ impl VMUtils {
     }
 
     /// `B_n` function with `n = 8`
-    pub fn u64_to_bits(x: u64) -> BitVec {
+    pub fn u64_to_bits(x: u64) -> BitVec<u8, Lsb0> {
         let n = 8;
-        let mut result = BitVec::from_elem((8 * n) as usize, false);
+        let mut result = bitvec![u8, Lsb0; 0; (8 * n) as usize];
         for i in 0..(8 * n) {
             result.set(i as usize, (x >> i) & 1 == 1);
         }
@@ -250,7 +250,7 @@ impl VMUtils {
     /// The unsigned integer represented by the input binary form,
     /// or None if `n` is greater than 8, or if the input vector's length doesn't match `8 * n`.
     #[allow(dead_code)]
-    pub(crate) fn bits_to_int(x: &BitVec, n: u64) -> Option<u64> {
+    pub(crate) fn bits_to_int(x: &BitVec<u8, Lsb0>, n: u64) -> Option<u64> {
         if n > 8 || x.len() != (8 * n) as usize {
             return None;
         }
@@ -258,22 +258,22 @@ impl VMUtils {
         Some(
             x.iter()
                 .enumerate()
-                .fold(0, |acc, (i, bit)| acc | ((bit as u64) << i)),
+                .fold(0, |acc, (i, bit)| acc | (u64::from(*bit) << i)),
         )
     }
 
     /// `{B_n}^-1` function with `n = 4`
-    pub fn bits_to_u32(x: &BitVec) -> u32 {
+    pub fn bits_to_u32(x: &BitVec<u8, Lsb0>) -> u32 {
         x.iter()
             .enumerate()
-            .fold(0, |acc, (i, bit)| acc | ((bit as u32) << i))
+            .fold(0, |acc, (i, bit)| acc | (u32::from(*bit) << i))
     }
 
     /// `{B_n}^-1` function with `n = 8`
-    pub fn bits_to_u64(x: &BitVec) -> u64 {
+    pub fn bits_to_u64(x: &BitVec<u8, Lsb0>) -> u64 {
         x.iter()
             .enumerate()
-            .fold(0, |acc, (i, bit)| acc | ((bit as u64) << i))
+            .fold(0, |acc, (i, bit)| acc | (u64::from(*bit) << i))
     }
 
     /// Performs signed extension on compactly encoded immediate argument octets, so that the
