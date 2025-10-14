@@ -11,8 +11,15 @@ use fr_state::{
     types::{generate_fallback_keys, ActiveSet, SafroleState, SlotSealers, StagingSet},
 };
 
-const GENESIS_BLOCK: &str = include_str!("./data/genesis_block_header.json");
-const GENESIS_VALIDATOR_SET: &str = include_str!("./data/genesis_validator_set.json");
+#[cfg(feature = "tiny")]
+const GENESIS_BLOCK: &str = include_str!("data/tiny/genesis_block_header.json");
+#[cfg(not(feature = "tiny"))]
+const GENESIS_BLOCK: &str = include_str!("data/full/genesis_block_header.json");
+
+#[cfg(feature = "tiny")]
+const GENESIS_VALIDATOR_SET: &str = include_str!("data/tiny/genesis_validator_set.json");
+#[cfg(not(feature = "tiny"))]
+const GENESIS_VALIDATOR_SET: &str = include_str!("data/full/genesis_validator_set.json");
 
 pub fn load_genesis_block() -> Block {
     let genesis_block_header: GenesisBlockHeader =
