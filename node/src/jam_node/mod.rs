@@ -70,14 +70,23 @@ impl JamNode {
             let storage_cloned = self.storage.clone();
             let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
             tokio::spawn(async move {
-                let conn = incoming_conn.await.unwrap();
-                NetworkManager::accept_connection(
-                    conn,
-                    block_import_mpsc_sender_cloned,
-                    all_peers_cloned,
-                    storage_cloned,
-                )
-                .await
+                match incoming_conn.await {
+                    Ok(conn) => {
+                        if let Err(e) = NetworkManager::accept_connection(
+                            conn,
+                            block_import_mpsc_sender_cloned,
+                            all_peers_cloned,
+                            storage_cloned,
+                        )
+                        .await
+                        {
+                            tracing::warn!("Failed to handle accepted connection: {e}");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to complete incoming connection handshake: {e}");
+                    }
+                }
             });
         }
         Ok(())

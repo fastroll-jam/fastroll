@@ -3,13 +3,12 @@ use crate::{
     error::StateManagerError,
     state_utils::{StateComponent, StateEntryType},
 };
-use fr_common::StateKey;
+use fr_common::{ByteEncodable, StateKey};
 use mini_moka::sync::{Cache, ConcurrentCacheExt};
 use std::{
     collections::HashSet,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
     Add,
@@ -83,20 +82,28 @@ impl StateCache {
         }
     }
 
+    fn dirty_keys_guard(&self) -> MutexGuard<'_, HashSet<StateKey>> {
+        self.dirty_keys.lock().unwrap_or_else(|poisoned| {
+            tracing::error!("State cache dirty_keys lock poisoned; continuing with inner data");
+            poisoned.into_inner()
+        })
+    }
+
     fn get_dirty_state_keys(&self) -> Vec<StateKey> {
-        self.dirty_keys.lock().unwrap().iter().cloned().collect()
+        let guard = self.dirty_keys_guard();
+        guard.iter().cloned().collect()
     }
 
     fn insert_to_dirty_state_key_set(&self, state_key: StateKey) {
-        self.dirty_keys.lock().unwrap().insert(state_key);
+        self.dirty_keys_guard().insert(state_key);
     }
 
     fn remove_dirty_state_key(&self, state_key: &StateKey) {
-        self.dirty_keys.lock().unwrap().remove(state_key);
+        self.dirty_keys_guard().remove(state_key);
     }
 
     fn clear_dirty_state_keys(&self) {
-        self.dirty_keys.lock().unwrap().clear();
+        self.dirty_keys_guard().clear();
     }
 
     pub(crate) fn get_entry(&self, key: &StateKey) -> Option<CacheEntry> {
@@ -232,17 +239,24 @@ impl StateCache {
                 match entry.status {
                     CacheEntryStatus::Dirty(StateMut::Add) => {
                         self.inner.invalidate(&key);
-                    },
-                    CacheEntryStatus::Dirty(StateMut::Update) | CacheEntryStatus::Dirty(StateMut::Remove) => {
+                    }
+                    CacheEntryStatus::Dirty(StateMut::Update)
+                    | CacheEntryStatus::Dirty(StateMut::Remove) => {
                         entry.revert_to_clean();
                         self.insert_entry(key, entry);
-                    },
+                    }
                     CacheEntryStatus::Clean => {
-                        panic!("STATE MISMATCH: Key from `dirty_keys` points to a `Clean` cache entry. Key={key}");
+                        tracing::warn!(
+                            "Dirty state cache key points to clean entry. StateKey={}",
+                            key.to_hex()
+                        );
                     }
                 }
             } else {
-                panic!("STATE MISMATCH: Key from `dirty_keys` not found from the state cache. Key={key}");
+                tracing::warn!(
+                    "Dirty state cache key missing from cache. StateKey={}",
+                    key.to_hex()
+                );
             }
         });
         self.clear_dirty_state_keys();

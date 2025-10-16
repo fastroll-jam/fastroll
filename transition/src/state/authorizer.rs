@@ -41,8 +41,17 @@ pub async fn transition_auth_pool(
                 // Appends an authorizer hash entry from the queue to the pool, removing the oldest
                 // entry if the core pool is full.
                 let queue_entry_idx = header_timeslot_index as usize % AUTH_QUEUE_SIZE;
-                let queue_entry = auth_queue.0[core_idx][queue_entry_idx].clone();
-                core_pool.shift_push(queue_entry);
+                if let Some(queue_entry) = auth_queue
+                    .0
+                    .get(core_idx)
+                    .and_then(|core_queue| core_queue.get(queue_entry_idx))
+                {
+                    core_pool.shift_push(queue_entry.clone());
+                } else {
+                    tracing::warn!(
+                        "STF failed: Auth queue entry missing while updating auth pool. core_index={core_idx}, queue_entry_index={queue_entry_idx}.",
+                    );
+                }
             }
             Ok(())
         })

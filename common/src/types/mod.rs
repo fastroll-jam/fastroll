@@ -109,7 +109,8 @@ impl ByteEncodable for Vec<u8> {
 
     fn from_hex(hex_str: &str) -> Result<Self, CommonTypeError> {
         let hex_stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-        Ok(hex::decode(hex_stripped).expect("Failed decoding hexstring into Vec<u8>"))
+        hex::decode(hex_stripped)
+            .map_err(|_| CommonTypeError::HexToByteArrayConversionError(hex_stripped.len() / 2))
     }
 }
 
@@ -307,7 +308,8 @@ impl<const N: usize> ByteEncodable for ByteArray<N> {
         };
 
         // Decode hex string
-        let octets = hex::decode(padded_hex).expect("Failed decoding hexstring into ByteArray");
+        let octets = hex::decode(&padded_hex)
+            .map_err(|_| CommonTypeError::HexToByteArrayConversionError(N))?;
         Self::from_slice(&octets)
     }
 }

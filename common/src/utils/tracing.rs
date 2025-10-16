@@ -9,6 +9,7 @@ use tracing_subscriber::{
     EnvFilter, Registry,
 };
 
+// Note: test-only
 pub fn setup_timed_tracing_with_flamegraph(path: &str) {
     let path = Path::new(path);
     let file_stem = path.file_stem().unwrap().to_str().unwrap();
@@ -44,14 +45,16 @@ pub fn setup_timed_tracing() {
         let sub = Registry::default()
             .with(EnvFilter::from_default_env())
             .with(fmt_layer);
-        set_global_default(sub).expect("Failed to set tracing subscriber");
+        if let Err(e) = set_global_default(sub) {
+            tracing::warn!("Failed to set tracing subscriber: {e}");
+        }
     });
 }
 
 pub fn setup_tracing() {
     static INIT_TRACING: Once = Once::new();
     INIT_TRACING.call_once(|| {
-        let offset = UtcOffset::current_local_offset().expect("Should get local offset");
+        let offset = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
         let timer = OffsetTime::new(
             offset,
             format_description!(
@@ -62,6 +65,8 @@ pub fn setup_tracing() {
         let sub = Registry::default()
             .with(EnvFilter::from_default_env())
             .with(fmt_layer);
-        set_global_default(sub).expect("Failed to set tracing subscriber");
+        if let Err(e) = set_global_default(sub) {
+            tracing::warn!("Failed to set tracing subscriber: {e}");
+        }
     })
 }
