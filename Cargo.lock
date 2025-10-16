@@ -943,6 +943,7 @@ dependencies = [
  "fr-limited-vec",
  "serde",
  "thiserror 2.0.16",
+ "tracing",
 ]
 
 [[package]]

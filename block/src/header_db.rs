@@ -14,7 +14,7 @@ use fr_db::{
     },
     ColumnFamily, WriteBatch,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -98,17 +98,31 @@ impl BlockHeaderDB {
         Ok(hash)
     }
 
+    fn best_header_guard(&self) -> MutexGuard<'_, BlockHeader> {
+        self.best_header.lock().unwrap_or_else(|poisoned| {
+            tracing::error!("Best header mutex poisoned; continuing with inner data");
+            poisoned.into_inner()
+        })
+    }
+
     pub fn get_best_header(&self) -> BlockHeader {
-        self.best_header.lock().unwrap().clone()
+        self.best_header_guard().clone()
     }
 
     pub fn set_best_header(&self, new_best_header: BlockHeader) {
-        let mut best_header = self.best_header.lock().unwrap();
-        *best_header = new_best_header;
+        let mut best_header_guard = self.best_header_guard();
+        *best_header_guard = new_best_header;
+    }
+
+    fn ancestors_guard(&self) -> MutexGuard<'_, AncestorSet> {
+        self.ancestors.lock().unwrap_or_else(|poisoned| {
+            tracing::error!("Ancestors guard poisoned; continuing with inner data");
+            poisoned.into_inner()
+        })
     }
 
     pub fn header_exists_in_ancestor_set(&self, entry: &AncestorEntry) -> bool {
-        self.ancestors.lock().unwrap().contains(entry)
+        self.ancestors_guard().contains(entry)
     }
 
     pub async fn insert_header(
@@ -118,7 +132,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         // Insert to AncestorSet
         let ancestor_entry = (header.timeslot_index(), header_hash.clone());
-        self.ancestors.lock().unwrap().add(ancestor_entry);
+        self.ancestors_guard().add(ancestor_entry);
 
         // Insert to DB
         self.db.put_entry(&header_hash, header).await?;
@@ -134,10 +148,7 @@ impl BlockHeaderDB {
             .iter()
             .map(|(hash, header)| (header.timeslot_index(), hash.clone()))
             .collect();
-        self.ancestors
-            .lock()
-            .unwrap()
-            .add_multiple(ancestor_entries);
+        self.ancestors_guard().add_multiple(ancestor_entries);
 
         // Insert to DB
         let mut batch = WriteBatch::default();
@@ -161,7 +172,7 @@ impl BlockHeaderDB {
         entries: Vec<AncestorEntry>,
     ) -> Result<(), BlockHeaderDBError> {
         // Insert to AncestorSet
-        self.ancestors.lock().unwrap().add_multiple(entries);
+        self.ancestors_guard().add_multiple(entries);
         Ok(())
     }
 }

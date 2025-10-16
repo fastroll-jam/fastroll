@@ -42,7 +42,7 @@ use fr_db::{
 use fr_state_merkle_v2::{merkle_db::MerkleDB, types::LeafNodeData};
 use std::{
     future::Future,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 use tokio::sync::mpsc;
 use tracing::{debug_span, instrument};
@@ -229,13 +229,47 @@ impl StateManager {
         }
     }
 
+    fn last_staging_set_transition_slot_read_guard(&self) -> RwLockReadGuard<'_, TimeslotIndex> {
+        self
+            .last_staging_set_transition_slot
+            .read()
+            .unwrap_or_else(|poisoned| {
+                tracing::error!("Last staging set transition slot read lock poisoned; continuing with inner data");
+                poisoned.into_inner()
+            })
+    }
+
+    fn last_staging_set_transition_slot_write_guard(&self) -> RwLockWriteGuard<'_, TimeslotIndex> {
+        self
+            .last_staging_set_transition_slot
+            .write()
+            .unwrap_or_else(|poisoned| {
+                tracing::error!("Last staging set transition slot write lock poisoned; continuing with inner data");
+                poisoned.into_inner()
+            })
+    }
+
     pub fn last_staging_set_transition_slot(&self) -> TimeslotIndex {
-        *self.last_staging_set_transition_slot.read().unwrap()
+        *self.last_staging_set_transition_slot_read_guard()
     }
 
     pub fn update_last_staging_set_transition_slot(&self, slot: TimeslotIndex) {
-        let mut guard = self.last_staging_set_transition_slot.write().unwrap();
+        let mut guard = self.last_staging_set_transition_slot_write_guard();
         *guard = slot;
+    }
+
+    fn ring_cache_read_guard(&self) -> RwLockReadGuard<'_, RingCache> {
+        self.ring_cache.read().unwrap_or_else(|poisoned| {
+            tracing::error!("Ring cache read lock poisoned; continuing with inner data");
+            poisoned.into_inner()
+        })
+    }
+
+    fn ring_cache_write_guard(&self) -> RwLockWriteGuard<'_, RingCache> {
+        self.ring_cache.write().unwrap_or_else(|poisoned| {
+            tracing::error!("Ring cache write lock poisoned; continuing with inner data");
+            poisoned.into_inner()
+        })
     }
 
     /// Gets cached ring context or generates one, if not found from the cache,
@@ -252,7 +286,7 @@ impl StateManager {
             validator_set: _validator_set,
             verifier,
             ring_root,
-        }) = self.ring_cache.read().unwrap().curr()
+        }) = self.ring_cache_read_guard().curr()
         {
             return Ok((verifier.clone(), ring_root.clone()));
         }
@@ -268,7 +302,7 @@ impl StateManager {
             ring_root: ring_root.clone(),
         };
 
-        let mut guard = self.ring_cache.write().unwrap();
+        let mut guard = self.ring_cache_write_guard();
         guard.curr = Some(ring_context);
         Ok((verifier, ring_root))
     }
@@ -286,7 +320,7 @@ impl StateManager {
             validator_set: _validator_set,
             verifier,
             ring_root,
-        }) = self.ring_cache.read().unwrap().staging()
+        }) = self.ring_cache_read_guard().staging()
         {
             // The cache entry is valid only if StagingSet was not mutated after its insertion
             if self.last_staging_set_transition_slot() <= *inserted_at {
@@ -316,7 +350,7 @@ impl StateManager {
     /// This is triggered by StagingSet transition, speculatively computing RingVRFVerifier
     /// that could be used for the next per-epoch Safrole state transition.
     pub fn update_staging_ring_cache_entry(&self, ring_cache_entry: RingContext) {
-        let mut guard = self.ring_cache.write().unwrap();
+        let mut guard = self.ring_cache_write_guard();
         if let Some(entry) = guard.staging() {
             if entry.inserted_at >= ring_cache_entry.inserted_at {
                 // Do not update if the incoming cache entry is outdated
@@ -331,7 +365,7 @@ impl StateManager {
     /// This is invoked at the very beginning of epoch-changing STFs, so that if StagingSet gets
     /// updated in the same block, it can be cached into the right place (`staging`).
     pub fn commit_and_rotate_ring_cache(&self) {
-        let mut guard = self.ring_cache.write().unwrap();
+        let mut guard = self.ring_cache_write_guard();
         guard.rotate();
     }
 
@@ -342,7 +376,7 @@ impl StateManager {
         &self,
         new_offenders: &[Ed25519PubKey],
     ) -> Result<(), StateManagerError> {
-        let mut guard = self.ring_cache.write().unwrap();
+        let mut guard = self.ring_cache_write_guard();
         if let Some(ref mut staging_entry) = guard.staging {
             let has_offender = staging_entry
                 .validator_set
@@ -361,7 +395,7 @@ impl StateManager {
     /// Returns clones of the current and staging ring cache entries.
     /// Note: test-only
     pub fn ring_cache_snapshot(&self) -> (Option<RingContext>, Option<RingContext>) {
-        let guard = self.ring_cache.read().unwrap();
+        let guard = self.ring_cache_read_guard();
         (guard.curr.clone(), guard.staging.clone())
     }
 
