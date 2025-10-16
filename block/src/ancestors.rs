@@ -71,8 +71,9 @@ impl AncestorSet {
         } else if let Some(min_entry) = self.heap.peek() {
             // Remove the oldest `AncestorEntry` (with the smallest timeslot value)
             if entry > min_entry.0 {
-                let popped = self.heap.pop().expect("Heap should not be empty here").0;
-                self.set.remove(&popped);
+                if let Some(popped) = self.heap.pop() {
+                    self.set.remove(&popped.0);
+                }
                 self.set.insert(entry.clone());
                 self.heap.push(Reverse(entry));
             }
