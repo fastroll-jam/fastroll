@@ -25,6 +25,8 @@ pub enum ChainExtensionError {
     XtDBError(#[from] XtDBError),
     #[error("BlockAuthorError: {0}")]
     BlockAuthorError(#[from] BlockAuthorError),
+    #[error("Current epoch validator index not set")]
+    MissingValidatorIndex,
 }
 
 /// Authors or imports a new block for the current timeslot.
@@ -43,7 +45,7 @@ pub async fn extend_chain(
         let mut author = BlockAuthor::new(
             jam_node
                 .curr_epoch_validator_index
-                .expect("Epoch validator index should be set"),
+                .ok_or(ChainExtensionError::MissingValidatorIndex)?,
             jam_node.local_node_info().clone(),
         )?;
 

@@ -1,4 +1,4 @@
-use crate::utils::shuffle::shuffle_with_hash;
+use crate::utils::shuffle::{shuffle_with_hash, ShuffleError};
 use fr_common::{
     CoreIndex, Hash32, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD, VALIDATOR_COUNT,
 };
@@ -17,6 +17,8 @@ pub enum GuarantorAssignmentError {
     InvalidValidatorsLength,
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("ShuffleError: {0}")]
+    ShuffleError(#[from] ShuffleError),
 }
 
 pub type CoreIndices = FixedVec<CoreIndex, VALIDATOR_COUNT>;
@@ -38,14 +40,20 @@ impl GuarantorAssignment {
     }
 
     /// Represents permute function `P` of the GP.
-    fn permute_validator_indices(entropy: &Hash32, timeslot: Timeslot) -> Vec<u16> {
+    fn permute_validator_indices(
+        entropy: &Hash32,
+        timeslot: Timeslot,
+    ) -> Result<Vec<u16>, GuarantorAssignmentError> {
         let indices: Vec<u16> = (0..VALIDATOR_COUNT)
             .map(|i| (CORE_COUNT * i / VALIDATOR_COUNT) as u16)
             .collect();
-        let shuffled_indices = shuffle_with_hash(indices, entropy);
+        let shuffled_indices = shuffle_with_hash(indices, entropy)?;
         let rotation_shift =
             (timeslot.slot() % EPOCH_LENGTH as u32) / GUARANTOR_ROTATION_PERIOD as u32;
-        Self::rotate_validator_indices(shuffled_indices, rotation_shift as u16)
+        Ok(Self::rotate_validator_indices(
+            shuffled_indices,
+            rotation_shift as u16,
+        ))
     }
 
     /// The output represents **`M`** of the GP.
@@ -63,7 +71,7 @@ impl GuarantorAssignment {
             core_indices: CoreIndices::try_from(Self::permute_validator_indices(
                 entropy_2,
                 current_timeslot,
-            ))
+            )?)
             .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
             validator_keys: active_set.0,
         })
@@ -100,7 +108,7 @@ impl GuarantorAssignment {
             core_indices: CoreIndices::try_from(Self::permute_validator_indices(
                 entropy,
                 previous_rotation_timeslot,
-            ))
+            )?)
             .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
             validator_keys: validator_set,
         })

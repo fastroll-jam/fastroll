@@ -40,7 +40,8 @@ mod shuffle {
         let test_data_vec = load_test_data();
         for test_data in test_data_vec {
             let shuffle_input = test_data.generate_input();
-            let shuffle_output = shuffle_with_hash(shuffle_input, &test_data.entropy_as_hash());
+            let shuffle_output = shuffle_with_hash(shuffle_input, &test_data.entropy_as_hash())
+                .expect("Shuffle failed");
 
             assert_eq!(shuffle_output, test_data.output);
         }
