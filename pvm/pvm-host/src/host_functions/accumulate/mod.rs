@@ -676,7 +676,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             "QUERY key=({}, {}) state_key={} slots={slots:?}",
             lookups_key.0,
             lookups_key.1,
-            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
+            get_account_lookups_state_key(x.accumulate_host, &lookups_key)?,
         );
         continue_with_vm_change!(r7: r7, r8: r8)
     }
@@ -804,7 +804,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             x.accumulate_host,
             lookups_key.0,
             lookups_key.1,
-            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
+            get_account_lookups_state_key(x.accumulate_host, &lookups_key)?,
             new_lookups_entry.entry.value.as_slice()
         );
         continue_ok!()
@@ -897,7 +897,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                             "FORGET key=({}, {}) state_key={} prev=[], curr=None",
                             lookups_key.0,
                             lookups_key.1,
-                            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
+                            get_account_lookups_state_key(x.accumulate_host, &lookups_key)?,
                         );
                         continue_ok!()
                     }
@@ -923,7 +923,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                             "FORGET key=({}, {}) state_key={} prev={:?}, curr={:?}",
                             lookups_key.0,
                             lookups_key.1,
-                            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
+                            get_account_lookups_state_key(x.accumulate_host, &lookups_key)?,
                             lookups_timeslots
                                 .as_slice()
                                 .iter()
@@ -980,7 +980,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                     "FORGET key=({}, {}) state_key={} prev={:?}, curr=None",
                                     lookups_key.0,
                                     lookups_key.1,
-                                    get_account_lookups_state_key(x.accumulate_host, &lookups_key),
+                                    get_account_lookups_state_key(x.accumulate_host, &lookups_key)?,
                                     lookups_timeslots
                                         .as_slice()
                                         .iter()
@@ -1024,7 +1024,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                     "FORGET key=({}, {}) state_key={} prev={:?}, curr={:?}",
                                     lookups_key.0,
                                     lookups_key.1,
-                                    get_account_lookups_state_key(x.accumulate_host, &lookups_key),
+                                    get_account_lookups_state_key(x.accumulate_host, &lookups_key)?,
                                     lookups_timeslots
                                         .as_slice()
                                         .iter()
@@ -1154,7 +1154,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             "PROVIDE s={service_id} key=({}, {}) state_key={} len={data_len}",
             lookups_key.0,
             lookups_key.1,
-            get_account_lookups_state_key(x.accumulate_host, &lookups_key),
+            get_account_lookups_state_key(x.accumulate_host, &lookups_key)?,
         );
         continue_ok!()
     }

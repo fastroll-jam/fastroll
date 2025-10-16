@@ -173,7 +173,7 @@ async fn transition_service_account(
                 .await?;
             account_state_change
                 .added_state_keys
-                .insert(get_account_metadata_state_key(service_id));
+                .insert(get_account_metadata_state_key(service_id)?);
         }
         SandboxEntryStatus::Updated => {
             state_manager
@@ -197,7 +197,7 @@ async fn transition_service_account(
                 .await?;
             account_state_change
                 .removed_state_keys
-                .insert(get_account_metadata_state_key(service_id));
+                .insert(get_account_metadata_state_key(service_id)?);
         }
         _ => (),
     }
@@ -214,7 +214,7 @@ async fn transition_service_account(
                     .await?;
                 account_state_change
                     .added_state_keys
-                    .insert(get_account_storage_state_key(service_id, k));
+                    .insert(get_account_storage_state_key(service_id, k)?);
             }
             SandboxEntryStatus::Updated => {
                 state_manager
@@ -240,7 +240,7 @@ async fn transition_service_account(
                     .await?;
                 account_state_change
                     .removed_state_keys
-                    .insert(get_account_storage_state_key(service_id, k));
+                    .insert(get_account_storage_state_key(service_id, k)?);
             }
             _ => (),
         }
@@ -258,7 +258,7 @@ async fn transition_service_account(
                     .await?;
                 account_state_change
                     .added_state_keys
-                    .insert(get_account_preimage_state_key(service_id, k));
+                    .insert(get_account_preimage_state_key(service_id, k)?);
             }
             SandboxEntryStatus::Updated => {
                 state_manager
@@ -284,7 +284,7 @@ async fn transition_service_account(
                     .await?;
                 account_state_change
                     .removed_state_keys
-                    .insert(get_account_preimage_state_key(service_id, k));
+                    .insert(get_account_preimage_state_key(service_id, k)?);
             }
             _ => (),
         }
@@ -302,7 +302,7 @@ async fn transition_service_account(
                     .await?;
                 account_state_change
                     .added_state_keys
-                    .insert(get_account_lookups_state_key(service_id, k));
+                    .insert(get_account_lookups_state_key(service_id, k)?);
             }
             SandboxEntryStatus::Updated => {
                 state_manager
@@ -328,7 +328,7 @@ async fn transition_service_account(
                     .await?;
                 account_state_change
                     .removed_state_keys
-                    .insert(get_account_lookups_state_key(service_id, k));
+                    .insert(get_account_lookups_state_key(service_id, k)?);
             }
             _ => (),
         }

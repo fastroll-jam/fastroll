@@ -1030,7 +1030,7 @@ impl StateManager {
         &self,
         service_id: ServiceId,
     ) -> Result<Option<AccountMetadata>, StateManagerError> {
-        let state_key = get_account_metadata_state_key(service_id);
+        let state_key = get_account_metadata_state_key(service_id)?;
         self.get_account_state_entry(&state_key).await
     }
 
@@ -1044,7 +1044,7 @@ impl StateManager {
         F: FnOnce(&mut AccountMetadata) -> Result<(), E>,
         StateManagerError: From<E>,
     {
-        let state_key = get_account_metadata_state_key(service_id);
+        let state_key = get_account_metadata_state_key(service_id)?;
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
@@ -1054,7 +1054,7 @@ impl StateManager {
         service_id: ServiceId,
         metadata: AccountMetadata,
     ) -> Result<(), StateManagerError> {
-        let state_key = get_account_metadata_state_key(service_id);
+        let state_key = get_account_metadata_state_key(service_id)?;
         self.add_account_state_entry(&state_key, metadata).await
     }
 
@@ -1063,7 +1063,7 @@ impl StateManager {
         service_id: ServiceId,
         storage_key: &StorageKey,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
-        let state_key = get_account_storage_state_key(service_id, storage_key);
+        let state_key = get_account_storage_state_key(service_id, storage_key)?;
         self.get_clean_account_state_entry(&state_key).await
     }
 
@@ -1072,7 +1072,7 @@ impl StateManager {
         service_id: ServiceId,
         storage_key: &StorageKey,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
-        let state_key = get_account_storage_state_key(service_id, storage_key);
+        let state_key = get_account_storage_state_key(service_id, storage_key)?;
         self.get_account_state_entry(&state_key).await
     }
 
@@ -1087,7 +1087,7 @@ impl StateManager {
         F: FnOnce(&mut AccountStorageEntry) -> Result<(), E>,
         StateManagerError: From<E>,
     {
-        let state_key = get_account_storage_state_key(service_id, storage_key);
+        let state_key = get_account_storage_state_key(service_id, storage_key)?;
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
@@ -1098,7 +1098,7 @@ impl StateManager {
         storage_key: &StorageKey,
         storage_entry: AccountStorageEntry,
     ) -> Result<(), StateManagerError> {
-        let state_key = get_account_storage_state_key(service_id, storage_key);
+        let state_key = get_account_storage_state_key(service_id, storage_key)?;
         self.add_account_state_entry(&state_key, storage_entry)
             .await
     }
@@ -1108,7 +1108,7 @@ impl StateManager {
         service_id: ServiceId,
         preimages_key: &PreimagesKey,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
-        let state_key = get_account_preimage_state_key(service_id, preimages_key);
+        let state_key = get_account_preimage_state_key(service_id, preimages_key)?;
         self.get_clean_account_state_entry(&state_key).await
     }
 
@@ -1117,7 +1117,7 @@ impl StateManager {
         service_id: ServiceId,
         preimages_key: &PreimagesKey,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
-        let state_key = get_account_preimage_state_key(service_id, preimages_key);
+        let state_key = get_account_preimage_state_key(service_id, preimages_key)?;
         self.get_account_state_entry(&state_key).await
     }
 
@@ -1132,7 +1132,7 @@ impl StateManager {
         F: FnOnce(&mut AccountPreimagesEntry) -> Result<(), E>,
         StateManagerError: From<E>,
     {
-        let state_key = get_account_preimage_state_key(service_id, preimages_key);
+        let state_key = get_account_preimage_state_key(service_id, preimages_key)?;
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
@@ -1143,7 +1143,7 @@ impl StateManager {
         preimages_key: &PreimagesKey,
         preimages_entry: AccountPreimagesEntry,
     ) -> Result<(), StateManagerError> {
-        let state_key = get_account_preimage_state_key(service_id, preimages_key);
+        let state_key = get_account_preimage_state_key(service_id, preimages_key)?;
         self.add_account_state_entry(&state_key, preimages_entry)
             .await
     }
@@ -1153,7 +1153,7 @@ impl StateManager {
         service_id: ServiceId,
         lookups_key: &LookupsKey,
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
-        let state_key = get_account_lookups_state_key(service_id, lookups_key);
+        let state_key = get_account_lookups_state_key(service_id, lookups_key)?;
         self.get_clean_account_state_entry(&state_key).await
     }
 
@@ -1162,7 +1162,7 @@ impl StateManager {
         service_id: ServiceId,
         lookups_key: &LookupsKey,
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
-        let state_key = get_account_lookups_state_key(service_id, lookups_key);
+        let state_key = get_account_lookups_state_key(service_id, lookups_key)?;
         self.get_account_state_entry(&state_key).await
     }
 
@@ -1177,7 +1177,7 @@ impl StateManager {
         F: FnOnce(&mut AccountLookupsEntry) -> Result<(), E>,
         StateManagerError: From<E>,
     {
-        let state_key = get_account_lookups_state_key(service_id, &lookups_key);
+        let state_key = get_account_lookups_state_key(service_id, &lookups_key)?;
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
@@ -1188,7 +1188,7 @@ impl StateManager {
         lookups_key: LookupsKey,
         lookups_entry: AccountLookupsEntry,
     ) -> Result<(), StateManagerError> {
-        let state_key = get_account_lookups_state_key(service_id, &lookups_key);
+        let state_key = get_account_lookups_state_key(service_id, &lookups_key)?;
         self.add_account_state_entry(&state_key, lookups_entry)
             .await
     }

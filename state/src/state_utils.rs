@@ -1,4 +1,5 @@
 use crate::{
+    error::StateManagerError,
     manager::StateManager,
     types::{
         privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata,
@@ -9,7 +10,8 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    ByteArray, LookupsKey, Octets, PreimagesKey, ServiceId, StateKey, StorageKey, STATE_KEY_SIZE,
+    ByteArray, Hash32, LookupsKey, Octets, PreimagesKey, ServiceId, StateKey, StorageKey,
+    STATE_KEY_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
 use std::{error::Error, fmt::Debug};
@@ -333,63 +335,61 @@ pub fn get_simple_state_key(key: StateKeyConstant) -> StateKey {
     STATE_KEYS[key as usize - 1].clone()
 }
 
-pub fn get_account_metadata_state_key(s: ServiceId) -> StateKey {
+pub fn get_account_metadata_state_key(s: ServiceId) -> Result<StateKey, StateManagerError> {
     let mut key = StateKey::default();
     key[0] = StateKeyConstant::AccountMetadata as u8;
-    let encoded = s
-        .encode_fixed(4)
-        .expect("4-byte encoding of u32 type should be successful");
+    let encoded = s.encode_fixed(4)?;
     key[1] = encoded[0];
     key[3] = encoded[1];
     key[5] = encoded[2];
     key[7] = encoded[3];
-    key
+    Ok(key)
 }
 
-fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> StateKey {
+fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> Result<StateKey, StateManagerError> {
     let mut key = StateKey::default();
-    let encoded = s
-        .encode_fixed(4)
-        .expect("4-byte encoding of u32 type should be successful");
-    let storage_key_component_hash = hash::<Blake2b256>(h).unwrap();
+    let encoded = s.encode_fixed(4)?;
+    let storage_key_component_hash: Hash32 = hash::<Blake2b256>(h).unwrap_or_else(|e| {
+        tracing::error!(
+            "Failed to hash storage key component. Using an empty hash value instead: {e}"
+        );
+        Hash32::default()
+    });
     for i in 0..4 {
         key[i * 2] = encoded[i]; // 0, 2, 4, 6
         key[i * 2 + 1] = storage_key_component_hash[i]; // 1, 3, 5, 7
     }
     key[8..31].copy_from_slice(&storage_key_component_hash[4..27]);
-    key
+    Ok(key)
 }
 
-pub fn get_account_storage_state_key(s: ServiceId, storage_key: &StorageKey) -> StateKey {
+pub fn get_account_storage_state_key(
+    s: ServiceId,
+    storage_key: &StorageKey,
+) -> Result<StateKey, StateManagerError> {
     let mut key_with_prefix = Vec::with_capacity(4 + storage_key.len());
-    key_with_prefix.extend(
-        u32::MAX
-            .encode_fixed(4)
-            .expect("encoding u32 should be successful"),
-    );
+    key_with_prefix.extend(u32::MAX.to_le_bytes());
     key_with_prefix.extend(storage_key.clone().into_vec());
     construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
-pub fn get_account_preimage_state_key(s: ServiceId, preimage_key: &PreimagesKey) -> StateKey {
+pub fn get_account_preimage_state_key(
+    s: ServiceId,
+    preimage_key: &PreimagesKey,
+) -> Result<StateKey, StateManagerError> {
     let mut key_with_prefix = ByteArray::<36>::default();
-    key_with_prefix[0..4].copy_from_slice(
-        &(u32::MAX - 1)
-            .encode_fixed(4)
-            .expect("encoding u32 should be successful"),
-    );
+    key_with_prefix[0..4].copy_from_slice(&(u32::MAX - 1).to_le_bytes());
     key_with_prefix[4..].copy_from_slice(preimage_key.as_slice());
     construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
-pub fn get_account_lookups_state_key(s: ServiceId, lookups_key: &LookupsKey) -> StateKey {
+pub fn get_account_lookups_state_key(
+    s: ServiceId,
+    lookups_key: &LookupsKey,
+) -> Result<StateKey, StateManagerError> {
     let (h, l) = lookups_key;
     let mut key_with_prefix = ByteArray::<36>::default();
-    key_with_prefix[0..4].copy_from_slice(
-        &l.encode_fixed(4)
-            .expect("encoding u32 should be successful"),
-    );
+    key_with_prefix[0..4].copy_from_slice(&l.to_le_bytes());
     key_with_prefix[4..].copy_from_slice(h.as_slice());
-
     construct_storage_state_key(s, key_with_prefix.as_slice())
 }
