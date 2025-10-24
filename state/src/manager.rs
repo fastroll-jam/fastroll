@@ -282,13 +282,16 @@ impl StateManager {
     ) -> Result<(RingVrfVerifier, BandersnatchRingRoot), StateManagerError> {
         // Check the cache
         if let Some(RingContext {
-            inserted_at: _inserted_at,
+            inserted_at,
             validator_set: _validator_set,
             verifier,
             ring_root,
         }) = self.ring_cache_read_guard().curr()
         {
-            return Ok((verifier.clone(), ring_root.clone()));
+            // Validate if the `curr` ring cache holds the correct latest ring context
+            if self.last_staging_set_transition_slot() <= *inserted_at {
+                return Ok((verifier.clone(), ring_root.clone()));
+            }
         }
 
         // Generate `RingVrfVerifier` with the current pending set after per-epoch Safrole STF (γP′)
@@ -364,6 +367,11 @@ impl StateManager {
     ///
     /// This is invoked at the very beginning of epoch-changing STFs, so that if StagingSet gets
     /// updated in the same block, it can be cached into the right place (`staging`).
+    ///
+    /// Note: `staging` ring cache entry might be stale if the `schedule_ring_cache_update` task
+    /// fired in the previous epoch has not been completed yet. In that case, the consumer of the
+    /// ring cache is responsible for checking the freshness of the ring cache entry by comparing
+    /// `StateManager.last_staging_set_transition_slot` and `RingContext.inserted_at`.
     pub fn commit_and_rotate_ring_cache(&self) {
         let mut guard = self.ring_cache_write_guard();
         guard.rotate();

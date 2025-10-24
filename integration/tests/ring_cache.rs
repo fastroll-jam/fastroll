@@ -306,7 +306,7 @@ async fn ring_cache_nullifies_offenders_from_staging_entry() -> Result<(), Box<d
 /// affect the per-epoch transition of the ring context. The posterior value of `StagingValue`
 /// will be staged for the future.
 #[tokio::test]
-async fn ring_cache_staging_set_transition_at_epoch_boundary() -> Result<(), Box<dyn Error>> {
+async fn ring_cache_staging_set_transition_at_epoch_boundary_1() -> Result<(), Box<dyn Error>> {
     let harness = RingCacheHarness::new().await?;
     let manager = harness.manager();
     let first_staging_set = rotate_validator_set(&harness.genesis_validator_set());
@@ -351,6 +351,90 @@ async fn ring_cache_staging_set_transition_at_epoch_boundary() -> Result<(), Box
         .get_or_generate_staging_ring_context(second_epoch_slot, &next_staging_set)
         .await?;
     assert_eq!(ring_root_epoch2, compute_ring_root(&next_staging_set));
+
+    Ok(())
+}
+
+/// Tests "rotate-before-async-ring-cache-update-job-finishes" case.
+///
+/// On epoch progress, if `StagingSet` transition (by accumulation) at the last block of the previous
+/// epoch triggered speculative build of `RingVrfVerifier` but the task has not been finished yet,
+/// users of `RingVrfVerifier` should get the correct current `RingVrfVerifier` anyway.
+#[tokio::test]
+async fn ring_cache_staging_set_transition_at_epoch_boundary_2() -> Result<(), Box<dyn Error>> {
+    let harness = RingCacheHarness::new().await?;
+    let manager = harness.manager();
+    let updated_staging_set = rotate_validator_set(&harness.genesis_validator_set());
+
+    let epoch0_last_slot = (EPOCH_LENGTH - 1) as TimeslotIndex;
+    let epoch1_first_slot = epoch0_last_slot + 1;
+
+    // Simulates `StagingSet` transition at both `epoch0_last_slot` and its previous slot
+    let epoch0_last_slot_minus_one = epoch0_last_slot - 1;
+    harness.set_timeslot(epoch0_last_slot_minus_one).await?;
+    harness
+        .transition_staging_set(epoch0_last_slot_minus_one, &harness.genesis_validator_set())
+        .await?;
+    harness
+        .wait_for_staging_cache_entry_update(epoch0_last_slot_minus_one)
+        .await;
+
+    // `StagingSet` transition at `epoch0_last_slot`
+    harness.set_timeslot(epoch0_last_slot).await?;
+    harness
+        .transition_staging_set(epoch0_last_slot, &updated_staging_set)
+        .await?;
+    assert_eq!(manager.last_staging_set_transition_slot(), epoch0_last_slot);
+
+    // Do NOT wait for the async cache update; rotate immediately
+    manager.commit_and_rotate_ring_cache();
+    harness
+        .set_safrole_pending_set(&updated_staging_set)
+        .await?;
+
+    // Rotation should have promoted the stale entry into `curr`
+    let (curr_before, staging_before) = manager.ring_cache_snapshot();
+    assert_eq!(curr_before.unwrap().inserted_at, epoch0_last_slot_minus_one);
+    assert_eq!(
+        staging_before.unwrap().inserted_at,
+        epoch0_last_slot_minus_one
+    );
+
+    // Consumer of the `curr` ring cache
+    // This should rebuild the ring context for the new StagingSet, since the `curr` entry is stale
+    let (_verifier_epoch1, ring_root_epoch1) = manager
+        .get_or_generate_curr_ring_context(epoch1_first_slot, &updated_staging_set)
+        .await?;
+    assert_eq!(ring_root_epoch1, compute_ring_root(&updated_staging_set));
+
+    let (curr_after, _staging_after) = manager.ring_cache_snapshot();
+    let curr_after = curr_after.unwrap();
+    assert_eq!(curr_after.inserted_at, epoch1_first_slot);
+    assert_eq!(
+        curr_after.ring_root,
+        compute_ring_root(&updated_staging_set)
+    );
+
+    // Eventually the background task finishes and updates the `staging` cache
+    let staging_entry = harness
+        .wait_for_staging_cache_entry_update(epoch0_last_slot)
+        .await;
+    assert_eq!(
+        staging_entry.ring_root,
+        compute_ring_root(&updated_staging_set)
+    );
+
+    // Ensure the fresh `curr` entry remains untouched after the delayed staging update arrives
+    let (curr_final, staging_final) = manager.ring_cache_snapshot();
+    let curr_final = curr_final.unwrap();
+    assert_eq!(curr_final.inserted_at, epoch1_first_slot);
+    assert_eq!(
+        curr_final.ring_root,
+        compute_ring_root(&updated_staging_set)
+    );
+    if let Some(staging_final) = staging_final {
+        assert!(staging_final.inserted_at >= epoch0_last_slot);
+    }
 
     Ok(())
 }
