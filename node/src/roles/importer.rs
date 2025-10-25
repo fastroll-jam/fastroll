@@ -122,7 +122,7 @@ impl BlockImporter {
                 Ok(hash) => hash,
                 Err(e) => {
                     tracing::error!("Block Import Error (Header hashing failed): {e}");
-                    return;
+                    continue;
                 }
             };
             let timeslot_index = block.header.timeslot_index();
