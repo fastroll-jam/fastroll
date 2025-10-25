@@ -19,7 +19,7 @@ pub async fn transition_accumulate_queue(
     let accumulate_history = state_manager.get_accumulate_history().await?;
     let last_accumulate_set = accumulate_history
         .last_history()
-        .expect("Should not be empty");
+        .ok_or(TransitionError::AccumulateHistoryMissing)?;
 
     let last_accumulate_set_vec = last_accumulate_set.iter().cloned().collect::<Vec<_>>();
 
@@ -63,7 +63,12 @@ pub async fn transition_accumulate_history(
     accumulatable_reports: &[WorkReport], // R^*
     accumulate_count: usize,              // n
 ) -> Result<(), TransitionError> {
-    assert!(accumulate_count <= accumulatable_reports.len());
+    if accumulate_count > accumulatable_reports.len() {
+        return Err(TransitionError::InvalidAccumulateCount(
+            accumulate_count,
+            accumulatable_reports.len(),
+        ));
+    }
     // Represents `P(R^*_{...n})`.
     let accumulated = reports_to_package_hashes(&accumulatable_reports[..accumulate_count]);
 

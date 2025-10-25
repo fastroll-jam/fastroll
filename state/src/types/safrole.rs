@@ -9,7 +9,7 @@ use fr_common::{
     ticket::Ticket, ByteEncodable, EntropyHash, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use fr_crypto::{error::CryptoError, hash, types::*, Blake2b256};
-use fr_limited_vec::FixedVec;
+use fr_limited_vec::{FixedVec, LimitedVecError};
 use std::{
     collections::BinaryHeap,
     fmt::{Display, Formatter},
@@ -25,6 +25,8 @@ pub enum SlotSealerError {
     CryptoError(#[from] CryptoError),
     #[error("Codec error: {0}")]
     CodecError(#[from] JamCodecError),
+    #[error("LimitedVecError: {0}")]
+    LimitedVecError(#[from] LimitedVecError),
 }
 
 #[derive(Clone, Default)]

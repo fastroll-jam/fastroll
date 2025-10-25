@@ -13,7 +13,7 @@ use fr_state::{
     manager::StateManager,
     types::{
         generate_fallback_keys, outside_in_vec, ActiveSet, EpochTickets, SafroleHeaderMarkers,
-        SafroleState, SlotSealers, TicketAccumulator, Timeslot, ValidatorSet,
+        SafroleState, SlotSealerError, SlotSealers, TicketAccumulator, Timeslot, ValidatorSet,
     },
 };
 use std::sync::Arc;
@@ -72,6 +72,15 @@ async fn handle_new_epoch_transition(
     let curr_active_set = state_manager.get_active_set().await?;
     let curr_entropy = state_manager.get_epoch_entropy().await?;
 
+    let prior_safrole = state_manager.get_safrole_clean().await?;
+    let next_slot_sealers = compute_next_slot_sealers(
+        &prior_safrole,
+        prior_timeslot,
+        curr_timeslot,
+        &curr_active_set,
+        curr_entropy.second_history(),
+    )?;
+
     state_manager
         .with_mut_safrole(
             StateMut::Update,
@@ -83,13 +92,7 @@ async fn handle_new_epoch_transition(
                 safrole.ring_root = curr_ring_root;
 
                 // slot-sealer series transition (γ_S)
-                update_slot_sealers(
-                    safrole,
-                    prior_timeslot,
-                    curr_timeslot,
-                    &curr_active_set,
-                    curr_entropy.second_history(),
-                );
+                safrole.slot_sealers = next_slot_sealers;
 
                 // reset ticket accumulator (γ_A)
                 safrole.ticket_accumulator = TicketAccumulator::new();
@@ -100,13 +103,14 @@ async fn handle_new_epoch_transition(
 
     Ok(())
 }
-pub(crate) fn update_slot_sealers(
-    safrole: &mut SafroleState,
+
+pub(crate) fn compute_next_slot_sealers(
+    safrole: &SafroleState,
     prior_timeslot: &Timeslot,
     curr_timeslot: &Timeslot,
     curr_active_set: &ActiveSet,
     curr_entropy_2: &EntropyHash,
-) {
+) -> Result<SlotSealers, SlotSealerError> {
     // Fallback mode triggers under following conditions:
     // 1. One or more epochs are skipped (e′ > e + 1).
     // 2. The slot phase hasn't reached the ticket submission deadline.
@@ -115,20 +119,19 @@ pub(crate) fn update_slot_sealers(
         || (prior_timeslot.slot_phase() as usize) < TICKET_CONTEST_DURATION
         || !safrole.ticket_accumulator.is_full();
 
-    if is_fallback {
-        tracing::trace!("New epoch.Prev slot sealers:\n{}", &safrole.slot_sealers);
-        let fallback_keys = generate_fallback_keys(curr_active_set, curr_entropy_2)
-            .expect("Failed to generate fallback keys");
-
-        safrole.slot_sealers = SlotSealers::BandersnatchPubKeys(fallback_keys);
+    let slot_sealers = if is_fallback {
+        tracing::trace!("New epoch. Prev slot sealers:\n{}", &safrole.slot_sealers);
+        let fallback_keys = generate_fallback_keys(curr_active_set, curr_entropy_2)?;
         tracing::trace!("Post slot sealers:\n{}", &safrole.slot_sealers);
+        SlotSealers::BandersnatchPubKeys(fallback_keys)
     } else {
         let ticket_accumulator_outside_in =
             outside_in_vec(safrole.ticket_accumulator.clone().into_sorted_vec());
-        let epoch_tickets = EpochTickets::try_from(ticket_accumulator_outside_in)
-            .expect("ticket accumulator length exceeds EPOCH_LENGTH");
-        safrole.slot_sealers = SlotSealers::Tickets(epoch_tickets);
-    }
+        let epoch_tickets = EpochTickets::try_from(ticket_accumulator_outside_in)?;
+        SlotSealers::Tickets(epoch_tickets)
+    };
+
+    Ok(slot_sealers)
 }
 
 async fn handle_ticket_accumulation(

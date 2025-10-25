@@ -4,7 +4,9 @@ use fr_state::{
     manager::StateManager,
     types::{SlotSealer, Timeslot},
 };
-use fr_transition::state_prediction::slot_sealers::predict_post_slot_sealer;
+use fr_transition::state_prediction::slot_sealers::{
+    predict_post_slot_sealer, SlotSealerPredictionError,
+};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -12,6 +14,8 @@ use thiserror::Error;
 pub enum RoleManagerError {
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("SlotSealerPredictionError: {0}")]
+    SlotSealerPredictionError(#[from] SlotSealerPredictionError),
 }
 
 pub struct RoleManager;

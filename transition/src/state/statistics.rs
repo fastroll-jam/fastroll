@@ -2,7 +2,7 @@ use crate::error::TransitionError;
 use fr_block::types::extrinsics::{
     assurances::AssurancesXt, guarantees::GuaranteesXt, preimages::PreimagesXt, Extrinsics,
 };
-use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE};
+use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE, VALIDATOR_COUNT};
 use fr_pvm_types::stats::AccumulateStats;
 use fr_state::{
     cache::StateMut,
@@ -66,6 +66,13 @@ async fn handle_validator_stats_accumulation(
     xts: &Extrinsics,
 ) -> Result<(), TransitionError> {
     let current_active_set = state_manager.get_active_set().await?;
+    let validator_keys = (0..VALIDATOR_COUNT as ValidatorIndex)
+        .map(|validator_index| {
+            current_active_set
+                .get_validator_ed25519_key(validator_index)
+                .ok_or(TransitionError::ValidatorIndexOutOfBounds(validator_index))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     state_manager
         .with_mut_onchain_statistics(StateMut::Update, |stats| -> Result<(), StateManagerError> {
@@ -79,23 +86,19 @@ async fn handle_validator_stats_accumulation(
             current_epoch_author_stats.preimage_data_octets_count +=
                 xts.preimages.total_preimage_data_len() as u32;
 
-            for (validator_index, validator_stats) in stats
+            for ((validator_index, validator_stats), validator_ed25519_key) in stats
                 .validator_stats
                 .current_epoch_stats_mut()
                 .iter_mut()
                 .enumerate()
+                .zip(&validator_keys)
             {
-                let validator_index = validator_index as ValidatorIndex;
-                let validator_ed25519_key = current_active_set
-                    .get_validator_ed25519_key(validator_index)
-                    .expect("validator index cannot be out of bound here");
-
                 // Update `guarantees_count` if the current validator's Ed25519 public key is in reporters set.
                 if xts
                     .guarantees
                     .extract_reporters(&current_active_set)
                     .iter()
-                    .any(|reporter| reporter == validator_ed25519_key)
+                    .any(|reporter| reporter == *validator_ed25519_key)
                 {
                     validator_stats.guarantees_count += 1;
                 }
@@ -103,7 +106,7 @@ async fn handle_validator_stats_accumulation(
                 // Update `assurances_count` if the current validator submitted assurances extrinsic entry.
                 if xts
                     .assurances
-                    .contains_assurance_for_validator(validator_index)
+                    .contains_assurance_for_validator(validator_index as ValidatorIndex)
                 {
                     validator_stats.assurances_count += 1;
                 }
