@@ -24,6 +24,8 @@ pub enum StateManagerError {
     StateEntryAlreadyExists(String),
     #[error("MerkleActor is closed")]
     MerkleActorClosed,
+    #[error("State entry not found in the StateDB (data hash={0})")]
+    StateDBMissingEntry(String),
     #[error("Crypto error: {0}")]
     CryptoError(#[from] CryptoError),
     #[error("StateMerkle error: {0}")]
