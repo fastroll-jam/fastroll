@@ -3,6 +3,7 @@ use crate::cache::{CacheEntry, CacheEntryStatus, StateMut};
 use fr_codec::prelude::*;
 use fr_common::{ByteEncodable, MerkleRoot, NodeHash, StateKey, HASH_SIZE};
 use fr_crypto::{hash, Blake2b256};
+use fr_db::core::cached_db::DBKey;
 use fr_state_merkle_v2::{
     merkle_change_set::{
         DBWriteSet, MerkleChangeSet, MerkleDBLeafPathsWrite, MerkleDBNodesWrite,
@@ -455,10 +456,11 @@ impl MerkleManager {
                                         break;
                                     }
                                 } else {
-                                    // TODO: Throw an error
                                     // The parent is not a branch or doesn't exist; stop promotion
                                     // This should not happen in regular cases
-                                    break;
+                                    return Err(StateMerkleError::InvalidBranchStructure(
+                                        hex::encode(post_sibling_parent_path.as_db_key()),
+                                    ));
                                 }
                             }
 

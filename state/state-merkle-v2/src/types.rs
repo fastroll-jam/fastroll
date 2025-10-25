@@ -49,6 +49,8 @@ pub enum StateMerkleError {
     #[error("A node that corresponds to the given merkle path is not found either from MerkleDB or MerkleChangeSet"
     )]
     InvalidAffectedMerklePath,
+    #[error("Merkle branch at path {0} is missing or malformed")]
+    InvalidBranchStructure(String),
     #[error("Affected leaf node is not found from the MerkleChangeSet")]
     AffectedLeafNotFoundFromMerkleChangeSet,
 }
