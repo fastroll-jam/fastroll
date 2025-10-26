@@ -44,6 +44,8 @@ pub enum HostCallError {
 pub enum PartialStateError {
     #[error("Invalid core index: {0}")]
     InvalidAssignerCoreIndex(CoreIndex),
+    #[error("Core index {0} out of bounds")]
+    CoreIndexOutOfBounds(CoreIndex),
     #[error("Account not found from the global state")]
     AccountNotFoundFromGlobalState,
     #[error("Accumulator account is not initialized in the service accounts partial state")]

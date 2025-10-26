@@ -201,7 +201,7 @@ async fn add_partial_state_change(
 
     partial_state_union
         .assign_services
-        .merge_changes_from(&accumulate_result_partial_state.assign_services);
+        .merge_changes_from(&accumulate_result_partial_state.assign_services)?;
 
     partial_state_union
         .designate_service

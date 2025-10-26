@@ -1027,13 +1027,15 @@ impl AssignServicesPartialState {
 
     /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
     /// while prioritize changes by manager services.
-    pub fn merge_changes_from(&mut self, other: &AssignServicesPartialState) {
+    pub fn merge_changes_from(
+        &mut self,
+        other: &AssignServicesPartialState,
+    ) -> Result<(), PartialStateError> {
         if let Some(manager_assigners) = &other.change_by_manager {
             for (core_idx, assigner_update_by_manager) in manager_assigners.iter().enumerate() {
-                let original = *other
-                    .last_confirmed
-                    .get(core_idx)
-                    .expect("core index must be within bounds");
+                let original = *other.last_confirmed.get(core_idx).ok_or(
+                    PartialStateError::CoreIndexOutOfBounds(core_idx as CoreIndex),
+                )?;
                 if *assigner_update_by_manager != original {
                     if let Some(assigner) = self.last_confirmed.get_mut(core_idx) {
                         *assigner = *assigner_update_by_manager;
@@ -1046,7 +1048,7 @@ impl AssignServicesPartialState {
             let original = *other
                 .last_confirmed
                 .get(core_idx as usize)
-                .expect("core index must be within bounds");
+                .ok_or(PartialStateError::CoreIndexOutOfBounds(core_idx))?;
             if assigner_update_by_self != original {
                 if let Some(assigner) = self.last_confirmed.get_mut(core_idx as usize) {
                     if *assigner == original {
@@ -1055,6 +1057,7 @@ impl AssignServicesPartialState {
                 }
             }
         }
+        Ok(())
     }
 
     pub fn updated(&self) -> AssignServices {
