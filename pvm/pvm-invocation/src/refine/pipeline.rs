@@ -29,12 +29,11 @@ fn work_item_to_digest(
     item: &WorkItem,
     result: WorkExecutionResult,
     refine_gas_used: UnsignedGas,
-) -> WorkDigest {
-    WorkDigest {
+) -> Result<WorkDigest, PVMInvokeError> {
+    Ok(WorkDigest {
         service_id: item.service_id,
         service_code_hash: item.service_code_hash.clone(),
-        payload_hash: hash::<Blake2b256>(item.payload_blob.as_slice())
-            .expect("Hashing a payload blob should be successful"),
+        payload_hash: hash::<Blake2b256>(item.payload_blob.as_slice())?,
         accumulate_gas_limit: item.accumulate_gas_limit,
         refine_result: result,
         refine_stats: RefineStats {
@@ -48,18 +47,17 @@ fn work_item_to_digest(
                 .sum::<u32>(),
             exports_count: item.export_segment_count,
         },
-    }
+    })
 }
 
-fn work_package_authorizer(package: &WorkPackage) -> AuthHash {
-    hash::<Blake2b256>(
+fn work_package_authorizer(package: &WorkPackage) -> Result<AuthHash, PVMInvokeError> {
+    Ok(hash::<Blake2b256>(
         &[
             package.auth_code_hash.as_slice(),
             package.config_blob.as_slice(),
         ]
         .concat(),
-    )
-    .expect("Hashing blobs should be successful")
+    )?)
 }
 
 fn build_segment_roots_lookup_table(
@@ -123,7 +121,9 @@ pub async fn compute_work_report(
     let work_items_count = package.work_items.len();
     let mut export_segments_offset = 0usize;
     let mut work_report_blob_size = auth_trace.len();
-    let mut digests: WorkDigests = Vec::with_capacity(work_items_count).try_into().unwrap();
+    let mut digests: WorkDigests = Vec::with_capacity(work_items_count)
+        .try_into()
+        .map_err(|_| PVMInvokeError::WorkDigestsOverflow)?;
     let mut exports = Vec::with_capacity(work_items_count);
 
     for item_idx in 0..work_items_count {
@@ -168,10 +168,10 @@ pub async fn compute_work_report(
             exports.push(export_segments);
         }
 
-        let digest = work_item_to_digest(&package.work_items[item_idx], output, refine_gas_used);
+        let digest = work_item_to_digest(&package.work_items[item_idx], output, refine_gas_used)?;
         digests
             .try_push(digest)
-            .expect("Number of work-items and digests are bounded by LimitedVec types");
+            .map_err(|_| PVMInvokeError::WorkDigestsOverflow)?;
     }
 
     Ok(WorkReport {
@@ -182,7 +182,7 @@ pub async fn compute_work_report(
         )?,
         refinement_context: package.context.clone(),
         core_index: core_idx,
-        authorizer_hash: work_package_authorizer(&package),
+        authorizer_hash: work_package_authorizer(&package)?,
         auth_gas_used,
         auth_trace,
         segment_roots_lookup: build_segment_roots_lookup_table(&package)?,
