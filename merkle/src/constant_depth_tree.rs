@@ -23,9 +23,9 @@ impl<H: Hasher> ConstantDepthMerkleTree<H> {
             .iter()
             .map(|item| {
                 let hash_input = [PREFIX, item].concat();
-                hash::<H>(&hash_input).expect("Hashing blobs should be successful")
+                hash::<H>(&hash_input).map_err(|_| MerkleError::HashingFailed)
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
 
         output.resize(output_len, Hash32::default());
         Ok(output)
@@ -66,17 +66,17 @@ impl<H: Hasher> ConstantDepthMerkleTree<H> {
         data: &[Vec<u8>],
         page_idx: usize,
         page_depth: usize,
-    ) -> Vec<Hash32> {
+    ) -> Result<Vec<Hash32>, MerkleError> {
         const PREFIX: &[u8] = b"leaf";
         let page_size = 2usize.pow(page_depth as u32);
         let start_idx = page_size * page_idx;
         let end_idx = data.len().min(start_idx + page_size);
-        data[start_idx..end_idx]
+        let hash = data[start_idx..end_idx]
             .iter()
             .map(|data_item| {
-                hash::<H>(&[PREFIX, data_item].concat())
-                    .expect("Hashing blobs should be successful")
+                hash::<H>(&[PREFIX, data_item].concat()).map_err(|_| MerkleError::HashingFailed)
             })
-            .collect::<Vec<_>>()
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(hash)
     }
 }

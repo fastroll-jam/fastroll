@@ -38,7 +38,7 @@ fn generate_paged_proofs(
             &exports_vec,
             page_idx,
             PAGE_DEPTH,
-        );
+        )?;
         justification.encode_to(&mut buf)?;
         leaf_hashes.encode_to(&mut buf)?;
         // TODO: check if the buffer always fits in a single block of size `SEGMENT_SIZE`.
