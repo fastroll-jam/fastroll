@@ -298,7 +298,7 @@ impl MerkleManager {
 
                             while branch_path.0.len() >= lcp_path.0.len() {
                                 let branch_node =
-                                    MerkleNode::Branch(BranchNode::new(&left_hash, &right_hash));
+                                    MerkleNode::Branch(BranchNode::new(&left_hash, &right_hash)?);
                                 let branch_node_hash = branch_node.hash()?;
                                 self.merkle_change_set
                                     .insert_node(branch_path.clone(), Some(branch_node));
@@ -568,11 +568,11 @@ impl MerkleManager {
                     {
                         match left_child_write {
                             Some(left_child_mutated) => {
-                                affected_branch.update_left(&left_child_mutated.hash()?);
+                                affected_branch.update_left(&left_child_mutated.hash()?)?;
                             }
                             None => {
                                 // Replace with zero hash for empty (removed) child
-                                affected_branch.update_left(&NodeHash::default());
+                                affected_branch.update_left(&NodeHash::default())?;
                             }
                         }
                     }
@@ -854,10 +854,13 @@ mod tests {
 
             let dummy_branch = MerkleNode::Branch(create_dummy_branch(1));
             let dummy_leaf = MerkleNode::Leaf(create_dummy_regular_leaf(1));
-            let lcp_node = MerkleNode::Branch(BranchNode::new(
-                &NodeHash::from_slice(&[1; 32]).unwrap(),
-                &NodeHash::default(), // no right child
-            ));
+            let lcp_node = MerkleNode::Branch(
+                BranchNode::new(
+                    &NodeHash::from_slice(&[1; 32]).unwrap(),
+                    &NodeHash::default(), // no right child
+                )
+                .unwrap(),
+            );
 
             merkle_db
                 .insert_node(&root_path, dummy_branch.clone())

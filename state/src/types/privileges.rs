@@ -80,8 +80,11 @@ impl JamDecode for PrivilegedServices {
             let assign_service = ServiceId::decode_fixed(input, 4)?;
             assign_services_vec.push(assign_service);
         }
-        let assign_services = AssignServices::try_from(assign_services_vec)
-            .expect("assign_services_vec should have length of CORE_COUNT");
+        let assign_services = AssignServices::try_from(assign_services_vec).map_err(|_| {
+            JamCodecError::InvalidSize(
+                "assign_services_vec should have length of CORE_COUNT".to_string(),
+            )
+        })?;
         let designate_service = ServiceId::decode_fixed(input, 4)?;
         let registrar_service = ServiceId::decode_fixed(input, 4)?;
         let always_accumulate_services = AlwaysAccumulateServices::decode(input)?;

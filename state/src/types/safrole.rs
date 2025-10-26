@@ -27,6 +27,8 @@ pub enum SlotSealerError {
     CodecError(#[from] JamCodecError),
     #[error("LimitedVecError: {0}")]
     LimitedVecError(#[from] LimitedVecError),
+    #[error("Validator index is out of bound: {0}")]
+    ValidatorIndexOutOfBounds(ValidatorIndex),
 }
 
 #[derive(Clone, Default)]
@@ -256,7 +258,9 @@ pub fn generate_fallback_keys(
         *key = validator_set
             .get_validator_bandersnatch_key(key_index as ValidatorIndex)
             .cloned()
-            .expect("Should exist; index is modulo");
+            .ok_or(SlotSealerError::ValidatorIndexOutOfBounds(
+                key_index as ValidatorIndex,
+            ))?;
     }
 
     Ok(fallback_keys)

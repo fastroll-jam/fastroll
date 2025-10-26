@@ -7,7 +7,7 @@ use fr_merkle::common::MerkleError;
 use fr_pvm_invocation::error::PVMInvokeError;
 use fr_state::{
     error::StateManagerError,
-    types::{PendingReportsError, SlotSealerError},
+    types::{LastAccumulateOutputsError, PendingReportsError, SlotSealerError},
 };
 use thiserror::Error;
 use tokio::task::JoinError;
@@ -62,4 +62,6 @@ pub enum TransitionError {
     PVMInvokeError(#[from] PVMInvokeError),
     #[error("JoinError: {0}")]
     JoinError(#[from] JoinError),
+    #[error("LastAccumulateOutputsError: {0}")]
+    LastAccumulateOutputsError(#[from] LastAccumulateOutputsError),
 }

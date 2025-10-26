@@ -1,6 +1,6 @@
 use crate::{
     merkle_db::MerkleDB,
-    types::{BranchNode, LeafNode, LeafNodeData, MerklePath},
+    types::{BranchNode, LeafNode, LeafNodeData, MerklePath, StateMerkleError},
     utils::bits_decode_msb,
 };
 use bitvec::prelude::*;
@@ -46,7 +46,10 @@ pub fn create_embedded_leaf(state_key_bv: BitVec<u8, Msb0>, data: Vec<u8>) -> Le
     LeafNode::new(state_key_bv, LeafNodeData::Embedded(data))
 }
 
-pub fn create_branch(left_hash: &NodeHash, right_hash: &NodeHash) -> BranchNode {
+pub fn create_branch(
+    left_hash: &NodeHash,
+    right_hash: &NodeHash,
+) -> Result<BranchNode, StateMerkleError> {
     BranchNode::new(left_hash, right_hash)
 }
 
@@ -70,6 +73,7 @@ pub fn create_dummy_branch(seed: u8) -> BranchNode {
         &NodeHash::from_slice(&[seed; 32]).unwrap(),
         &NodeHash::from_slice(&[seed; 32]).unwrap(),
     )
+    .unwrap()
 }
 
 pub fn create_dummy_single_child_branch(seed: u8) -> BranchNode {
@@ -77,6 +81,7 @@ pub fn create_dummy_single_child_branch(seed: u8) -> BranchNode {
         &NodeHash::from_slice(&[0; 32]).unwrap(),
         &NodeHash::from_slice(&[seed; 32]).unwrap(),
     )
+    .unwrap()
 }
 
 pub fn create_state_key_from_path_prefix(path_prefix: MerklePath) -> StateKey {

@@ -51,7 +51,7 @@ pub async fn transition_last_accumulate_outputs(
 ) -> Result<AccumulateRoot, TransitionError> {
     let post_last_accumulate_outputs =
         LastAccumulateOutputs::from_output_pairs(accumulate_output_pairs);
-    let accumulate_root = post_last_accumulate_outputs.clone().accumulate_root();
+    let accumulate_root = post_last_accumulate_outputs.clone().accumulate_root()?;
     state_manager
         .with_mut_last_accumulate_outputs(
             StateMut::Update,

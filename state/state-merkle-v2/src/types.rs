@@ -40,8 +40,10 @@ pub enum StateMerkleError {
     InvalidByteLength(usize),
     #[error("Invalid BitVec slice range")]
     InvalidBitVecSliceRange,
-    #[error("Invalid node data length")]
+    #[error("Invalid node data length: {0}")]
     InvalidNodeDataLength(usize),
+    #[error("Invalid node hash length: {0}")]
+    InvalidNodeHashLength(usize),
     #[error("Merkle path unknown for state key: {0}")]
     MerklePathUnknownForStateKey(String),
     #[error("Merkle trie is not initialized yet")]
@@ -184,22 +186,23 @@ impl Display for BranchNode {
 }
 
 impl BranchNode {
-    pub fn new(left: &NodeHash, right: &NodeHash) -> Self {
+    pub fn new(left: &NodeHash, right: &NodeHash) -> Result<Self, StateMerkleError> {
         let left_bv = bits_encode_msb(left.as_slice());
         let right_bv = bits_encode_msb(right.as_slice());
-        Self {
+        Ok(Self {
             left_lossy: slice_bitvec(&left_bv, 1..)
-                .expect("Has 256 bits")
+                .map_err(|_| StateMerkleError::InvalidNodeHashLength(left_bv.len()))?
                 .to_bitvec(),
             right: right_bv,
-        }
+        })
     }
 
-    pub fn update_left(&mut self, left: &NodeHash) {
+    pub fn update_left(&mut self, left: &NodeHash) -> Result<(), StateMerkleError> {
         let left_bv = bits_encode_msb(left.as_slice());
         self.left_lossy = slice_bitvec(&left_bv, 1..)
-            .expect("Has 256 bits")
+            .map_err(|_| StateMerkleError::InvalidNodeHashLength(left_bv.len()))?
             .to_bitvec();
+        Ok(())
     }
 
     pub fn update_right(&mut self, right: &NodeHash) {
@@ -404,12 +407,12 @@ impl MerklePath {
             return None;
         }
         let mut sibling = self.clone();
-        let last_bit = sibling
-            .0
-            .pop()
-            .expect("MerklePath BitVec should not be empty");
-        sibling.0.push(!last_bit);
-        Some(sibling)
+        if let Some(last_bit) = sibling.0.pop() {
+            sibling.0.push(!last_bit);
+            Some(sibling)
+        } else {
+            None
+        }
     }
 
     pub fn left_child(&self) -> Option<Self> {

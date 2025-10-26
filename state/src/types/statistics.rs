@@ -358,12 +358,12 @@ impl Display for ServiceStats {
 // FIXME: Workaround fixed-codec for service ids. This isn't aligned with GP but needed to pass traces test vectors.
 impl JamEncode for ServiceStats {
     fn size_hint(&self) -> usize {
-        if self.0.is_empty() {
-            return 1;
-        }
         // Sampling an entry to get the size hint of keys and values.
-        let (_key, sample_value) = self.0.iter().next().expect("At least one entry exists.");
-        self.0.len().size_hint() + (4 + sample_value.size_hint()) * self.0.len()
+        if let Some((_key, sample_value)) = self.0.iter().next() {
+            self.0.len().size_hint() + (4 + sample_value.size_hint()) * self.0.len()
+        } else {
+            1
+        }
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -373,7 +373,12 @@ impl JamEncode for ServiceStats {
 
         for key in keys_sorted {
             key.encode_to_fixed(dest, 4)?;
-            self.0.get(key).expect("Entry must exist").encode_to(dest)?;
+            self.0
+                .get(key)
+                .ok_or(JamCodecError::EncodingError(
+                    "ServiceStats missing entry".to_string(),
+                ))?
+                .encode_to(dest)?;
         }
         Ok(())
     }
