@@ -284,10 +284,11 @@ impl MerkleManager {
 
                             // Initialize
                             let mut branch_path = new_leaf_path.clone();
-                            let new_leaf_side = branch_path
-                                .0
-                                .pop()
-                                .expect("New leaf path should not be empty");
+                            let new_leaf_side = branch_path.0.pop().ok_or(
+                                StateMerkleError::InvalidBranchStructure(hex::encode(
+                                    branch_path.as_db_key(),
+                                )),
+                            )?;
 
                             let (mut left_hash, mut right_hash) = if new_leaf_side {
                                 (sibling_node_hash, new_leaf_node_hash)
@@ -307,9 +308,11 @@ impl MerkleManager {
                                 }
 
                                 // Update branch_path, left_hash and right_hash for the next loop
-                                let branch_sibling_path = branch_path
-                                    .sibling()
-                                    .expect("Branch path should not be empty");
+                                let branch_sibling_path = branch_path.sibling().ok_or(
+                                    StateMerkleError::InvalidBranchStructure(hex::encode(
+                                        branch_path.as_db_key(),
+                                    )),
+                                )?;
 
                                 // Check if a node exists at the branch's sibling position, either in
                                 // the MerkleChangeSet or the MerkleDB
@@ -320,10 +323,11 @@ impl MerkleManager {
                                     .transpose()?
                                     .unwrap_or_default();
 
-                                let branch_side = branch_path
-                                    .0
-                                    .pop()
-                                    .expect("Branch path should not be empty");
+                                let branch_side = branch_path.0.pop().ok_or(
+                                    StateMerkleError::InvalidBranchStructure(hex::encode(
+                                        branch_path.as_db_key(),
+                                    )),
+                                )?;
 
                                 (left_hash, right_hash) = if branch_side {
                                     (sibling_hash, branch_node_hash)
@@ -549,15 +553,16 @@ impl MerkleManager {
                 if let MerkleNode::Branch(mut affected_branch) = affected_node {
                     // If any of its children is mutated and found in the `StateCache`, update
                     // the child node hash value and then push to the DB write set.
-                    let left_child_path = affected_path
-                        .clone()
-                        .left_child()
-                        .expect("Affected path length should not exceed NODE_SIZE_BITS");
-                    let right_child_path = affected_path
-                        .clone()
-                        .right_child()
-                        .expect("Affected path length should not exceed NODE_SIZE_BITS");
-
+                    let left_child_path = affected_path.clone().left_child().ok_or(
+                        StateMerkleError::InvalidBranchStructure(hex::encode(
+                            affected_path.as_db_key(),
+                        )),
+                    )?;
+                    let right_child_path = affected_path.clone().right_child().ok_or(
+                        StateMerkleError::InvalidBranchStructure(hex::encode(
+                            affected_path.as_db_key(),
+                        )),
+                    )?;
                     if let Some(left_child_write) =
                         self.merkle_change_set.get_node(&left_child_path)
                     {
@@ -609,8 +614,8 @@ impl MerkleManager {
         let new_merkle_root = self
             .merkle_change_set
             .get_node(&MerklePath::root())
-            .expect("Merkle root is always affected unless the merkle trie is unchanged")
-            .expect("Merkle root should not be removed")
+            .ok_or(StateMerkleError::MissingAffectedMerkleRoot)?
+            .ok_or(StateMerkleError::RemovingMerkleRoot)?
             .hash()?;
 
         Ok(Some(new_merkle_root))

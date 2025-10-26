@@ -51,6 +51,10 @@ pub enum StateMerkleError {
     InvalidAffectedMerklePath,
     #[error("Merkle branch at path {0} is missing or malformed")]
     InvalidBranchStructure(String),
+    #[error("Merkle root should be always affected unless the merkle trie is unchanged")]
+    MissingAffectedMerkleRoot,
+    #[error("Merkle root should not be removed")]
+    RemovingMerkleRoot,
     #[error("Affected leaf node is not found from the MerkleChangeSet")]
     AffectedLeafNotFoundFromMerkleChangeSet,
 }
