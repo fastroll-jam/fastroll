@@ -9,13 +9,23 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 use tokio::runtime::Runtime;
 
-async fn setup(file_path: &Path, temp_db_path: &Path) -> (Arc<NodeStorage>, TestCase) {
+struct BenchFixture {
+    storage: Arc<NodeStorage>,
+    test_case: TestCase,
+    _temp_dir: TempDir,
+}
+
+async fn setup(file_path: &Path) -> BenchFixture {
     // load test case
     let test_case = BlockImportHarness::load_test_case(file_path);
     let test_case = BlockImportHarness::convert_test_case(test_case);
+
+    // TempDir guard
+    let _temp_dir = tempdir().expect("Failed to create temporary directory for bench");
+    let temp_db_path = _temp_dir.path().join("bench_db");
 
     // init node storage
     let storage = Arc::new(BlockImportHarness::init_node_storage(
@@ -51,7 +61,12 @@ async fn setup(file_path: &Path, temp_db_path: &Path) -> (Arc<NodeStorage>, Test
             .await
             .expect("Failed to set post state root");
     }
-    (storage, test_case)
+
+    BenchFixture {
+        storage,
+        test_case,
+        _temp_dir,
+    }
 }
 
 fn bench_block_import(c: &mut Criterion) {
@@ -70,20 +85,16 @@ fn bench_block_import(c: &mut Criterion) {
         .join(test_kind)
         .join(test_file);
 
-    // TempDir guard
-    let _temp_dir = tempdir().expect("Failed to create temporary directory for bench");
-    let temp_db_path = _temp_dir.path().join("bench_db");
-
     group.bench_function(bench_id, |b: &mut Bencher| {
         b.iter_batched(
             // Setup
-            || rt.block_on(setup(&test_path, &temp_db_path)),
+            || rt.block_on(setup(&test_path)),
             // Routine
-            |(storage, test_case)| {
+            |fixture| {
                 rt.block_on(async {
                     let _post_state_root = match BlockImporter::import_block(
-                        storage.clone(),
-                        test_case.block.clone(),
+                        fixture.storage.clone(),
+                        fixture.test_case.block.clone(),
                         false,
                         false,
                         BlockCommitMode::Immediate,
