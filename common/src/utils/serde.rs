@@ -5,6 +5,15 @@ use serde::{
     Deserializer, Serialize, Serializer,
 };
 use std::{fmt, fmt::Formatter, fs, fs::File, io, io::Read, path::Path};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum FileLoaderError {
+    #[error("IOError: {0}")]
+    IOError(#[from] io::Error),
+    #[error("SerdeJsonError: {0}")]
+    SerdeJsonError(#[from] serde_json::error::Error),
+}
 
 pub struct FileLoader;
 impl FileLoader {
@@ -15,12 +24,13 @@ impl FileLoader {
         Ok(buffer)
     }
 
-    pub fn load_from_json_file<T>(full_path: &Path) -> T
+    pub fn load_from_json_file<T>(full_path: &Path) -> Result<T, FileLoaderError>
     where
         T: Serialize + DeserializeOwned,
     {
-        let json_str = fs::read_to_string(full_path).expect("Failed to read test vector file");
-        serde_json::from_str(&json_str).expect("Failed to parse JSON")
+        let json_str = fs::read_to_string(full_path)?;
+        let loaded = serde_json::from_str(&json_str)?;
+        Ok(loaded)
     }
 }
 

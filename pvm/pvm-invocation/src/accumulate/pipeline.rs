@@ -201,7 +201,7 @@ async fn add_partial_state_change(
 
     partial_state_union
         .assign_services
-        .merge_changes_from(&accumulate_result_partial_state.assign_services);
+        .merge_changes_from(&accumulate_result_partial_state.assign_services)?;
 
     partial_state_union
         .designate_service
@@ -216,13 +216,17 @@ async fn add_partial_state_change(
         .accounts_sandbox
         .get_mut_account_sandbox(state_manager.clone(), accumulate_host)
         .await?
-        .expect("should not be None");
+        .ok_or(PVMInvokeError::MissingAccumulateHostSandbox(
+            accumulate_host,
+        ))?;
     *accumulate_host_sandbox = accumulate_result_partial_state
         .accounts_sandbox
         .get_account_sandbox(state_manager, accumulate_host)
         .await?
         .cloned()
-        .expect("should not be None");
+        .ok_or(PVMInvokeError::MissingAccumulateHostSandbox(
+            accumulate_host,
+        ))?;
 
     // Integrate new accounts and ejected accounts.
     // Note: no account other than the accumulate host is ever touched except for the
@@ -264,11 +268,10 @@ async fn add_provided_preimages(
     partial_state_union: &mut AccumulatePartialState<StateManager>,
     provided_images: HashSet<(ServiceId, Octets)>,
     curr_timeslot_index: TimeslotIndex,
-) {
+) -> Result<(), PVMInvokeError> {
     for (service_id, octets) in provided_images {
         // Construct storage keys
-        let preimages_key =
-            hash::<Blake2b256>(&octets).expect("should be able to hash some octets");
+        let preimages_key = hash::<Blake2b256>(&octets)?;
         let lookups_key: LookupsKey = (preimages_key.clone(), octets.len() as u32);
 
         // Insert an entry to the preimages storage
@@ -280,8 +283,7 @@ async fn add_provided_preimages(
                 preimages_key,
                 AccountPreimagesEntry::new(octets),
             )
-            .await
-            .unwrap();
+            .await?;
 
         // Push a timeslot value to the corresponding preimages lookups entry
         partial_state_union
@@ -292,9 +294,9 @@ async fn add_provided_preimages(
                 lookups_key,
                 Timeslot::new(curr_timeslot_index),
             )
-            .await
-            .unwrap();
+            .await?;
     }
+    Ok(())
 }
 
 /// Represents `Δ*` of the GP.
@@ -401,7 +403,7 @@ async fn accumulate_parallel(
                 accumulate_result.provided_preimages,
                 curr_timeslot_index,
             )
-            .await;
+            .await?;
         }
     }
 

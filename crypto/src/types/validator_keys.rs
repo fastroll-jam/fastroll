@@ -1,6 +1,7 @@
 use fr_codec::prelude::*;
 
 use crate::{
+    error::CryptoError,
     impl_byte_encodable,
     types::{BandersnatchPubKey, BlsPubKey, Ed25519PubKey},
 };
@@ -34,14 +35,13 @@ impl Deref for ValidatorMetadata {
 }
 
 impl ValidatorMetadata {
-    pub fn socket_address(&self) -> SocketAddrV6 {
+    pub fn socket_address(&self) -> Result<SocketAddrV6, CryptoError> {
         let ipv6: [u8; 16] = self[0..16]
             .try_into()
-            .expect("Should have more than 16 bytes");
+            .map_err(|_| CryptoError::MalformedValidatorMetadata)?;
         // Decode LE-encoded port number
-        let port = u16::decode_fixed(&mut &self[16..18], 2)
-            .expect("Should success to decode 2 bytes into u16");
-        SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0)
+        let port = u16::decode_fixed(&mut &self[16..18], 2)?;
+        Ok(SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0))
     }
 }
 
@@ -168,7 +168,7 @@ mod test {
         let port = 9990;
         let expected_socket_addr = SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0);
         let metadata = ValidatorMetadata::from_hex("0x0000000000000000000000000000000106270000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
-        let socket_addr = metadata.socket_address();
+        let socket_addr = metadata.socket_address().unwrap();
         assert_eq!(expected_socket_addr, socket_addr);
     }
 }

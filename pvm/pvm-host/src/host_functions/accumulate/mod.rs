@@ -7,6 +7,7 @@ use crate::{
     get_accumulate_x, get_mut_accumulate_y,
     host_functions::HostCallResult,
     macros::*,
+    out_of_gas,
 };
 use fr_codec::prelude::*;
 use fr_common::{
@@ -256,11 +257,18 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         *y_mut = x_cloned; // assign the cloned `x` context to the `y` context
 
-        let post_gas = vm
+        if let Some(post_gas) = vm
             .gas_counter
             .checked_sub(HOSTCALL_BASE_GAS_CHARGE as SignedGas)
-            .expect("OOG condition already checked") as UnsignedGas;
-        continue_with_vm_change!(r7: post_gas)
+        {
+            if post_gas >= 0 {
+                continue_with_vm_change!(r7: post_gas as UnsignedGas)
+            } else {
+                out_of_gas!()
+            }
+        } else {
+            out_of_gas!()
+        }
     }
 
     /// Creates a new service account with an address derived from the hash of
@@ -913,7 +921,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                 Timeslot::new(curr_timeslot_index),
                             )
                             .await?
-                            .expect("Lookups entry for key already exists in global state")
+                            .ok_or(HostCallError::AccountLookupsEntryNotFound(
+                                lookups_key.0.encode_hex(),
+                                lookups_key.1,
+                            ))?
                             .value
                             .as_slice()
                             .iter()
@@ -988,10 +999,12 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                         .collect::<Vec<_>>(),
                                 );
                             } else {
-                                let prev_last_timeslot = lookups_timeslots
-                                    .last()
-                                    .cloned()
-                                    .expect("Should not be empty");
+                                let prev_last_timeslot = lookups_timeslots.last().cloned().ok_or(
+                                    HostCallError::AccountLookupsEntryMalformed(
+                                        lookups_key.0.encode_hex(),
+                                        lookups_key.1,
+                                    ),
+                                )?;
                                 x.partial_state
                                     .accounts_sandbox
                                     .drain_account_lookups_entry_timeslots(
@@ -1013,7 +1026,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                         ],
                                     )
                                     .await?
-                                    .expect("Lookups entry for key already exists in global state")
+                                    .ok_or(HostCallError::AccountLookupsEntryNotFound(
+                                        lookups_key.0.encode_hex(),
+                                        lookups_key.1,
+                                    ))?
                                     .value
                                     .as_slice()
                                     .iter()

@@ -9,9 +9,12 @@ use fr_common::{
 };
 use fr_crypto::Keccak256;
 use fr_limited_vec::LimitedVec;
-use fr_merkle::{mmr::MerkleMountainRange, well_balanced_tree::WellBalancedMerkleTree};
+use fr_merkle::{
+    common::MerkleError, mmr::MerkleMountainRange, well_balanced_tree::WellBalancedMerkleTree,
+};
 use fr_pvm_types::invoke_results::{AccumulationOutputPair, AccumulationOutputPairs};
 use std::fmt::{Display, Formatter};
+use thiserror::Error;
 
 pub type BlockHistoryEntries = LimitedVec<BlockHistoryEntry, BLOCK_HISTORY_LENGTH>;
 
@@ -151,6 +154,14 @@ impl BlockHistoryEntry {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum LastAccumulateOutputsError {
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
+    #[error("MerkleError: {0}")]
+    MerkleError(#[from] MerkleError),
+}
+
 /// The accumulation output pairs of the most recent block.
 ///
 /// Represents `θ` of the GP.
@@ -179,22 +190,20 @@ impl LastAccumulateOutputs {
 
     /// Generates a commitment to `LastAccumulateOutputs` using a simple binary merkle tree.
     /// Used for producing the BEEFY commitment after accumulation.
-    pub fn accumulate_root(self) -> AccumulateRoot {
+    pub fn accumulate_root(self) -> Result<AccumulateRoot, LastAccumulateOutputsError> {
         // Note: `AccumulationOutputPairs` is already ordered by service id.
         let ordered_encoded_results = self
             .0
             .into_iter()
-            .map(|pair| {
+            .map(|pair| -> Result<Vec<u8>, JamCodecError> {
                 let mut buf = Vec::with_capacity(36);
-                pair.service
-                    .encode_to_fixed(&mut buf, 4)
-                    .expect("Should not fail");
-                pair.output_hash
-                    .encode_to(&mut buf)
-                    .expect("Should not fail");
-                buf
+                pair.service.encode_to_fixed(&mut buf, 4)?;
+                pair.output_hash.encode_to(&mut buf)?;
+                Ok(buf)
             })
-            .collect::<Vec<_>>();
-        WellBalancedMerkleTree::<Keccak256>::compute_root(&ordered_encoded_results).unwrap()
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(WellBalancedMerkleTree::<Keccak256>::compute_root(
+            &ordered_encoded_results,
+        )?)
     }
 }

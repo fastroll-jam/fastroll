@@ -95,7 +95,7 @@ pub async fn transition_reports_clear_availables(
         let report: WorkReport = prior_pending_reports
             .get_by_core_index(core_index)?
             .clone()
-            .expect("Core index verified to have pending report")
+            .ok_or(TransitionError::PendingReportMissing(core_index))?
             .work_report;
         available_reports.push(report);
     }

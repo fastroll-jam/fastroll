@@ -390,8 +390,7 @@ impl PVMInterface {
                     &pvm.state,
                     state_manager,
                     context,
-                    curr_timeslot_index
-                        .expect("Timeslot index should be provided for accumulate invocation"),
+                    curr_timeslot_index.ok_or(PVMError::MissingAccumulateTimeslot)?,
                 )
                 .await?
             }
@@ -416,8 +415,7 @@ impl PVMInterface {
                     &pvm.state,
                     state_manager,
                     context,
-                    curr_timeslot_index
-                        .expect("Timeslot index should be provided for accumulate invocation"),
+                    curr_timeslot_index.ok_or(PVMError::MissingAccumulateTimeslot)?,
                 )
                 .await?
             }
@@ -434,8 +432,7 @@ impl PVMInterface {
                     &pvm.state,
                     state_manager,
                     context,
-                    curr_timeslot_index
-                        .expect("Timeslot index should be provided for accumulate invocation"),
+                    curr_timeslot_index.ok_or(PVMError::MissingAccumulateTimeslot)?,
                 )
                 .await?
             }
@@ -444,8 +441,7 @@ impl PVMInterface {
                     &pvm.state,
                     state_manager,
                     context,
-                    curr_timeslot_index
-                        .expect("Timeslot index should be provided for accumulate invocation"),
+                    curr_timeslot_index.ok_or(PVMError::MissingAccumulateTimeslot)?,
                 )
                 .await?
             }

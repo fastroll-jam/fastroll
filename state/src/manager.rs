@@ -677,7 +677,9 @@ impl StateManager {
             LeafNodeData::Embedded(data) => data,
             LeafNodeData::Regular(data_hash) => {
                 let Some(entry) = self.state_db.get_entry(&data_hash).await? else {
-                    return Ok(None);
+                    return Err(StateManagerError::StateDBMissingEntry(
+                        data_hash.encode_hex(),
+                    ));
                 };
                 entry
             }

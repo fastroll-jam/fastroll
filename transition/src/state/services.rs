@@ -6,6 +6,7 @@ use fr_common::{
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_extrinsics::validation::preimages::PreimagesXtValidator;
+use fr_limited_vec::LimitedVecError;
 use fr_pvm_invocation::{
     accumulate::pipeline::accumulate_outer,
     prelude::{AccountSandbox, SandboxEntryAccessor, SandboxEntryStatus},
@@ -168,7 +169,9 @@ async fn transition_service_account(
             state_manager
                 .add_account_metadata(
                     service_id,
-                    sandbox.metadata.get_cloned().expect("Should exist"),
+                    sandbox.metadata.get_cloned().ok_or(
+                        TransitionError::TransitionedServiceAccountMissing(service_id),
+                    )?,
                 )
                 .await?;
             account_state_change
@@ -176,12 +179,15 @@ async fn transition_service_account(
                 .insert(get_account_metadata_state_key(service_id)?);
         }
         SandboxEntryStatus::Updated => {
+            let metadata_updated = sandbox.metadata.get_cloned().ok_or(
+                TransitionError::TransitionedServiceAccountMissing(service_id),
+            )?;
             state_manager
                 .with_mut_account_metadata(
                     StateMut::Update,
                     service_id,
                     |metadata| -> Result<(), StateManagerError> {
-                        *metadata = sandbox.metadata.get_cloned().expect("Should exist");
+                        *metadata = metadata_updated;
                         Ok(())
                     },
                 )
@@ -209,7 +215,12 @@ async fn transition_service_account(
                     .add_account_storage_entry(
                         service_id,
                         k,
-                        v.get_cloned().expect("Should exist").into_entry(),
+                        v.get_cloned()
+                            .ok_or(TransitionError::TransitionedServiceAccountStorageMissing(
+                                service_id,
+                                k.clone(),
+                            ))?
+                            .into_entry(),
                     )
                     .await?;
                 account_state_change
@@ -217,13 +228,20 @@ async fn transition_service_account(
                     .insert(get_account_storage_state_key(service_id, k)?);
             }
             SandboxEntryStatus::Updated => {
+                let entry_updated = v
+                    .get_cloned()
+                    .ok_or(TransitionError::TransitionedServiceAccountStorageMissing(
+                        service_id,
+                        k.clone(),
+                    ))?
+                    .into_entry();
                 state_manager
                     .with_mut_account_storage_entry(
                         StateMut::Update,
                         service_id,
                         k,
                         |entry| -> Result<(), StateManagerError> {
-                            *entry = v.get_cloned().expect("Should exist").into_entry();
+                            *entry = entry_updated;
                             Ok(())
                         },
                     )
@@ -253,7 +271,12 @@ async fn transition_service_account(
                     .add_account_preimages_entry(
                         service_id,
                         k,
-                        v.get_cloned().expect("Should exist"),
+                        v.get_cloned().ok_or(
+                            TransitionError::TransitionedServiceAccountPreimagesMissing(
+                                service_id,
+                                k.clone(),
+                            ),
+                        )?,
                     )
                     .await?;
                 account_state_change
@@ -261,13 +284,19 @@ async fn transition_service_account(
                     .insert(get_account_preimage_state_key(service_id, k)?);
             }
             SandboxEntryStatus::Updated => {
+                let entry_updated = v.get_cloned().ok_or(
+                    TransitionError::TransitionedServiceAccountPreimagesMissing(
+                        service_id,
+                        k.clone(),
+                    ),
+                )?;
                 state_manager
                     .with_mut_account_preimages_entry(
                         StateMut::Update,
                         service_id,
                         k,
                         |entry| -> Result<(), StateManagerError> {
-                            *entry = v.get_cloned().expect("Should exist");
+                            *entry = entry_updated;
                             Ok(())
                         },
                     )
@@ -297,7 +326,13 @@ async fn transition_service_account(
                     .add_account_lookups_entry(
                         service_id,
                         k.clone(),
-                        v.get_cloned().expect("Should exist").into_entry(),
+                        v.get_cloned()
+                            .ok_or(TransitionError::TransitionedServiceAccountLookupsMissing(
+                                service_id,
+                                k.0.clone(),
+                                k.1,
+                            ))?
+                            .into_entry(),
                     )
                     .await?;
                 account_state_change
@@ -305,13 +340,21 @@ async fn transition_service_account(
                     .insert(get_account_lookups_state_key(service_id, k)?);
             }
             SandboxEntryStatus::Updated => {
+                let entry_updated = v
+                    .get_cloned()
+                    .ok_or(TransitionError::TransitionedServiceAccountLookupsMissing(
+                        service_id,
+                        k.0.clone(),
+                        k.1,
+                    ))?
+                    .into_entry();
                 state_manager
                     .with_mut_account_lookups_entry(
                         StateMut::Update,
                         service_id,
                         k.clone(),
                         |entry| -> Result<(), StateManagerError> {
-                            *entry = v.get_cloned().expect("Should exist").into_entry();
+                            *entry = entry_updated;
                             Ok(())
                         },
                     )
@@ -390,6 +433,32 @@ pub async fn transition_services_integrate_preimages(
     for xt in preimages_xt.iter() {
         let preimage_data_hash = hash::<Blake2b256>(&xt.preimage_data)?;
 
+        // Push current timeslot value to the lookup map
+        let preimage_data_len = xt.preimage_data_len();
+        let lookups_key = (preimage_data_hash.clone(), preimage_data_len as u32);
+        match state_manager
+            .with_mut_account_lookups_entry(
+                StateMut::Update,
+                xt.service_id,
+                lookups_key.clone(),
+                |entry| -> Result<(), StateManagerError> {
+                    entry.value.try_push(curr_timeslot)?;
+                    Ok(())
+                },
+            )
+            .await
+        {
+            Ok(_) => {}
+            Err(StateManagerError::LimitedVecError(LimitedVecError::LimitedVecFull)) => {
+                return Err(TransitionError::PreimageNotSolicited(
+                    xt.service_id,
+                    lookups_key.0,
+                    lookups_key.1,
+                ));
+            }
+            Err(e) => return Err(e.into()),
+        }
+
         // Add the preimage data entry
         state_manager
             .add_account_preimages_entry(
@@ -398,18 +467,6 @@ pub async fn transition_services_integrate_preimages(
                 AccountPreimagesEntry::new(xt.preimage_data.clone()),
             )
             .await?;
-
-        // Push current timeslot value to the lookup map
-        let preimage_data_len = xt.preimage_data_len();
-        let lookups_key = (preimage_data_hash, preimage_data_len as u32);
-        state_manager
-            .with_mut_account_lookups_entry(StateMut::Update, xt.service_id, lookups_key, |entry| -> Result<(), StateManagerError> {
-                entry.value.try_push(curr_timeslot).expect(
-                    "Lookups metadata storage should have an empty timeslot sequence entry to integrate preimages.",
-                );
-                Ok(())
-            })
-            .await?
     }
 
     Ok(())

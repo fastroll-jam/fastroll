@@ -9,7 +9,7 @@ use fr_common::{
     ticket::Ticket, ByteEncodable, EntropyHash, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use fr_crypto::{error::CryptoError, hash, types::*, Blake2b256};
-use fr_limited_vec::FixedVec;
+use fr_limited_vec::{FixedVec, LimitedVecError};
 use std::{
     collections::BinaryHeap,
     fmt::{Display, Formatter},
@@ -25,6 +25,10 @@ pub enum SlotSealerError {
     CryptoError(#[from] CryptoError),
     #[error("Codec error: {0}")]
     CodecError(#[from] JamCodecError),
+    #[error("LimitedVecError: {0}")]
+    LimitedVecError(#[from] LimitedVecError),
+    #[error("Validator index is out of bound: {0}")]
+    ValidatorIndexOutOfBounds(ValidatorIndex),
 }
 
 #[derive(Clone, Default)]
@@ -254,7 +258,9 @@ pub fn generate_fallback_keys(
         *key = validator_set
             .get_validator_bandersnatch_key(key_index as ValidatorIndex)
             .cloned()
-            .expect("Should exist; index is modulo");
+            .ok_or(SlotSealerError::ValidatorIndexOutOfBounds(
+                key_index as ValidatorIndex,
+            ))?;
     }
 
     Ok(fallback_keys)

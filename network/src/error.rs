@@ -1,5 +1,6 @@
 use fr_block::types::block::BlockHeaderError;
 use fr_codec::JamCodecError;
+use fr_crypto::error::CryptoError;
 use fr_storage::node_storage::NodeStorageError;
 use quinn::{
     ClosedStream, ConnectError, ConnectionError, ReadExactError, ReadToEndError, WriteError,
@@ -11,6 +12,8 @@ use tokio::{sync::mpsc::error::SendError, task::JoinError};
 pub enum NetworkError {
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("CryptoError: {0}")]
+    CryptoError(#[from] CryptoError),
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
     #[error("NodeStorageError: {0}")]

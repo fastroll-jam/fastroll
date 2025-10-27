@@ -21,11 +21,12 @@ pub(crate) fn validator_set_to_peers(
 ) -> DashMap<SocketAddrV6, ValidatorPeer> {
     validator_set
         .iter()
-        .map(|vk| {
-            (
-                vk.metadata.socket_address(),
-                ValidatorPeer::from_validator_key(vk.clone()),
-            )
+        .filter_map(|vk| match ValidatorPeer::from_validator_key(vk.clone()) {
+            Ok(peer) => Some((peer.socket_addr, peer)),
+            Err(e) => {
+                tracing::warn!("Failed to derive validator peer from validator key. Err: {e}");
+                None
+            }
         })
         .collect()
 }

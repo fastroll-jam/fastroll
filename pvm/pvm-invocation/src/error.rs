@@ -1,5 +1,5 @@
 use fr_codec::JamCodecError;
-use fr_common::workloads::WorkExecutionError;
+use fr_common::{workloads::WorkExecutionError, ServiceId};
 use fr_crypto::error::CryptoError;
 use fr_erasure_coding::ErasureCodingError;
 use fr_merkle::common::MerkleError;
@@ -21,6 +21,12 @@ pub enum PVMInvokeError {
     WorkPackageNotAuthorized(WorkExecutionError),
     #[error("Refine results blobs and authorization trace exceed size limit of work reports")]
     WorkReportBlobTooLarge,
+    #[error("Account sandbox for accumulate host (s={0}) is missing")]
+    MissingAccumulateHostSandbox(ServiceId),
+    #[error("Number of work digests exceeds maximum")]
+    WorkDigestsOverflow,
+    #[error("Zero padded justification data size exceeds SEGMENT_SIZE")]
+    PagedProofJustificationBlobTooLarge,
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]

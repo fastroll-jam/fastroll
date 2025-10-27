@@ -101,9 +101,9 @@ impl InstructionSet {
             return Ok((ExitReason::Panic, vm_state.pc));
         }
 
-        let aligned_index = (a / JUMP_ALIGNMENT)
-            .checked_sub(1)
-            .expect("`a` should be larger than zero");
+        let Some(aligned_index) = (a / JUMP_ALIGNMENT).checked_sub(1) else {
+            return Ok((ExitReason::Panic, vm_state.pc));
+        };
         let &target = program_state
             .jump_table
             .get(aligned_index)

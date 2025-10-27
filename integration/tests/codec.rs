@@ -29,7 +29,8 @@ mod codec {
             .join(CHAIN_SPEC)
             .join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        let asn_type: AsnType = FileLoader::load_from_json_file(&full_path);
+        let asn_type: AsnType =
+            FileLoader::load_from_json_file(&full_path).expect("Failed to load from JSON");
         let fr_type = FastRollType::from(asn_type);
         let fr_type_encoded = fr_type.encode().expect("Failed to encode.");
 

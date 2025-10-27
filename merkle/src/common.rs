@@ -12,6 +12,8 @@ pub enum MerkleError {
     CryptoError(#[from] CryptoError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("Hashing failed")]
+    HashingFailed,
 }
 
 /// A trait for types that can be used as data elements in merkle tree construction.

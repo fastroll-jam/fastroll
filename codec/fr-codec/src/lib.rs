@@ -121,7 +121,9 @@ where
     <U as TryInto<u64>>::Error: Debug,
 {
     // Convert the value to u64
-    let x: u64 = (*value).try_into().expect("Value must fit into u64");
+    let x: u64 = (*value).try_into().map_err(|_| {
+        JamCodecError::ConversionError("Integer input conversion error".to_string())
+    })?;
 
     // Case 1: x == 0
     if x == 0 {
@@ -174,7 +176,7 @@ fn integer_size_hint<T: TryInto<u64>>(value: T) -> usize
 where
     <T as TryInto<u64>>::Error: Debug,
 {
-    let x: u64 = value.try_into().expect("Value must fit into u64");
+    let x: u64 = value.try_into().unwrap_or(9); // fallback to the maximum size if the conversion fails
 
     if x == 0 {
         1 // 1-byte prefix only
@@ -368,7 +370,8 @@ impl<T: JamDecode, const MAX_SIZE: usize> JamDecode for LimitedVec<T, MAX_SIZE> 
         for _ in 0..len {
             vec.push(T::decode(input)?);
         }
-        Ok(Self::try_from(vec).expect("size checked"))
+        Self::try_from(vec)
+            .map_err(|_| JamCodecError::InvalidSize("Invalid size for LimitedVec".to_string()))
     }
 }
 
@@ -399,7 +402,8 @@ where
             vec.push(T::decode(input)?)
         }
 
-        let fixed_vec = Self::try_from(vec).expect("size checked");
+        let fixed_vec = Self::try_from(vec)
+            .map_err(|_| JamCodecError::InvalidSize("Invalid size for FixedVec".to_string()))?;
         Ok(fixed_vec)
     }
 }
@@ -435,8 +439,12 @@ impl<K: JamEncode + Eq + Ord, V: JamEncode> JamEncode for BTreeMap<K, V> {
             return self.len().size_hint();
         }
         // Sampling an entry to get the size hint of keys and values.
-        let (sample_key, sample_value) = self.iter().next().expect("At least one entry exists.");
-        self.len().size_hint() + (sample_key.size_hint() + sample_value.size_hint()) * self.len()
+        if let Some((sample_key, sample_value)) = self.iter().next() {
+            self.len().size_hint()
+                + (sample_key.size_hint() + sample_value.size_hint()) * self.len()
+        } else {
+            self.len().size_hint()
+        }
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -447,7 +455,10 @@ impl<K: JamEncode + Eq + Ord, V: JamEncode> JamEncode for BTreeMap<K, V> {
 
         for key in keys_sorted {
             key.encode_to(dest)?;
-            self.get(key).expect("Entry must exist").encode_to(dest)?;
+            let value = self.get(key).ok_or_else(|| {
+                JamCodecError::EncodingError("missing map entry during encoding".into())
+            })?;
+            value.encode_to(dest)?;
         }
         Ok(())
     }
@@ -547,7 +558,7 @@ macro_rules! impl_jam_fixed_codec_for_uint {
                     if size_in_bytes > 8 {
                         return Err(JamCodecError::InvalidSize("Fixed encoding supports up to 8 bytes".into()));
                     }
-                    let value: u64 = (*self).try_into().expect("The value must fit into u64");
+                    let value: u64 = (*self).try_into().map_err(|_| JamCodecError::ConversionError("Integer input conversion error".to_string()))?;
 
                     if value as u128 > (1u128 << size_in_bytes * 8) - 1 {
                         return Err(JamCodecError::ConversionError(format!("Value {value} too large for {size_in_bytes} bytes")));
