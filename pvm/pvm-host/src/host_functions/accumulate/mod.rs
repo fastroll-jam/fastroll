@@ -921,7 +921,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                 Timeslot::new(curr_timeslot_index),
                             )
                             .await?
-                            .expect("Lookups entry for key already exists in global state")
+                            .ok_or(HostCallError::AccountLookupsEntryNotFound(
+                                lookups_key.0.encode_hex(),
+                                lookups_key.1,
+                            ))?
                             .value
                             .as_slice()
                             .iter()
@@ -996,10 +999,12 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                         .collect::<Vec<_>>(),
                                 );
                             } else {
-                                let prev_last_timeslot = lookups_timeslots
-                                    .last()
-                                    .cloned()
-                                    .expect("Should not be empty");
+                                let prev_last_timeslot = lookups_timeslots.last().cloned().ok_or(
+                                    HostCallError::AccountLookupsEntryMalformed(
+                                        lookups_key.0.encode_hex(),
+                                        lookups_key.1,
+                                    ),
+                                )?;
                                 x.partial_state
                                     .accounts_sandbox
                                     .drain_account_lookups_entry_timeslots(
@@ -1021,7 +1026,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                         ],
                                     )
                                     .await?
-                                    .expect("Lookups entry for key already exists in global state")
+                                    .ok_or(HostCallError::AccountLookupsEntryNotFound(
+                                        lookups_key.0.encode_hex(),
+                                        lookups_key.1,
+                                    ))?
                                     .value
                                     .as_slice()
                                     .iter()

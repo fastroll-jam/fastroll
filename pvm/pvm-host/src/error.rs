@@ -21,12 +21,16 @@ pub enum HostCallError {
     InvalidContext,
     #[error("Service id overflowed")]
     ServiceIdOverflow,
-    #[error("Account not found from the global account state")]
-    AccountNotFound,
+    #[error("Account (s={0}) not found from the global account state")]
+    AccountNotFound(ServiceId),
     #[error("Failed to insert an entry from an account storage")]
     AccountStorageInsertionFailed,
     #[error("Failed to remove an entry from an account storage")]
     AccountStorageRemovalFailed,
+    #[error("Account lookups storage entry is not found. Key=({0}, {1})")]
+    AccountLookupsEntryNotFound(String, u32),
+    #[error("Account lookups storage entry is malformed. Key=({0}, {1})")]
+    AccountLookupsEntryMalformed(String, u32),
     #[error("Exit reason of the PVM invocation is invalid")]
     InvalidExitReason,
     #[error("CryptoError: {0}")]
@@ -52,10 +56,12 @@ pub enum PartialStateError {
     InvalidAssignerCoreIndex(CoreIndex),
     #[error("Core index {0} out of bounds")]
     CoreIndexOutOfBounds(CoreIndex),
-    #[error("Account not found from the global state")]
-    AccountNotFoundFromGlobalState,
-    #[error("Accumulator account is not initialized in the service accounts partial state")]
-    AccumulatorAccountNotInitialized,
+    #[error("Account (s={0}) not found from the global state")]
+    AccountNotFoundFromGlobalState(ServiceId),
+    #[error(
+        "Accumulator account (s={0}) is not initialized in the service accounts partial state"
+    )]
+    AccumulatorAccountNotInitialized(ServiceId),
     #[error("Account ({0}) balance underflowed")]
     AccountBalanceUnderflow(ServiceId),
     #[error("Account ({0}) balance overflowed")]

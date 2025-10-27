@@ -267,7 +267,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .get_account_metadata(state_provider, self.accumulate_host)
             .await?
             .ok_or(HostCallError::PartialStateError(
-                PartialStateError::AccumulatorAccountNotInitialized,
+                PartialStateError::AccumulatorAccountNotInitialized(self.accumulate_host),
             ))
     }
 
@@ -459,7 +459,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .get_mut_account_metadata(state_provider.clone(), self.accumulate_host)
             .await?
             .ok_or(HostCallError::PartialStateError(
-                PartialStateError::AccumulatorAccountNotInitialized,
+                PartialStateError::AccumulatorAccountNotInitialized(self.accumulate_host),
             ))?;
 
         accumulator_metadata.code_hash = code_hash;

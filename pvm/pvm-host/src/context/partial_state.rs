@@ -204,7 +204,9 @@ impl<S: HostStateProvider> AccountSandbox<S> {
         let metadata = state_provider
             .get_account_metadata(service_id)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState(
+                service_id,
+            ))?;
         Ok(Self {
             metadata: SandboxEntryVersioned::from_clean(metadata),
             storage: HashMap::new(),
@@ -410,7 +412,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         let sandbox = self
             .get_mut_account_sandbox(state_manager.clone(), service_id)
             .await?
-            .ok_or(PartialStateError::AccumulatorAccountNotInitialized)?;
+            .ok_or(PartialStateError::AccumulatorAccountNotInitialized(
+                service_id,
+            ))?;
 
         if let Some(metadata_mut) = sandbox.metadata.as_mut() {
             let updated = metadata_mut
@@ -536,7 +540,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         let sandbox = self
             .get_mut_account_sandbox(state_provider, service_id)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState(
+                service_id,
+            ))?;
 
         Ok(sandbox
             .storage
@@ -580,7 +586,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         let sandbox = self
             .get_mut_account_sandbox(state_provider, service_id)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState(
+                service_id,
+            ))?;
 
         match maybe_clean_entry {
             Some(clean) => {
@@ -670,7 +678,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         let sandbox = self
             .get_mut_account_sandbox(state_provider, service_id)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState(
+                service_id,
+            ))?;
 
         Ok(sandbox
             .preimages
@@ -714,7 +724,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         let sandbox = self
             .get_mut_account_sandbox(state_provider, service_id)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState(
+                service_id,
+            ))?;
 
         match maybe_clean_entry {
             Some(clean) => {
@@ -809,7 +821,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         let sandbox = self
             .get_mut_account_sandbox(state_provider, service_id)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState(
+                service_id,
+            ))?;
 
         Ok(sandbox
             .lookups
@@ -853,7 +867,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         let sandbox = self
             .get_mut_account_sandbox(state_provider, service_id)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState(
+                service_id,
+            ))?;
 
         match maybe_clean_entry {
             Some(clean) => {
@@ -997,7 +1013,9 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         let sandbox = self
             .get_mut_account_sandbox(state_provider, service_id)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState(
+                service_id,
+            ))?;
 
         sandbox.metadata = entry;
         Ok(())
@@ -1306,7 +1324,9 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             .accounts_sandbox
             .get_mut_account_metadata(state_provider.clone(), service_id)
             .await?
-            .ok_or(PartialStateError::AccumulatorAccountNotInitialized)?;
+            .ok_or(PartialStateError::AccumulatorAccountNotInitialized(
+                service_id,
+            ))?;
 
         let subtracted_amount = account_metadata
             .balance
@@ -1331,10 +1351,9 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             .await?
             .ok_or(PartialStateError::AccountBalanceOverflow(service_id))?;
 
-        let added_amount = account_metadata
-            .balance
-            .checked_add(amount)
-            .ok_or(PartialStateError::AccumulatorAccountNotInitialized)?;
+        let added_amount = account_metadata.balance.checked_add(amount).ok_or(
+            PartialStateError::AccumulatorAccountNotInitialized(service_id),
+        )?;
         account_metadata.balance = added_amount;
         self.accounts_sandbox
             .mark_account_metadata_updated(state_provider, service_id)

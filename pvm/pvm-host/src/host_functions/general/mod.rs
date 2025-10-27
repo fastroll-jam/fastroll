@@ -460,7 +460,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             let metadata = accounts_sandbox
                 .get_account_metadata(state_provider.clone(), service_id)
                 .await?
-                .ok_or(HostCallError::AccountNotFound)?; // unreachable (accumulate host / transfer subject account not found)
+                .ok_or(HostCallError::AccountNotFound(service_id))?; // unreachable (accumulate host / transfer subject account not found)
 
             let simulated_threshold_balance =
                 metadata.simulate_threshold_balance_after_mutation(Some(storage_usage_delta), None);
