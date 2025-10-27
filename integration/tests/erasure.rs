@@ -33,7 +33,8 @@ mod erasure {
 
     fn test_encode_internal(path: &Path, rs: ErasureCodec) {
         setup_timed_tracing();
-        let test_case: TestCase = FileLoader::load_from_json_file(path);
+        let test_case: TestCase =
+            FileLoader::load_from_json_file(path).expect("Failed to load from JSON");
         let chunks = rs.erasure_encode(&test_case.data.0).unwrap();
         let chunks_expected = test_case
             .shards
@@ -57,7 +58,8 @@ mod erasure {
 
     fn test_recover_internal(path: &Path, rs: ErasureCodec) {
         setup_timed_tracing();
-        let test_case: TestCase = FileLoader::load_from_json_file(path);
+        let test_case: TestCase =
+            FileLoader::load_from_json_file(path).expect("Failed to load from JSON");
 
         // Generate random chunk indices
         let mut indices: Vec<usize> = (0..rs.total_chunks()).collect();
