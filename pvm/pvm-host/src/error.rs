@@ -1,5 +1,5 @@
 use fr_codec::JamCodecError;
-use fr_common::{CoreIndex, ServiceId};
+use fr_common::{CoreIndex, ServiceId, UnsignedGas};
 use fr_crypto::error::CryptoError;
 use fr_limited_vec::LimitedVecError;
 use fr_pvm_core::{error::VMCoreError, state::memory::MemoryError};
@@ -15,6 +15,8 @@ pub enum HostCallError {
     AccountsSandboxNotInitialized,
     #[error("Refine context is not initialized")]
     RefineContextNotInitialized,
+    #[error("Gas limit overflowed (gas_limit={0})")]
+    GasLimitOverflow(UnsignedGas),
     #[error("Data segment is too large")]
     DataSegmentTooLarge,
     #[error("Invalid host call invocation context")]

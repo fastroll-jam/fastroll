@@ -449,7 +449,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             pc: inner_vm_mut.pc,
             gas_counter: gas_limit
                 .try_into()
-                .expect("Gas limit should fit in `SignedGas`"),
+                .map_err(|_| HostCallError::GasLimitOverflow(gas_limit))?,
         };
         let inner_vm_program_code = &inner_vm_mut.program_code;
         let mut inner_vm_program_state = ProgramState::default();

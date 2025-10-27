@@ -49,9 +49,9 @@ fn generate_paged_proofs(
         .into_iter()
         .map(|octets| {
             ExportDataSegment::try_from(octets)
-                .expect("Zero padded justification data size exceeds SEGMENT_SIZE")
+                .map_err(|_| PVMInvokeError::PagedProofJustificationBlobTooLarge)
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(page_proofs)
 }
 
@@ -65,8 +65,8 @@ fn compute_erasure_root(
     let bundle_chunked_hashed = erasure_codec
         .erasure_encode(&zero_pad::<ERASURE_CHUNK_SIZE>(work_bundle_encoded))?
         .into_iter()
-        .map(|chunk| hash::<Blake2b256>(&chunk).expect("Hashing data chunks should be successful"))
-        .collect::<Vec<_>>();
+        .map(|chunk| hash::<Blake2b256>(&chunk))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let proof = generate_paged_proofs(export_segments.clone())?;
     let segments_with_proofs = [export_segments, proof].concat();

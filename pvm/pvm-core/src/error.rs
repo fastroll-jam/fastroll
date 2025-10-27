@@ -40,6 +40,8 @@ pub enum VMCoreError {
     InvalidMemVal,
     #[error("Invalid immediate value")]
     InvalidImmVal,
+    #[error("Invalid immediate size ({0})")]
+    InvalidImmSize(usize),
     #[error("Invalid offset value")]
     InvalidOffset,
     #[error("Invalid pc value")]

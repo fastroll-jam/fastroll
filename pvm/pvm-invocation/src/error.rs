@@ -25,6 +25,8 @@ pub enum PVMInvokeError {
     MissingAccumulateHostSandbox(ServiceId),
     #[error("Number of work digests exceeds maximum")]
     WorkDigestsOverflow,
+    #[error("Zero padded justification data size exceeds SEGMENT_SIZE")]
+    PagedProofJustificationBlobTooLarge,
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]
