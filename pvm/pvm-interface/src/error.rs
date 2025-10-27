@@ -12,6 +12,8 @@ pub enum PVMError {
     AccountCodeNotFound,
     #[error("Account not found")]
     AccountNotFound,
+    #[error("Timeslot index required for accumulate host call")]
+    MissingAccumulateTimeslot,
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
     #[error("JamCodecError: {0}")]
