@@ -34,7 +34,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.17"
+version = "0.1.18"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Junha Park <0xjunha@gmail.com>"]
@@ -54,7 +54,6 @@ fr-db = { path = "db" }
 fr-erasure-coding = { path = "common/erasure-coding" }
 fr-extrinsics = { path = "extrinsics" }
 fr-fuzz = { path = "fuzz" }
-fr-integration = { path = "integration" }
 fr-limited-vec = { path = "common/limited-vec" }
 fr-merkle = { path = "merkle" }
 fr-network = { path = "network" }
