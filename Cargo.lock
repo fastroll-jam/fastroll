@@ -896,7 +896,6 @@ dependencies = [
  "fr-config",
  "fr-fuzz",
  "fr-node",
- "tempfile",
  "tokio",
 ]
 

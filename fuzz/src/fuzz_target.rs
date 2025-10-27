@@ -24,11 +24,10 @@ use fr_storage::node_storage::{NodeStorage, NodeStorageError};
 use std::{
     collections::{BTreeSet, HashMap},
     io::Error as IoError,
-    path::PathBuf,
     string::FromUtf8Error,
     sync::Arc,
 };
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 use thiserror::Error;
 use tokio::{
     net::{UnixListener, UnixStream},
@@ -133,12 +132,16 @@ pub struct FuzzTargetRunner {
     target_peer_info: PeerInfo,
     fuzz_features: FuzzFeatures,
     fork_state: SimpleForkState,
+    _temp_dir: TempDir,
 }
 
 impl FuzzTargetRunner {
-    /// Creates a `FuzzTargetRunner` with the provided temporary DB path.
-    pub fn new(target_peer_info: PeerInfo, temp_db_path: PathBuf) -> Result<Self, FuzzTargetError> {
+    /// Creates a `FuzzTargetRunner` with a temporary DB path.
+    pub fn new(target_peer_info: PeerInfo) -> Result<Self, FuzzTargetError> {
+        let _temp_dir = tempdir()?;
+        let temp_db_path = _temp_dir.path().join("fuzz_target_db");
         Ok(Self {
+            _temp_dir,
             node_storage: Arc::new(NodeStorage::new(StorageConfig::from_path(temp_db_path))?),
             latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
@@ -256,14 +259,12 @@ impl FuzzTargetRunner {
         // Continuously accept new connections after closing the previous session.
         while let Ok((stream, _addr)) = listener.accept().await {
             tracing::info!("Accepted a connection from the fuzzer");
-            let _temp_dir_for_next_session = tempdir().unwrap();
-            let next_temp_db_path = _temp_dir_for_next_session.path().join("fuzz_target_db");
 
             if is_first_session {
                 is_first_session = false;
             } else {
                 // Reset storage & state for the new session
-                *self = FuzzTargetRunner::new(self.target_peer_info.clone(), next_temp_db_path)?;
+                *self = FuzzTargetRunner::new(self.target_peer_info.clone())?;
             }
 
             self.handle_fuzzer_session(stream).await?;
