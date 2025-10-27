@@ -9,6 +9,12 @@ use thiserror::Error;
 /// PVM Host Call Error Codes
 #[derive(Debug, Error)]
 pub enum HostCallError {
+    #[error("Accumulate context is not initialized")]
+    AccumulateContextNotInitialized,
+    #[error("AccountsSandbox is not initialized")]
+    AccountsSandboxNotInitialized,
+    #[error("Refine context is not initialized")]
+    RefineContextNotInitialized,
     #[error("Data segment is too large")]
     DataSegmentTooLarge,
     #[error("Invalid host call invocation context")]

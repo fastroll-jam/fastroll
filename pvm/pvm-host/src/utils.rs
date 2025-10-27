@@ -23,7 +23,7 @@ pub(crate) fn zero_pad_single_block<const BLOCK_SIZE: usize>(
 macro_rules! get_mut_accounts_sandbox {
     ($ctx:expr) => {
         $ctx.get_mut_accounts_sandbox()
-            .expect("Accounts sandbox should be initialized")
+            .ok_or(HostCallError::AccountsSandboxNotInitialized)?
     };
 }
 
@@ -31,7 +31,7 @@ macro_rules! get_mut_accounts_sandbox {
 macro_rules! get_accumulate_x {
     ($ctx:expr) => {
         $ctx.get_accumulate_x()
-            .expect("Accumulate context should be initialized")
+            .ok_or(HostCallError::AccumulateContextNotInitialized)?
     };
 }
 
@@ -39,7 +39,7 @@ macro_rules! get_accumulate_x {
 macro_rules! get_mut_accumulate_x {
     ($ctx:expr) => {
         $ctx.get_mut_accumulate_x()
-            .expect("Accumulate context should be initialized")
+            .ok_or(HostCallError::AccumulateContextNotInitialized)?
     };
 }
 
@@ -47,7 +47,7 @@ macro_rules! get_mut_accumulate_x {
 macro_rules! get_mut_accumulate_y {
     ($ctx:expr) => {
         $ctx.get_mut_accumulate_y()
-            .expect("Accumulate context should be initialized")
+            .ok_or(HostCallError::AccumulateContextNotInitialized)?
     };
 }
 
@@ -55,7 +55,7 @@ macro_rules! get_mut_accumulate_y {
 macro_rules! get_refine_x {
     ($ctx:expr) => {
         $ctx.get_refine_x()
-            .expect("Refine context should be initialized")
+            .ok_or(HostCallError::RefineContextNotInitialized)?
     };
 }
 
@@ -63,7 +63,7 @@ macro_rules! get_refine_x {
 macro_rules! get_mut_refine_x {
     ($ctx:expr) => {
         $ctx.get_mut_refine_x()
-            .expect("Refine context should be initialized")
+            .ok_or(HostCallError::RefineContextNotInitialized)?
     };
 }
 
@@ -276,9 +276,7 @@ macro_rules! check_out_of_gas {
         }
     };
     ($gas_counter:expr, $gas:expr) => {
-        let gas_signed: SignedGas = $gas
-            .try_into()
-            .expect("Gas charge should fit in `SignedGas`");
+        let gas_signed: SignedGas = $gas.try_into().unwrap_or(SignedGas::MAX);
         if $gas_counter < gas_signed {
             $crate::out_of_gas!($gas)
         }
