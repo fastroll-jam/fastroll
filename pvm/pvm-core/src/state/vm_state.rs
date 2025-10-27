@@ -29,7 +29,7 @@ impl VMState {
 
     #[inline(always)]
     pub fn pc_as_mem_address(&self) -> Result<MemAddress, VMCoreError> {
-        MemAddress::try_from(self.pc).map_err(|_| VMCoreError::InvalidRegVal)
+        MemAddress::try_from(self.pc).map_err(|_| VMCoreError::InvalidPCVal(self.pc))
     }
 
     #[inline(always)]
@@ -39,41 +39,76 @@ impl VMState {
 
     #[inline(always)]
     pub fn read_reg_as_usize(&self, index: RegIndex) -> Result<usize, VMCoreError> {
-        usize::try_from(self.regs[index]).map_err(|_| VMCoreError::InvalidRegVal)
+        let reg = self
+            .regs
+            .get(index)
+            .ok_or(VMCoreError::InvalidRegIndex(index))?;
+        usize::try_from(*reg).map_err(|_| VMCoreError::InvalidRegVal(index, *reg))
     }
 
     #[inline(always)]
     pub fn read_reg_as_service_id(&self, index: RegIndex) -> Result<ServiceId, VMCoreError> {
-        ServiceId::try_from(self.regs[index]).map_err(|_| VMCoreError::InvalidRegVal)
+        let reg = self
+            .regs
+            .get(index)
+            .ok_or(VMCoreError::InvalidRegIndex(index))?;
+        ServiceId::try_from(*reg).map_err(|_| VMCoreError::InvalidRegVal(index, *reg))
     }
 
     #[inline(always)]
     pub fn read_reg_as_mem_address(&self, index: RegIndex) -> Result<MemAddress, VMCoreError> {
-        MemAddress::try_from(self.regs[index]).map_err(|_| VMCoreError::InvalidRegVal)
+        let reg = self
+            .regs
+            .get(index)
+            .ok_or(VMCoreError::InvalidRegIndex(index))?;
+        MemAddress::try_from(*reg).map_err(|_| VMCoreError::InvalidRegVal(index, *reg))
     }
 
     #[inline(always)]
     pub fn read_reg_as_u32(&self, index: RegIndex) -> Result<u32, VMCoreError> {
-        u32::try_from(self.regs[index]).map_err(|_| VMCoreError::InvalidRegVal)
+        let reg = self
+            .regs
+            .get(index)
+            .ok_or(VMCoreError::InvalidRegIndex(index))?;
+        u32::try_from(*reg).map_err(|_| VMCoreError::InvalidRegVal(index, *reg))
     }
 
     #[inline(always)]
     pub fn read_reg_as_balance(&self, index: RegIndex) -> Result<Balance, VMCoreError> {
-        Balance::try_from(self.regs[index]).map_err(|_| VMCoreError::InvalidRegVal)
+        let reg = self
+            .regs
+            .get(index)
+            .ok_or(VMCoreError::InvalidRegIndex(index))?;
+        Balance::try_from(*reg).map_err(|_| VMCoreError::InvalidRegVal(index, *reg))
     }
 
     #[inline(always)]
     pub fn read_rs1(&self, ins: &Instruction) -> Result<RegValue, VMCoreError> {
-        Ok(self.regs[ins.rs1()?])
+        let index = ins.rs1()?;
+        let reg = self
+            .regs
+            .get(index)
+            .ok_or(VMCoreError::InvalidRegIndex(index))?;
+        Ok(*reg)
     }
 
     #[inline(always)]
     pub fn read_rs2(&self, ins: &Instruction) -> Result<RegValue, VMCoreError> {
-        Ok(self.regs[ins.rs2()?])
+        let index = ins.rs2()?;
+        let reg = self
+            .regs
+            .get(index)
+            .ok_or(VMCoreError::InvalidRegIndex(index))?;
+        Ok(*reg)
     }
 
     #[inline(always)]
     pub fn read_rd(&self, ins: &Instruction) -> Result<RegValue, VMCoreError> {
-        Ok(self.regs[ins.rd()?])
+        let index = ins.rd()?;
+        let reg = self
+            .regs
+            .get(index)
+            .ok_or(VMCoreError::InvalidRegIndex(index))?;
+        Ok(*reg)
     }
 }

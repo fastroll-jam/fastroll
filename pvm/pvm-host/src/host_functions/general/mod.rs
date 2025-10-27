@@ -58,7 +58,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 0 => &encode_constants_for_fetch_hostcall()?,
                 id @ 7..=13 => {
                     let work_package = &ctx.invoke_args.package;
-                    match Self::fetch_work_package_data(work_package, id, vm) {
+                    match Self::fetch_work_package_data(work_package, id, vm)? {
                         Some(data) => &data.clone(),
                         None => continue_none!(),
                     }
@@ -69,13 +69,15 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 0 => &encode_constants_for_fetch_hostcall()?,
                 1 => ctx.refine_entropy.as_slice(),
                 2 => &ctx.invoke_args.auth_trace,
-                id @ 3..=6 => match Self::fetch_imports_extrinsics_data(&ctx.invoke_args, id, vm) {
-                    Some(data) => &data.clone(),
-                    None => continue_none!(),
-                },
+                id @ 3..=6 => {
+                    match Self::fetch_imports_extrinsics_data(&ctx.invoke_args, id, vm)? {
+                        Some(data) => &data.clone(),
+                        None => continue_none!(),
+                    }
+                }
                 id @ 7..=13 => {
                     let work_package = &ctx.invoke_args.package;
-                    match Self::fetch_work_package_data(work_package, id, vm) {
+                    match Self::fetch_work_package_data(work_package, id, vm)? {
                         Some(data) => &data.clone(),
                         None => continue_none!(),
                     }
@@ -140,16 +142,16 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         package: &WorkPackage,
         data_id: usize,
         vm: &VMState,
-    ) -> Option<Vec<u8>> {
-        match data_id {
+    ) -> Result<Option<Vec<u8>>, HostCallError> {
+        let data = match data_id {
             7 => package.encode().ok(),
             8 => {
                 let mut buf = vec![];
                 if package.auth_code_hash.encode_to(&mut buf).is_err() {
-                    return None;
+                    return Ok(None);
                 }
                 if package.config_blob.encode_to(&mut buf).is_err() {
-                    return None;
+                    return Ok(None);
                 };
                 Some(buf)
             }
@@ -160,42 +162,43 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 for item in package.work_items.iter() {
                     let work_item_encoded = match item.encode_for_fetch_hostcall() {
                         Ok(encoded) => encoded,
-                        Err(_) => return None,
+                        Err(_) => return Ok(None),
                     };
                     work_items_buf.push(work_item_encoded);
                 }
                 work_items_buf.encode().ok()
             }
             12 => {
-                let work_item_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
+                let work_item_idx = vm.read_reg_as_usize(11)?;
                 if work_item_idx >= package.work_items.len() {
-                    return None;
+                    return Ok(None);
                 }
                 let work_item = &package.work_items[work_item_idx];
                 work_item.encode_for_fetch_hostcall().ok()
             }
             13 => {
-                let work_item_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
+                let work_item_idx = vm.read_reg_as_usize(11)?;
                 if work_item_idx >= package.work_items.len() {
-                    return None;
+                    return Ok(None);
                 }
                 let work_item = &package.work_items[work_item_idx];
                 Some(work_item.payload_blob.clone().into_vec())
             }
             _ => None,
-        }
+        };
+        Ok(data)
     }
 
     fn fetch_imports_extrinsics_data(
         invoke_args: &RefineInvokeArgs,
         data_id: usize,
         vm: &VMState,
-    ) -> Option<Vec<u8>> {
-        match data_id {
+    ) -> Result<Option<Vec<u8>>, HostCallError> {
+        let data = match data_id {
             3 => {
                 let items = &invoke_args.package.work_items;
-                let item_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
-                let xt_idx = vm.read_reg_as_usize(12).expect("12 is a valid reg index");
+                let item_idx = vm.read_reg_as_usize(11)?;
+                let xt_idx = vm.read_reg_as_usize(12)?;
                 if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
                     let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
                     invoke_args.extrinsic_data_map.get(xt_info).cloned()
@@ -206,7 +209,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             4 => {
                 let items = &invoke_args.package.work_items;
                 let item_idx = invoke_args.item_idx;
-                let xt_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
+                let xt_idx = vm.read_reg_as_usize(11)?;
                 if xt_idx < items[item_idx].extrinsic_data_info.len() {
                     let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
                     invoke_args.extrinsic_data_map.get(xt_info).cloned()
@@ -215,8 +218,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 }
             }
             5 => {
-                let item_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
-                let segment_idx = vm.read_reg_as_usize(12).expect("12 is a valid reg index");
+                let item_idx = vm.read_reg_as_usize(11)?;
+                let segment_idx = vm.read_reg_as_usize(12)?;
                 let imports = &invoke_args.import_segments;
                 if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
                     Some(imports[item_idx][segment_idx].as_ref().to_vec())
@@ -226,7 +229,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             }
             6 => {
                 let item_idx = invoke_args.item_idx;
-                let segment_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
+                let segment_idx = vm.read_reg_as_usize(11)?;
                 let imports = &invoke_args.import_segments;
                 if segment_idx < imports[item_idx].len() {
                     Some(imports[item_idx][segment_idx].as_ref().to_vec())
@@ -235,7 +238,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 }
             }
             _ => None,
-        }
+        };
+        Ok(data)
     }
 
     /// Fetches the preimage of the specified hash from the given service account's preimage storage
@@ -555,10 +559,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             Ok(info_read_offset_reg) => info_read_offset_reg.min(info.len()),
             Err(_) => info.len(),
         };
-        let info_blob_len_minus_offset = info
-            .len()
-            .checked_sub(info_read_offset)
-            .expect("info_read_offset is less than info blob length");
+        let info_blob_len_minus_offset = info.len().saturating_sub(info_read_offset);
 
         let info_write_len = match vm.read_reg_as_usize(10) {
             Ok(info_write_len_reg) => info_write_len_reg.min(info_blob_len_minus_offset),

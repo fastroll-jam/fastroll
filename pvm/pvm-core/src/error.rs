@@ -1,7 +1,10 @@
-use crate::{program::instruction::opcode::Opcode, state::memory::MemoryError};
+use crate::{
+    program::instruction::opcode::Opcode,
+    state::{memory::MemoryError, vm_state::RegIndex},
+};
 use fr_codec::JamCodecError;
 use fr_common::UnsignedGas;
-use fr_pvm_types::common::MemAddress;
+use fr_pvm_types::common::{MemAddress, RegValue};
 use thiserror::Error;
 
 /// PVM Core Error Codes
@@ -21,10 +24,12 @@ pub enum VMCoreError {
     InvalidInstructionFormat,
     #[error("Dynamic jump target {0} is out of bounds in the jump table")]
     JumpTableOutOfBounds(usize),
-    #[error("Invalid register value")]
-    InvalidRegVal,
+    #[error("Invalid register value (index={0}, val={1})")]
+    InvalidRegVal(RegIndex, RegValue),
     #[error("Invalid register index: {0}")]
-    InvalidRegIndex(usize),
+    InvalidRegIndex(RegIndex),
+    #[error("Invalid PC value (val={0})")]
+    InvalidPCVal(RegValue),
     #[error("Immediate value not found in the instruction. Opcode: {0:?}")]
     ImmValNotFound(Opcode),
     #[error("Source register index not found in the instruction. Opcode: {0:?}")]
