@@ -108,12 +108,12 @@ impl ValidatorPeer {
         }
     }
 
-    pub fn from_validator_key(validator_key: ValidatorKey) -> Self {
-        Self {
+    pub fn from_validator_key(validator_key: ValidatorKey) -> Result<Self, NetworkError> {
+        Ok(Self {
             ed25519_key: validator_key.ed25519,
-            socket_addr: validator_key.metadata.socket_address(),
+            socket_addr: validator_key.metadata.socket_address()?,
             conn: None,
-        }
+        })
     }
 }
 

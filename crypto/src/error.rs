@@ -1,4 +1,5 @@
 use ark_vrf::reexports::ark_serialize::SerializationError;
+use fr_codec::JamCodecError;
 use fr_common::CommonTypeError;
 use thiserror::Error;
 
@@ -24,8 +25,12 @@ pub enum CryptoError {
     InvalidVrfInput,
     #[error("VRF proof verification Error")]
     VrfVerificationFailed,
+    #[error("Malformed validator metadata")]
+    MalformedValidatorMetadata,
     #[error("CommonTypeError: {0}")]
     CommonTypeError(#[from] CommonTypeError),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
     #[error("Ed25519SigError: {0}")]
     Ed25519SigError(#[from] ed25519_dalek::SignatureError),
     #[error("SerializationError: {0}")]
