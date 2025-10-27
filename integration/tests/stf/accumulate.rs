@@ -16,7 +16,8 @@ use fr_state::{
     manager::StateManager,
     types::{
         privileges::PrivilegedServices, AccountLookupsEntry, AccountLookupsEntryTimeslots,
-        AccountMetadata, AccumulateHistory, AccumulateQueue, AuthQueue, EpochEntropy, Timeslot,
+        AccountMetadata, AccumulateHistory, AccumulateQueue, AuthQueue, EpochEntropy,
+        LastAccumulateOutputs, Timeslot,
     },
 };
 use fr_test_utils::{
@@ -27,6 +28,7 @@ use fr_transition::{
     error::TransitionError,
     state::{
         accumulate::{transition_accumulate_history, transition_accumulate_queue},
+        history::transition_last_accumulate_outputs,
         services::{transition_on_accumulate, transition_services_last_accumulate_at},
         timeslot::transition_timeslot,
     },
@@ -150,6 +152,11 @@ impl StateTransitionTest for AccumulateTest {
             .add_privileged_services(pre_privileged_services)
             .await?;
 
+        // Add LastAccumulateOutputs (default value)
+        state_manager
+            .add_last_accumulate_outputs(LastAccumulateOutputs::default())
+            .await?;
+
         Ok(())
     }
 
@@ -186,6 +193,7 @@ impl StateTransitionTest for AccumulateTest {
         );
         let acc_summary =
             transition_on_accumulate(state_manager.clone(), &accumulatable_reports).await?;
+        transition_last_accumulate_outputs(state_manager.clone(), acc_summary.output_pairs).await?;
         let accumulated_services: Vec<ServiceId> =
             acc_summary.accumulate_stats.keys().cloned().collect();
         transition_services_last_accumulate_at(state_manager.clone(), &accumulated_services)
@@ -196,11 +204,17 @@ impl StateTransitionTest for AccumulateTest {
             acc_summary.accumulated_reports_count,
         )
         .await?;
-        transition_accumulate_queue(state_manager, &queued_reports, pre_timeslot, curr_timeslot)
-            .await?;
+        transition_accumulate_queue(
+            state_manager.clone(),
+            &queued_reports,
+            pre_timeslot,
+            curr_timeslot,
+        )
+        .await?;
+        let last_accumulate_outputs = state_manager.get_last_accumulate_outputs().await?;
 
         Ok(JamTransitionOutput {
-            accumulate_root: acc_summary.output_pairs.accumulate_root(),
+            accumulate_root: last_accumulate_outputs.accumulate_root()?,
         })
     }
 
