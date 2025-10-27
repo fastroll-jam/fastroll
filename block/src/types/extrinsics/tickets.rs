@@ -4,7 +4,7 @@ use fr_common::{EntropyHash, X_T};
 use fr_crypto::{
     error::CryptoError, traits::VrfSignature, types::*, vrf::bandersnatch_vrf::RingVrfProver,
 };
-use std::{cmp::Ordering, fmt::Display, ops::Deref};
+use std::{fmt::Display, ops::Deref};
 
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
@@ -57,28 +57,6 @@ impl Display for TicketsXtEntry {
 
 impl XtEntry for TicketsXtEntry {
     const XT_TYPE: XtType = XtType::Ticket;
-}
-
-impl PartialOrd for TicketsXtEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for TicketsXtEntry {
-    // Compare the ticket extrinsics by the hash of the ticket proofs, which is not explicitly
-    // represented by the `TicketsXtEntry`.
-    fn cmp(&self, other: &Self) -> Ordering {
-        let self_hash = self
-            .ticket_proof
-            .output_hash()
-            .expect("Ticket proof hashing must not fail for comparison");
-        let other_hash = other
-            .ticket_proof
-            .output_hash()
-            .expect("Ticket proof hashing must not fail for comparison");
-        self_hash.cmp(&other_hash)
-    }
 }
 
 impl TicketsXtEntry {

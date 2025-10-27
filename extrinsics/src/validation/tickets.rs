@@ -4,19 +4,23 @@ use fr_common::{
     ticket::Ticket, ByteEncodable, Hash32, EPOCH_LENGTH, MAX_TICKETS_PER_EXTRINSIC,
     TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
 };
-use fr_crypto::{error::CryptoError, traits::VrfSignature, vrf::bandersnatch_vrf::RingVrfVerifier};
+use fr_crypto::{traits::VrfSignature, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_state::manager::StateManager;
 use rayon::prelude::*;
 use std::{collections::HashSet, sync::Arc};
 use tracing::debug_span;
 
 #[tracing::instrument(level = "debug", skip_all, name = "xt_to_new_tickets")]
-fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Result<Vec<Ticket>, CryptoError> {
+fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Result<Vec<Ticket>, XtError> {
     tickets_xt
         .iter()
         .map(|ticket| {
+            let id = ticket
+                .ticket_proof
+                .output_hash()
+                .map_err(|_| XtError::InvalidTicketProof(ticket.ticket_proof.to_hex()))?;
             Ok(Ticket {
-                id: ticket.ticket_proof.output_hash()?,
+                id,
                 attempt: ticket.entry_index,
             })
         })
@@ -71,13 +75,13 @@ impl TicketsXtValidator {
             ));
         }
 
-        // Check if the entries are sorted
-        if !extrinsic.is_sorted() {
-            return Err(XtError::TicketsNotSorted);
-        }
-
         // Construct new tickets from the tickets Xt.
         let new_tickets = ticket_xt_to_new_tickets(extrinsic)?;
+
+        // Check if the entries are sorted
+        if new_tickets.windows(2).any(|pair| pair[0].id > pair[1].id) {
+            return Err(XtError::TicketsNotSorted);
+        }
 
         {
             let span = debug_span!("dup_check");
