@@ -29,6 +29,6 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 
 [features]
-tiny = []
-full = []
-fuzz = []
+tiny = ["fr-common/tiny"]
+full = ["fr-common/full"]
+fuzz = ["fr-transition/fuzz"]

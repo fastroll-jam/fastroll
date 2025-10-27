@@ -14,3 +14,7 @@ fr-fuzz = { workspace = true }
 fr-node = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
+
+[features]
+tiny = ["fr-common/tiny", "fr-node/tiny"]
+full = ["fr-common/full", "fr-node/full"]

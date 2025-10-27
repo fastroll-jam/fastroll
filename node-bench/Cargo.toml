@@ -15,8 +15,8 @@ criterion = { workspace = true }
 tokio = { workspace = true }
 
 [features]
-tiny = []
-full = []
+tiny = ["fr-test-utils/tiny", "fr-node/tiny"]
+full = ["fr-test-utils/full", "fr-node/full"]
 
 [[bench]]
 name = "block_importer"

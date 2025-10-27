@@ -22,5 +22,5 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 
 [features]
-tiny = []
-full = []
+tiny = ["fr-common/tiny", "fr-node/tiny"]
+full = ["fr-common/full", "fr-node/full"]

@@ -31,5 +31,5 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 
 [features]
-tiny = []
-full = []
+tiny = ["fr-test-utils/tiny"]
+full = ["fr-test-utils/full"]

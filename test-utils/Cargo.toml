@@ -27,3 +27,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
+
+[features]
+tiny = ["fr-common/tiny", "fr-node/tiny"]
+full = ["fr-common/full", "fr-node/full"]
