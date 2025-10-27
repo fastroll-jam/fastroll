@@ -20,10 +20,11 @@ use fr_node::{
     roles::importer::{BlockCommitMode, BlockImportOutput, BlockImporter},
 };
 use fr_state::{error::StateManagerError, manager::StateCommitArtifact};
-use fr_storage::node_storage::NodeStorage;
+use fr_storage::node_storage::{NodeStorage, NodeStorageError};
 use std::{
     collections::{BTreeSet, HashMap},
     io::Error as IoError,
+    path::PathBuf,
     string::FromUtf8Error,
     sync::Arc,
 };
@@ -56,6 +57,8 @@ pub enum FuzzTargetError {
     BlockHeaderDBError(#[from] BlockHeaderDBError),
     #[error("PostStateRootDbError: {0}")]
     PostStateRootDbError(#[from] PostStateRootDbError),
+    #[error("NodeStorageError: {0}")]
+    NodeStorageError(#[from] NodeStorageError),
     #[error("First request message is not a peer info")]
     NotPeerInfo,
     #[error("Invalid message kind: {0}")]
@@ -133,20 +136,15 @@ pub struct FuzzTargetRunner {
 }
 
 impl FuzzTargetRunner {
-    /// Creates a `FuzzTargetRunner` with using `tempfile::tempdir` for DB path derivation.
-    pub fn new(target_peer_info: PeerInfo) -> Self {
-        Self {
-            node_storage: Arc::new(
-                NodeStorage::new(StorageConfig::from_path(
-                    tempdir().unwrap().path().join("fuzz_target_db "),
-                ))
-                .expect("Failed to initialize NodeStorage with tempdir"),
-            ),
+    /// Creates a `FuzzTargetRunner` with the provided temporary DB path.
+    pub fn new(target_peer_info: PeerInfo, temp_db_path: PathBuf) -> Result<Self, FuzzTargetError> {
+        Ok(Self {
+            node_storage: Arc::new(NodeStorage::new(StorageConfig::from_path(temp_db_path))?),
             latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
             fuzz_features: FuzzFeatures::default(),
             fork_state: SimpleForkState::default(),
-        }
+        })
     }
 
     fn node_storage(&self) -> Arc<NodeStorage> {
@@ -258,12 +256,14 @@ impl FuzzTargetRunner {
         // Continuously accept new connections after closing the previous session.
         while let Ok((stream, _addr)) = listener.accept().await {
             tracing::info!("Accepted a connection from the fuzzer");
+            let _temp_dir_for_next_session = tempdir().unwrap();
+            let next_temp_db_path = _temp_dir_for_next_session.path().join("fuzz_target_db");
 
             if is_first_session {
                 is_first_session = false;
             } else {
                 // Reset storage & state for the new session
-                *self = FuzzTargetRunner::new(self.target_peer_info.clone());
+                *self = FuzzTargetRunner::new(self.target_peer_info.clone(), next_temp_db_path)?;
             }
 
             self.handle_fuzzer_session(stream).await?;

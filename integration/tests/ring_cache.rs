@@ -16,7 +16,8 @@ use fr_transition::{
     ring_cache::schedule_ring_cache_update,
     state::{safrole::transition_safrole, timeslot::transition_timeslot},
 };
-use std::{convert::TryFrom, error::Error, sync::Arc, time::Duration};
+use std::{convert::TryFrom, error::Error, path::PathBuf, sync::Arc, time::Duration};
+use tempfile::tempdir;
 use tokio::time::{sleep, Instant};
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -44,8 +45,8 @@ struct RingCacheHarness {
 }
 
 impl RingCacheHarness {
-    async fn new() -> Result<Self, StateManagerError> {
-        let (_header_db, manager) = init_db_and_manager();
+    async fn new(temp_path: PathBuf) -> Result<Self, StateManagerError> {
+        let (_header_db, manager) = init_db_and_manager(temp_path);
         let manager = Arc::new(manager);
         let genesis_validator_set = genesis_validator_set();
 
@@ -169,7 +170,9 @@ impl RingCacheHarness {
 /// getting the `curr` entry from the cache rather than re-building in general.
 #[tokio::test]
 async fn ring_cache_reuses_curr_entry_within_epoch() -> Result<(), Box<dyn Error>> {
-    let harness = RingCacheHarness::new().await?;
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("ring_cache_test");
+    let harness = RingCacheHarness::new(db_path).await?;
     let manager = harness.manager();
     let genesis_set = harness.genesis_validator_set();
     let epoch0_last_slot = (EPOCH_LENGTH - 1) as TimeslotIndex;
@@ -220,7 +223,9 @@ async fn ring_cache_reuses_curr_entry_within_epoch() -> Result<(), Box<dyn Error
 #[tokio::test]
 async fn ring_cache_kept_updated_on_multiple_staging_set_transitions() -> Result<(), Box<dyn Error>>
 {
-    let harness = RingCacheHarness::new().await?;
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("ring_cache_test");
+    let harness = RingCacheHarness::new(db_path).await?;
     let manager = harness.manager();
     let genesis_set = harness.genesis_validator_set();
     let epoch0_last_slot = (EPOCH_LENGTH - 1) as TimeslotIndex;
@@ -267,7 +272,9 @@ async fn ring_cache_kept_updated_on_multiple_staging_set_transitions() -> Result
 /// replaced with the null key and the ring root to be recomputed accordingly.
 #[tokio::test]
 async fn ring_cache_nullifies_offenders_from_staging_entry() -> Result<(), Box<dyn Error>> {
-    let harness = RingCacheHarness::new().await?;
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("ring_cache_test");
+    let harness = RingCacheHarness::new(db_path).await?;
     let manager = harness.manager();
     let genesis_set = harness.genesis_validator_set();
     let staging_slot = 5;
@@ -307,7 +314,9 @@ async fn ring_cache_nullifies_offenders_from_staging_entry() -> Result<(), Box<d
 /// will be staged for the future.
 #[tokio::test]
 async fn ring_cache_staging_set_transition_at_epoch_boundary_1() -> Result<(), Box<dyn Error>> {
-    let harness = RingCacheHarness::new().await?;
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("ring_cache_test");
+    let harness = RingCacheHarness::new(db_path).await?;
     let manager = harness.manager();
     let first_staging_set = rotate_validator_set(&harness.genesis_validator_set());
 
@@ -362,7 +371,9 @@ async fn ring_cache_staging_set_transition_at_epoch_boundary_1() -> Result<(), B
 /// users of `RingVrfVerifier` should get the correct current `RingVrfVerifier` anyway.
 #[tokio::test]
 async fn ring_cache_staging_set_transition_at_epoch_boundary_2() -> Result<(), Box<dyn Error>> {
-    let harness = RingCacheHarness::new().await?;
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("ring_cache_test");
+    let harness = RingCacheHarness::new(db_path).await?;
     let manager = harness.manager();
     let updated_staging_set = rotate_validator_set(&harness.genesis_validator_set());
 
@@ -442,7 +453,9 @@ async fn ring_cache_staging_set_transition_at_epoch_boundary_2() -> Result<(), B
 /// Test with the fallback mode.
 #[tokio::test]
 async fn ring_cache_safrole_fallback_mode() -> Result<(), Box<dyn Error>> {
-    let harness = RingCacheHarness::new().await?;
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("ring_cache_test");
+    let harness = RingCacheHarness::new(db_path).await?;
     let manager = harness.manager();
     let genesis_set = harness.genesis_validator_set();
 

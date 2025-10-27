@@ -13,6 +13,7 @@ fr-config = { workspace = true }
 fr-fuzz = { workspace = true }
 fr-node = { workspace = true }
 clap = { workspace = true }
+tempfile = { workspace = true }
 tokio = { workspace = true }
 
 [features]

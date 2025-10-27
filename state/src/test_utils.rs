@@ -7,13 +7,11 @@ use fr_config::{
 };
 use fr_db::core::core_db::CoreDB;
 use fr_state_merkle_v2::merkle_db::MerkleDB;
-use std::sync::Arc;
-use tempfile::tempdir;
+use std::{path::PathBuf, sync::Arc};
 
-fn init_core_db() -> CoreDB {
-    let db_path = tempdir().unwrap().path().join("test_db");
+fn init_core_db(temp_db_path: PathBuf) -> CoreDB {
     CoreDB::open(
-        db_path,
+        temp_db_path,
         StorageConfig::rocksdb_opts(),
         StorageConfig::cf_descriptors(),
     )
@@ -37,8 +35,8 @@ fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
     StateManager::new(state_db, merkle_db, state_cache)
 }
 
-pub fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {
-    let core_db = Arc::new(init_core_db());
+pub fn init_db_and_manager(temp_db_path: PathBuf) -> (BlockHeaderDB, StateManager) {
+    let core_db = Arc::new(init_core_db(temp_db_path));
     (
         init_header_db(core_db.clone()),
         init_state_manager(core_db.clone()),

@@ -182,10 +182,13 @@ mod tests {
     };
     use bitvec::prelude::*;
     use fr_common::{ByteEncodable, Hash32, NodeHash};
+    use tempfile::tempdir;
 
     #[tokio::test]
     async fn test_node_entries() {
-        let merkle_db = open_merkle_db();
+        let _temp_dir = tempdir().unwrap();
+        let db_path = _temp_dir.path().join("test_merkle_db");
+        let merkle_db = open_merkle_db(db_path);
         let merkle_path = merkle_path![0, 0, 1];
 
         assert_eq!(merkle_db.get_node(&merkle_path).await.unwrap(), None);
@@ -209,7 +212,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_leaf_entries() {
-        let merkle_db = open_merkle_db();
+        let _temp_dir = tempdir().unwrap();
+        let db_path = _temp_dir.path().join("test_merkle_db");
+        let merkle_db = open_merkle_db(db_path);
         let state_key = StateKey::from_slice(&[0xCC; 31]).unwrap();
         let state_key_bv = bits_encode_msb(state_key.as_slice());
 

@@ -9,15 +9,18 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use tempfile::tempdir;
 use tokio::runtime::Runtime;
 
-async fn setup(file_path: &Path) -> (Arc<NodeStorage>, TestCase) {
+async fn setup(file_path: &Path, temp_db_path: &Path) -> (Arc<NodeStorage>, TestCase) {
     // load test case
     let test_case = BlockImportHarness::load_test_case(file_path);
     let test_case = BlockImportHarness::convert_test_case(test_case);
 
     // init node storage
-    let storage = Arc::new(BlockImportHarness::init_node_storage());
+    let storage = Arc::new(BlockImportHarness::init_node_storage(
+        temp_db_path.to_path_buf(),
+    ));
 
     // initialize state keys if genesis block
     if test_case.block.is_genesis() {
@@ -67,10 +70,14 @@ fn bench_block_import(c: &mut Criterion) {
         .join(test_kind)
         .join(test_file);
 
+    // TempDir guard
+    let _temp_dir = tempdir().expect("Failed to create temporary directory for bench");
+    let temp_db_path = _temp_dir.path().join("bench_db");
+
     group.bench_function(bench_id, |b: &mut Bencher| {
         b.iter_batched(
             // Setup
-            || rt.block_on(setup(&test_path)),
+            || rt.block_on(setup(&test_path, &temp_db_path)),
             // Routine
             |(storage, test_case)| {
                 rt.block_on(async {

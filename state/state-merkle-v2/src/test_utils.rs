@@ -11,11 +11,9 @@ use fr_config::{
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_db::core::core_db::CoreDB;
-use std::sync::Arc;
-use tempfile::tempdir;
+use std::{path::PathBuf, sync::Arc};
 
-fn open_core_db() -> CoreDB {
-    let db_path = tempdir().unwrap().path().join("test_db");
+fn open_core_db(db_path: PathBuf) -> CoreDB {
     CoreDB::open(
         db_path,
         StorageConfig::rocksdb_opts(),
@@ -24,8 +22,8 @@ fn open_core_db() -> CoreDB {
     .unwrap()
 }
 
-pub fn open_merkle_db() -> MerkleDB {
-    let core_db = open_core_db();
+pub fn open_merkle_db(temp_db_path: PathBuf) -> MerkleDB {
+    let core_db = open_core_db(temp_db_path);
     MerkleDB::new(
         Arc::new(core_db),
         MERKLE_NODES_CF_NAME,

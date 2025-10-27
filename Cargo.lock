@@ -896,6 +896,7 @@ dependencies = [
  "fr-config",
  "fr-fuzz",
  "fr-node",
+ "tempfile",
  "tokio",
 ]
 
@@ -1099,6 +1100,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
@@ -1159,6 +1161,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.16",
  "tokio",
  "tracing",
@@ -1173,6 +1176,7 @@ dependencies = [
  "fr-state",
  "fr-storage",
  "fr-test-utils",
+ "tempfile",
  "tokio",
 ]
 

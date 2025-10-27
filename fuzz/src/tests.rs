@@ -19,14 +19,6 @@ mod fuzz_target_tests {
     use tempfile::tempdir;
     use tokio::{net::UnixStream, task::JoinHandle, time::timeout};
 
-    fn temp_socket_path() -> String {
-        let path = PathBuf::from_str("/tmp").unwrap();
-        path.join(tempdir().unwrap().path())
-            .to_str()
-            .unwrap()
-            .to_string()
-    }
-
     fn cleanup_socket(path: &str) {
         std::fs::remove_file(path).unwrap();
     }
@@ -41,8 +33,9 @@ mod fuzz_target_tests {
         )
     }
 
-    fn init_fuzz_target_runner() -> FuzzTargetRunner {
-        FuzzTargetRunner::new(create_test_peer_info("TestFastRoll"))
+    fn init_fuzz_target_runner(temp_db_path: PathBuf) -> FuzzTargetRunner {
+        FuzzTargetRunner::new(create_test_peer_info("TestFastRoll"), temp_db_path)
+            .expect("Failed to create FuzzTargetRunner")
     }
 
     fn load_test_case(block_number: usize) -> BlockImportCase {
@@ -64,8 +57,11 @@ mod fuzz_target_tests {
             .collect()
     }
 
-    fn run_fuzz_target(socket_path: String) -> Result<JoinHandle<()>, FuzzTargetError> {
-        let mut fuzz_target = init_fuzz_target_runner();
+    fn run_fuzz_target(
+        socket_path: String,
+        temp_db_path: PathBuf,
+    ) -> Result<JoinHandle<()>, FuzzTargetError> {
+        let mut fuzz_target = init_fuzz_target_runner(temp_db_path);
         let server_jh = tokio::spawn(async move {
             if let Err(e) = fuzz_target.run_as_fuzz_target(socket_path).await {
                 tracing::error!("Fuzz target runner error: {e:?}");
@@ -132,10 +128,18 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_handshake() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
-        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        let _temp_dir_db = tempdir().unwrap();
+        let db_path = _temp_dir_db.path().join("fuzz_db");
+        let _server_jh = run_fuzz_target(socket_path.clone(), db_path)?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -169,7 +173,9 @@ mod fuzz_target_tests {
                 header_hash: ancestor_3.clone(),
             },
         ])?;
-        let fuzz_target = init_fuzz_target_runner();
+        let _temp_dir_db = tempdir().unwrap();
+        let db_path = _temp_dir_db.path().join("fuzz_db");
+        let fuzz_target = init_fuzz_target_runner(db_path);
         fuzz_target.set_ancestors(ancestry).await?;
 
         assert!(fuzz_target
@@ -191,10 +197,18 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_initialize() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
-        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        let _temp_dir_db = tempdir().unwrap();
+        let db_path = _temp_dir_db.path().join("fuzz_db");
+        let _server_jh = run_fuzz_target(socket_path.clone(), db_path)?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -231,10 +245,18 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_import_single_block() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
-        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        let _temp_dir_db = tempdir().unwrap();
+        let db_path = _temp_dir_db.path().join("fuzz_db");
+        let _server_jh = run_fuzz_target(socket_path.clone(), db_path)?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -278,10 +300,18 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_import_single_invalid_block() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
-        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        let _temp_dir_db = tempdir().unwrap();
+        let db_path = _temp_dir_db.path().join("fuzz_db");
+        let _server_jh = run_fuzz_target(socket_path.clone(), db_path)?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -327,10 +357,18 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_import_two_blocks() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
-        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        let _temp_dir_db = tempdir().unwrap();
+        let db_path = _temp_dir_db.path().join("fuzz_db");
+        let _server_jh = run_fuzz_target(socket_path.clone(), db_path)?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -385,10 +423,18 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_get_state() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
-        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        let _temp_dir_db = tempdir().unwrap();
+        let db_path = _temp_dir_db.path().join("fuzz_db");
+        let _server_jh = run_fuzz_target(socket_path.clone(), db_path)?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -441,10 +487,18 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_multiple_sessions() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
-        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        let _temp_dir_db = tempdir().unwrap();
+        let db_path = _temp_dir_db.path().join("fuzz_db");
+        let _server_jh = run_fuzz_target(socket_path.clone(), db_path)?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // --- Session #1
