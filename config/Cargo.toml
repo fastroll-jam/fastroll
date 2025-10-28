@@ -8,4 +8,3 @@ repository.workspace = true
 
 [dependencies]
 fr-db = { workspace = true }
-tempfile = { workspace = true }

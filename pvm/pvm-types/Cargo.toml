@@ -9,6 +9,4 @@ repository.workspace = true
 [dependencies]
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
-fr-crypto = { workspace = true }
 fr-limited-vec = { workspace = true }
-fr-merkle = { workspace = true }
