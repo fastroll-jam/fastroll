@@ -994,7 +994,6 @@ name = "fr-config"
 version = "0.1.18"
 dependencies = [
  "fr-db",
- "tempfile",
 ]
 
 [[package]]
@@ -1099,6 +1098,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
@@ -1159,6 +1159,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.16",
  "tokio",
  "tracing",
@@ -1173,6 +1174,7 @@ dependencies = [
  "fr-state",
  "fr-storage",
  "fr-test-utils",
+ "tempfile",
  "tokio",
 ]
 
@@ -1244,9 +1246,7 @@ version = "0.1.18"
 dependencies = [
  "fr-codec",
  "fr-common",
- "fr-crypto",
  "fr-limited-vec",
- "fr-merkle",
 ]
 
 [[package]]

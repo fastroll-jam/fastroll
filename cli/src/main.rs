@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Version::from_str(SPEC_VERSION)?,
                 Version::from_str(CLIENT_VERSION)?,
                 "FastRoll".to_string(),
-            ));
+            ))?;
             target_runner.run_as_fuzz_target(socket).await?;
             Ok(())
         }

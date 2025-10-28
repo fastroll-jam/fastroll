@@ -17,6 +17,7 @@ use fr_state::{
     },
 };
 use std::error::Error;
+use tempfile::tempdir;
 
 fn hash_str(value: &str) -> Hash32 {
     hash::<Blake2b256>(value.as_bytes()).unwrap()
@@ -158,7 +159,9 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
     setup_timed_tracing();
 
-    let (_, state_manager) = init_db_and_manager();
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("test_merkle_db");
+    let (_, state_manager) = init_db_and_manager(db_path);
 
     // --- 1. Add one state entry, initializing the Merkle Trie
     tracing::info!("1. Add the first state entry.");
@@ -276,7 +279,9 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn merkle_db_simple_states() -> Result<(), Box<dyn Error>> {
-    let (_, state_manager) = init_db_and_manager();
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("test_merkle_db");
+    let (_, state_manager) = init_db_and_manager(db_path);
     add_all_simple_state_entries(&state_manager, None).await?;
     state_manager.commit_dirty_cache().await?;
     compare_all_simple_state_cache_and_db(&state_manager).await?;

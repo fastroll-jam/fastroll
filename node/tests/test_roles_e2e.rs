@@ -17,20 +17,24 @@ use fr_storage::node_storage::NodeStorage;
 use std::{
     error::Error,
     net::{Ipv6Addr, SocketAddrV6},
+    path::PathBuf,
     sync::Arc,
 };
+use tempfile::tempdir;
 
-fn init_node_storage(node_id: &str) -> NodeStorage {
-    NodeStorage::new(StorageConfig::from_node_id_with_temp_dir(node_id))
-        .expect("Failed to initialize NodeStorage")
+fn init_node_storage(temp_path: PathBuf) -> NodeStorage {
+    NodeStorage::new(StorageConfig::from_path(temp_path)).expect("Failed to initialize NodeStorage")
 }
 
 /// Mocking DB initialization and genesis state.
-async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode, Box<dyn Error>> {
+async fn init_with_genesis_state(
+    socket_addr_v6: SocketAddrV6,
+    temp_path: PathBuf,
+) -> Result<JamNode, Box<dyn Error>> {
     // Genesis header is the best header
     let genesis_header = load_genesis_block().header;
     let genesis_header_hash = genesis_header.hash()?;
-    let storage = Arc::new(init_node_storage(socket_addr_v6.to_string().as_str()));
+    let storage = Arc::new(init_node_storage(temp_path));
     storage.header_db().set_best_header(genesis_header);
     let state_manager = storage.state_manager();
     // Init genesis simple state with initial validators: active set and pending set
@@ -73,8 +77,14 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // --- Block authoring
 
     // Init DB and StateManager
-    let author_node =
-        init_with_genesis_state(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9999, 0, 0)).await?;
+    let author_socket_addr_v6 = SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9999, 0, 0);
+    let author_node_id = author_socket_addr_v6.to_string();
+    let _author_node_temp_path = tempdir().unwrap();
+    let author_db_path = _author_node_temp_path
+        .path()
+        .join("author_node_db")
+        .join(author_node_id);
+    let author_node = init_with_genesis_state(author_socket_addr_v6, author_db_path).await?;
 
     // Block author role
     let mut author = BlockAuthor::new_for_fallback_test()?;
@@ -84,8 +94,14 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // --- Block importing
 
     // Init DB and StateManager
-    let importer_node =
-        init_with_genesis_state(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9998, 0, 0)).await?;
+    let importer_socket_addr_v6 = SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9998, 0, 0);
+    let importer_node_id = importer_socket_addr_v6.to_string();
+    let _importer_node_temp_path = tempdir().unwrap();
+    let importer_db_path = _importer_node_temp_path
+        .path()
+        .join("importer_node_db")
+        .join(importer_node_id);
+    let importer_node = init_with_genesis_state(importer_socket_addr_v6, importer_db_path).await?;
 
     // Block importer role
     let output = BlockImporter::import_block(

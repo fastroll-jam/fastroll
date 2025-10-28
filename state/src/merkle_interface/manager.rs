@@ -786,10 +786,13 @@ mod tests {
         merkle_path,
         test_utils::{create_dummy_branch, open_merkle_db},
     };
+    use tempfile::tempdir;
 
     #[tokio::test]
     async fn test_get_longest_common_path_node() {
-        let merkle_db = open_merkle_db();
+        let _temp_dir = tempdir().unwrap();
+        let db_path = _temp_dir.path().join("test_merkle_db");
+        let merkle_db = open_merkle_db(db_path);
 
         let path_1 = merkle_path![1, 0, 1, 1];
         let path_2 = merkle_path![1, 0, 1, 1, 0];
@@ -843,7 +846,9 @@ mod tests {
         };
 
         async fn setup_add_with_lcp_branch() -> (MerkleDB, StateKey, CacheEntry) {
-            let merkle_db = open_merkle_db();
+            let _temp_dir = tempdir().unwrap();
+            let db_path = _temp_dir.path().join("test_merkle_db");
+            let merkle_db = open_merkle_db(db_path);
 
             let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
@@ -953,7 +958,9 @@ mod tests {
         }
 
         async fn setup_add_with_lcp_leaf() -> (MerkleDB, StateKey, CacheEntry) {
-            let merkle_db = open_merkle_db();
+            let _temp_dir = tempdir().unwrap();
+            let db_path = _temp_dir.path().join("test_merkle_db");
+            let merkle_db = open_merkle_db(db_path);
 
             let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
@@ -1152,7 +1159,9 @@ mod tests {
         }
 
         async fn setup_update() -> (MerkleDB, StateKey, CacheEntry) {
-            let merkle_db = open_merkle_db();
+            let _temp_dir = tempdir().unwrap();
+            let db_path = _temp_dir.path().join("test_merkle_db");
+            let merkle_db = open_merkle_db(db_path);
 
             let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
@@ -1260,7 +1269,9 @@ mod tests {
         }
 
         async fn setup_remove_with_branch_sibling() -> (MerkleDB, StateKey, CacheEntry) {
-            let merkle_db = open_merkle_db();
+            let _temp_dir = tempdir().unwrap();
+            let db_path = _temp_dir.path().join("test_merkle_db");
+            let merkle_db = open_merkle_db(db_path);
 
             let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
@@ -1367,7 +1378,9 @@ mod tests {
         }
 
         async fn setup_remove_with_leaf_sibling() -> (MerkleDB, StateKey, CacheEntry) {
-            let merkle_db = open_merkle_db();
+            let _temp_dir = tempdir().unwrap();
+            let db_path = _temp_dir.path().join("test_merkle_db");
+            let merkle_db = open_merkle_db(db_path);
 
             let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
@@ -1527,7 +1540,9 @@ mod tests {
         }
 
         async fn setup_remove_two_adjacent_leaves() -> (MerkleDB, Vec<(StateKey, CacheEntry)>) {
-            let merkle_db = open_merkle_db();
+            let _temp_dir = tempdir().unwrap();
+            let db_path = _temp_dir.path().join("test_merkle_db");
+            let merkle_db = open_merkle_db(db_path);
 
             let root_path = MerklePath::root();
             let path_0 = merkle_path![0];
@@ -1727,7 +1742,9 @@ mod tests {
         }
 
         async fn setup_add_two_adjacent_leaves() -> (MerkleDB, Vec<(StateKey, CacheEntry)>) {
-            let merkle_db = open_merkle_db();
+            let _temp_dir = tempdir().unwrap();
+            let db_path = _temp_dir.path().join("test_merkle_db");
+            let merkle_db = open_merkle_db(db_path);
 
             let root_path = MerklePath::root();
             let path_0 = merkle_path![0];

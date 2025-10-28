@@ -10,6 +10,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use tempfile::tempdir;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestCase<I, O, S> {
@@ -42,8 +43,8 @@ pub trait StateTransitionTest {
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
 
-    fn init_header_and_manager() -> (BlockHeaderDB, BlockHeader, StateManager) {
-        let (header_db, manager) = fr_state::test_utils::init_db_and_manager();
+    fn init_header_and_manager(temp_path: PathBuf) -> (BlockHeaderDB, BlockHeader, StateManager) {
+        let (header_db, manager) = fr_state::test_utils::init_db_and_manager(temp_path);
         (header_db, BlockHeader::default(), manager)
     }
 
@@ -90,7 +91,9 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
     let test_case = T::load_test_case(&filename);
 
     // init state manager and header db
-    let (header_db, mut new_header, state_manager) = T::init_header_and_manager();
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("stf_test_db");
+    let (header_db, mut new_header, state_manager) = T::init_header_and_manager(db_path);
     let state_manager = Arc::new(state_manager);
     let header_db = Arc::new(header_db);
 

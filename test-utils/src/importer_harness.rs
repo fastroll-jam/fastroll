@@ -144,11 +144,9 @@ impl BlockImportHarness {
         }
     }
 
-    pub fn init_node_storage() -> NodeStorage {
-        NodeStorage::new(StorageConfig::from_path(
-            tempdir().unwrap().path().join("test_db"),
-        ))
-        .expect("Failed to initialize NodeStorage with tempdir")
+    pub fn init_node_storage(db_path: PathBuf) -> NodeStorage {
+        NodeStorage::new(StorageConfig::from_path(db_path))
+            .expect("Failed to initialize NodeStorage with tempdir")
     }
 
     pub async fn commit_pre_state(
@@ -240,6 +238,9 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
     setup_timed_tracing();
 
+    // TempDir guard
+    let _temp_dir = tempdir().expect("Failed to create temporary directory for test");
+
     let (storage, test_case) = {
         let span = info_span!("init_test");
         let _e = span.enter();
@@ -249,7 +250,8 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
         let test_case = BlockImportHarness::convert_test_case(test_case);
 
         // init node storage
-        let storage = Arc::new(BlockImportHarness::init_node_storage());
+        let temp_db_path = _temp_dir.path().join("importer_db");
+        let storage = Arc::new(BlockImportHarness::init_node_storage(temp_db_path));
 
         // initialize state keys if genesis block
         if test_case.block.is_genesis() {

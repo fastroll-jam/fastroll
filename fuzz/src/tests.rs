@@ -19,14 +19,6 @@ mod fuzz_target_tests {
     use tempfile::tempdir;
     use tokio::{net::UnixStream, task::JoinHandle, time::timeout};
 
-    fn temp_socket_path() -> String {
-        let path = PathBuf::from_str("/tmp").unwrap();
-        path.join(tempdir().unwrap().path())
-            .to_str()
-            .unwrap()
-            .to_string()
-    }
-
     fn cleanup_socket(path: &str) {
         std::fs::remove_file(path).unwrap();
     }
@@ -43,6 +35,7 @@ mod fuzz_target_tests {
 
     fn init_fuzz_target_runner() -> FuzzTargetRunner {
         FuzzTargetRunner::new(create_test_peer_info("TestFastRoll"))
+            .expect("Failed to create FuzzTargetRunner")
     }
 
     fn load_test_case(block_number: usize) -> BlockImportCase {
@@ -132,7 +125,13 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_handshake() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
         let _server_jh = run_fuzz_target(socket_path.clone())?;
@@ -191,7 +190,13 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_initialize() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
         let _server_jh = run_fuzz_target(socket_path.clone())?;
@@ -231,7 +236,13 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_import_single_block() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
         let _server_jh = run_fuzz_target(socket_path.clone())?;
@@ -278,7 +289,13 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_import_single_invalid_block() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
         let _server_jh = run_fuzz_target(socket_path.clone())?;
@@ -327,7 +344,13 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_import_two_blocks() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
         let _server_jh = run_fuzz_target(socket_path.clone())?;
@@ -385,7 +408,13 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_get_state() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
         let _server_jh = run_fuzz_target(socket_path.clone())?;
@@ -441,7 +470,13 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_multiple_sessions() -> Result<(), FuzzTargetError> {
         setup_tracing();
-        let socket_path = temp_socket_path();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
 
         // Run server (fuzz target)
         let _server_jh = run_fuzz_target(socket_path.clone())?;

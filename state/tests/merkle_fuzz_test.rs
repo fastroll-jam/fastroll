@@ -3,6 +3,7 @@ use fr_common::{utils::tracing::setup_timed_tracing, StateKey};
 use fr_state::test_utils::init_db_and_manager;
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use std::{collections::HashMap, error::Error};
+use tempfile::tempdir;
 
 fn random_state_key() -> StateKey {
     let mut rng = thread_rng();
@@ -22,7 +23,9 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
     setup_timed_tracing();
 
-    let (_, state_manager) = init_db_and_manager();
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("merkle_fuzz_db");
+    let (_, state_manager) = init_db_and_manager(db_path);
 
     // Test with n random state entries
     const N_DEFAULT: usize = 100;
