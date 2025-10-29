@@ -1,14 +1,11 @@
 use crate::{error::PVMError, pvm::PVM};
 use fr_common::{workloads::WorkExecutionResult, ServiceId, SignedGas, TimeslotIndex, UnsignedGas};
-use fr_pvm_core::{
-    interpreter::Interpreter,
-    state::state_change::{HostCallVMStateChange, VMStateMutator},
-};
+use fr_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator};
 use fr_pvm_host::{
     context::InvocationContext,
     error::HostCallError::InvalidExitReason,
     host_functions::{
-        accumulate::AccumulateHostFunction, general::GeneralHostFunction,
+        accumulate::AccumulateHostFunction, debug::host_log, general::GeneralHostFunction,
         refine::RefineHostFunction, HostCallResult, HostCallReturnCode,
     },
 };
@@ -457,13 +454,7 @@ impl PVMInterface {
                 )
                 .await?
             }
-            HostCallType::LOG => HostCallResult {
-                exit_reason: ExitReason::Continue,
-                vm_change: HostCallVMStateChange {
-                    gas_charge: 0,
-                    ..Default::default()
-                },
-            },
+            HostCallType::LOG => host_log(&pvm.state)?,
             HostCallType::INVALID => {
                 HostCallResult::continue_with_return_code(HostCallReturnCode::WHAT)
             }
