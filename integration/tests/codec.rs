@@ -11,7 +11,7 @@ mod codec {
     };
     use fr_codec::prelude::*;
     use fr_common::{
-        utils::serde::FileLoader,
+        utils::serde::FileReader,
         workloads::{RefinementContext, WorkDigest, WorkItem, WorkPackage, WorkReport},
         CHAIN_SPEC,
     };
@@ -30,7 +30,7 @@ mod codec {
             .join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
         let asn_type: AsnType =
-            FileLoader::load_from_json_file(&full_path).expect("Failed to load from JSON");
+            FileReader::read_json(&full_path).expect("Failed to read from JSON");
         let fr_type = FastRollType::from(asn_type);
         let fr_type_encoded = fr_type.encode().expect("Failed to encode.");
 
@@ -38,7 +38,7 @@ mod codec {
             .join(CHAIN_SPEC)
             .join(format!("{filename}.bin"));
         let asn_type_encoded =
-            FileLoader::load_from_bin_file(&bin_path).expect("Failed to load .bin test vector.");
+            FileReader::read_bytes(&bin_path).expect("Failed to read .bin test vector.");
 
         // Test encoding
         println!(

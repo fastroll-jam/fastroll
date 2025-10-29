@@ -8,29 +8,28 @@ use std::{fmt, fmt::Formatter, fs, fs::File, io, io::Read, path::Path};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum FileLoaderError {
+pub enum FileReaderError {
     #[error("IOError: {0}")]
     IOError(#[from] io::Error),
     #[error("SerdeJsonError: {0}")]
     SerdeJsonError(#[from] serde_json::error::Error),
 }
 
-pub struct FileLoader;
-impl FileLoader {
-    pub fn load_from_bin_file(path: &Path) -> io::Result<Vec<u8>> {
+pub struct FileReader;
+impl FileReader {
+    pub fn read_bytes(path: &Path) -> io::Result<Vec<u8>> {
         let mut file = File::open(path)?;
         let mut buffer = vec![];
         file.read_to_end(&mut buffer)?;
         Ok(buffer)
     }
 
-    pub fn load_from_json_file<T>(full_path: &Path) -> Result<T, FileLoaderError>
+    pub fn read_json<T>(full_path: &Path) -> Result<T, FileReaderError>
     where
         T: Serialize + DeserializeOwned,
     {
         let json_str = fs::read_to_string(full_path)?;
-        let loaded = serde_json::from_str(&json_str)?;
-        Ok(loaded)
+        Ok(serde_json::from_str(&json_str)?)
     }
 }
 

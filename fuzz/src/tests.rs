@@ -11,7 +11,7 @@ mod fuzz_target_tests {
     };
     use fr_block::types::block::BlockHeader;
     use fr_common::{
-        utils::{serde::FileLoader, tracing::setup_tracing},
+        utils::{serde::FileReader, tracing::setup_tracing},
         ByteEncodable,
     };
     use fr_test_utils::importer_harness::AsnTestCase as BlockImportCase;
@@ -41,7 +41,7 @@ mod fuzz_target_tests {
     fn load_test_case(block_number: usize) -> BlockImportCase {
         let path = format!("src/data/0000000{block_number}.json");
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
-        FileLoader::load_from_json_file(&full_path).expect("Failed to load from JSON")
+        FileReader::read_json(&full_path).expect("Failed to read from JSON")
     }
 
     #[allow(dead_code)]
@@ -52,7 +52,7 @@ mod fuzz_target_tests {
             .map(|&filename| {
                 let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .join(format!("./data/{filename}.json"));
-                FileLoader::load_from_json_file(&full_path).expect("Failed to load from JSON")
+                FileReader::read_json(&full_path).expect("Failed to read from JSON")
             })
             .collect()
     }
