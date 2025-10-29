@@ -1,12 +1,14 @@
 use async_trait::async_trait;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::{utils::tracing::setup_timed_tracing, CHAIN_SPEC};
+use fr_common::{
+    utils::{serde::FileReader, tracing::setup_timed_tracing},
+    CHAIN_SPEC,
+};
 use fr_state::{error::StateManagerError, manager::StateManager};
 use fr_transition::error::TransitionError;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     fmt::Debug,
-    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -39,8 +41,7 @@ pub trait StateTransitionTest {
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../integration")
             .join(path);
-        let json_str = fs::read_to_string(&full_path).expect("Failed to read test vector file");
-        serde_json::from_str(&json_str).expect("Failed to parse JSON")
+        FileReader::read_json(&full_path).expect("Failed to read STF test case")
     }
 
     fn init_header_and_manager(temp_path: PathBuf) -> (BlockHeaderDB, BlockHeader, StateManager) {

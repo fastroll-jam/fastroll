@@ -1,4 +1,4 @@
-use fr_common::utils::tracing::setup_timed_tracing;
+use fr_common::utils::{serde::FileReader, tracing::setup_timed_tracing};
 use fr_pvm_core::{
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
@@ -14,10 +14,7 @@ use fr_pvm_types::{
     exit_reason::ExitReason,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 use tracing::instrument;
 // --- Types
 
@@ -143,8 +140,7 @@ impl PVMHarness {
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../integration")
             .join(path);
-        let json_str = fs::read_to_string(&full_path).expect("Failed to read test vector file");
-        serde_json::from_str(&json_str).expect("Failed to parse JSON")
+        FileReader::read_json(&full_path).expect("Failed to read PVM test case")
     }
 
     #[instrument(level = "debug", skip_all, name = "setup")]

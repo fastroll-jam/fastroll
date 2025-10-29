@@ -3,7 +3,8 @@ use fr_asn_types::common::{AsnBlock, AsnHeader, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 use fr_common::{
-    utils::tracing::setup_timed_tracing, ByteArray, ByteSequence, StateKey, StateRoot,
+    utils::{serde::FileReader, tracing::setup_timed_tracing},
+    ByteArray, ByteSequence, StateKey, StateRoot,
 };
 use fr_config::StorageConfig;
 use fr_node::roles::importer::{BlockCommitMode, BlockImporter};
@@ -18,7 +19,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
-    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -120,13 +120,11 @@ impl From<AsnRawState> for RawState {
 pub struct BlockImportHarness;
 impl BlockImportHarness {
     pub fn load_test_case(file_path: &Path) -> AsnTestCase {
-        let json_str = fs::read_to_string(file_path).expect("Failed to read test vector file");
-        serde_json::from_str(&json_str).expect("Failed to parse JSON")
+        FileReader::read_json(file_path).expect("Failed to read test case")
     }
 
     fn load_genesis_test_case(file_path: &Path) -> AsnGenesisBlockTestCase {
-        let json_str = fs::read_to_string(file_path).expect("Failed to read test vector file");
-        serde_json::from_str(&json_str).expect("Failed to parse JSON")
+        FileReader::read_json(file_path).expect("Failed to read genesis test case")
     }
 
     pub fn convert_test_case(test_case: AsnTestCase) -> TestCase {
