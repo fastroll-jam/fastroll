@@ -476,6 +476,14 @@ async fn accumulate_single_service(
 
     gas_limit += reports_gas_aggregated;
 
+    let deferred_transfers_gas_aggregated: UnsignedGas = prev_deferred_transfers
+        .iter()
+        .filter(|&transfer| transfer.to == service_id)
+        .map(|transfer| transfer.gas_limit)
+        .sum();
+
+    gas_limit += deferred_transfers_gas_aggregated;
+
     AccumulateInvocation::<StateManager>::accumulate(
         state_manager,
         partial_state,
