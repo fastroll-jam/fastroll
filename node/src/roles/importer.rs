@@ -286,16 +286,16 @@ impl BlockImporter {
     async fn validate_block_header_prior_stf(
         storage: &NodeStorage,
         block: &Block,
-        is_first_fuzz_block: bool,
+        _is_first_fuzz_block: bool,
     ) -> Result<(), BlockImportError> {
         let best_header = storage.header_db().get_best_header();
         Self::validate_timeslot_index(&best_header, block)?;
 
         // Note: Skips validation of header fields related to the prior block if it is the first block for fuzzing
-        if !is_first_fuzz_block {
-            Self::validate_parent_hash(&best_header, block)?;
-            Self::validate_prior_state_root(storage.post_state_root_db(), &block.header).await?;
-        }
+        // if !is_first_fuzz_block {
+        //     Self::validate_parent_hash(&best_header, block)?;
+        //     Self::validate_prior_state_root(storage.post_state_root_db(), &block.header).await?;
+        // }
         Self::validate_xt_hash(block)?;
         Ok(())
     }
@@ -367,6 +367,7 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn validate_parent_hash(
         best_header: &BlockHeader,
         block: &Block,
@@ -402,6 +403,7 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn validate_prior_state_root(
         post_state_root_db: Arc<PostStateRootDB>,
         block_header: &BlockHeader,

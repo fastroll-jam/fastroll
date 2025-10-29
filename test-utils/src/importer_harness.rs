@@ -259,21 +259,21 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
         BlockImportHarness::commit_pre_state(&storage.state_manager(), test_case.pre_state.clone())
             .await?;
 
-        if !test_case.block.is_genesis() {
-            // Workaround: Import parent block from the previous test case and then set it as best header.
-            let parent_header = get_parent_block_header(file_path);
-            let parent_header_hash = parent_header.hash()?;
-            storage.header_db().set_best_header(parent_header);
-
-            // Set post state root of the parent block (prior state root)
-            storage
-                .post_state_root_db()
-                .set_post_state_root(
-                    &parent_header_hash,
-                    test_case.block.header.parent_state_root().clone(),
-                )
-                .await?;
-        }
+        // if !test_case.block.is_genesis() {
+        //     // Workaround: Import parent block from the previous test case and then set it as best header.
+        //     let parent_header = get_parent_block_header(file_path);
+        //     let parent_header_hash = parent_header.hash()?;
+        //     storage.header_db().set_best_header(parent_header);
+        //
+        //     // Set post state root of the parent block (prior state root)
+        //     storage
+        //         .post_state_root_db()
+        //         .set_post_state_root(
+        //             &parent_header_hash,
+        //             test_case.block.header.parent_state_root().clone(),
+        //         )
+        //         .await?;
+        // }
         (storage, test_case)
     };
 
