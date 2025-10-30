@@ -571,27 +571,6 @@ impl StateManager {
     }
 
     /// Retrieves service account code (preimage of the code hash)
-    /// directly from the account preimage storage.
-    ///
-    /// Used by `accumulate` PVM invocation where direct access to on-chain state is possible.
-    pub async fn get_account_code(
-        &self,
-        service_id: ServiceId,
-    ) -> Result<Option<AccountCode>, StateManagerError> {
-        let Some(metadata) = self.get_account_metadata(service_id).await? else {
-            tracing::warn!("Account not found. s={service_id}");
-            return Ok(None);
-        };
-        tracing::debug!("Code hash: {}", &metadata.code_hash.encode_hex());
-        let code_preimage = self
-            .get_account_preimages_entry(service_id, &metadata.code_hash)
-            .await?;
-        Ok(code_preimage
-            .map(|code| AccountCode::decode(&mut code.value.as_slice()))
-            .transpose()?)
-    }
-
-    /// Retrieves service account code (preimage of the code hash)
     /// by utilizing the historical lookup function.
     ///
     /// Used by off-chain/in-core PVM invocations (`is-authorized` and `refine`) where direct access

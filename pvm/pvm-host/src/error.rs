@@ -68,6 +68,8 @@ pub enum PartialStateError {
     AccountBalanceUnderflow(ServiceId),
     #[error("Account ({0}) balance overflowed")]
     AccountBalanceOverflow(ServiceId),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
     #[error("LimitedVecError: {0}")]
     LimitedVecError(#[from] LimitedVecError),
     #[error("StateManagerError: {0}")]
