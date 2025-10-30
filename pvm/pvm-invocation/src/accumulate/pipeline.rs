@@ -383,6 +383,15 @@ async fn accumulate_parallel(
             .await
             .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??
         {
+            // Merge partial state changes for all accumulated services
+            merge_partial_state_change(
+                state_manager.clone(),
+                accumulate_result.accumulate_host,
+                partial_state_union,
+                accumulate_result.partial_state,
+            )
+            .await?;
+
             // Note: Accumulations of privileged services are not metered (accumulate outputs / gas usages)
             if metered_services.contains(&accumulate_result.accumulate_host) {
                 // Add service gas usage stats entry
@@ -411,15 +420,6 @@ async fn accumulate_parallel(
                 )
                 .await?;
             }
-
-            // Merge partial state changes for all accumulated services
-            merge_partial_state_change(
-                state_manager.clone(),
-                accumulate_result.accumulate_host,
-                partial_state_union,
-                accumulate_result.partial_state,
-            )
-            .await?;
         }
     }
 

@@ -136,7 +136,11 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
             .await?;
         }
 
-        let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
+        let Some(account_code) = partial_state
+            .accounts_sandbox
+            .get_account_code(state_manager.clone(), args.accumulate_host)
+            .await?
+        else {
             tracing::warn!(
                 "Accumulate service code not found. s={}",
                 args.accumulate_host

@@ -1,11 +1,12 @@
 use crate::error::PartialStateError;
+use fr_codec::prelude::*;
 use fr_common::{Balance, CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey};
 use fr_state::{
     error::StateManagerError,
     provider::HostStateProvider,
     types::{
         privileges::{AlwaysAccumulateServices, AssignServices, PrivilegedServices},
-        AccountFootprintDelta, AccountLookupsEntry, AccountLookupsEntryExt,
+        AccountCode, AccountFootprintDelta, AccountLookupsEntry, AccountLookupsEntryExt,
         AccountLookupsEntryTimeslots, AccountMetadata, AccountPartialState, AccountPreimagesEntry,
         AccountStorageEntryExt, AccountStorageUsageDelta, AuthQueue, StagingSet, Timeslot,
     },
@@ -401,6 +402,35 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
             sandbox.metadata.mark_removed();
         }
         Ok(())
+    }
+
+    /// Retrieves service account code (preimage of the code hash)
+    /// directly from the account preimage storage of the partial state.
+    ///
+    /// Used by `accumulate` PVM invocation where direct access to on-chain state is possible.
+    pub async fn get_account_code(
+        &mut self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+    ) -> Result<Option<AccountCode>, PartialStateError> {
+        let code_hash = {
+            let Some(metadata) = self
+                .get_account_metadata(state_provider.clone(), service_id)
+                .await?
+            else {
+                tracing::warn!("Account not found. s={service_id}");
+                return Ok(None);
+            };
+            metadata.code_hash.clone()
+        };
+
+        tracing::debug!("Code hash: {}", &code_hash.encode_hex());
+        let code_preimage = self
+            .get_account_preimages_entry(state_provider, service_id, &code_hash)
+            .await?;
+        Ok(code_preimage
+            .map(|code| AccountCode::decode(&mut code.value.as_slice()))
+            .transpose()?)
     }
 
     pub async fn update_account_footprints(
