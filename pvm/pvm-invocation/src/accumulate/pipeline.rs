@@ -124,6 +124,10 @@ pub async fn accumulate_outer(
         )
         .await?;
 
+        tracing::info!(
+            "Δ* Executed:\n\tservice_gas_pairs: {service_gas_pairs:?}\n\tdeferred_xfers: {new_deferred_transfers:?}\n\toutput_pairs: {output_pairs:?}",
+        );
+
         deferred_transfers = new_deferred_transfers;
         report_idx += processable_reports_prediction;
         let gas_used = service_gas_pairs.iter().map(|pair| pair.gas).sum();
@@ -152,7 +156,7 @@ struct ParallelAccumulationResult {
 }
 
 /// Merges changes produced by a single-service accumulation into the `partial_state_union`.
-async fn add_partial_state_change(
+async fn merge_partial_state_change(
     state_manager: Arc<StateManager>,
     accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState<StateManager>,
@@ -333,8 +337,11 @@ async fn accumulate_parallel(
                 partial_state_union.manager_service,
             ]),
     );
+    tracing::info!("Δ* Services:\n\tWithDigests: {services_with_digests:?},\n\tWithXfers: {services_with_transfers:?},\n\tAlwaysAccumulates: {always_accumulate_service_ids:?},\n\tPrivileges: {privileged_services:?}");
 
+    // **s** of `Δ*` equation
     let mut metered_services = services_with_digests.clone();
+    metered_services.extend(services_with_transfers.clone());
     metered_services.extend(always_accumulate_service_ids.clone());
 
     let mut all_service_ids: BTreeSet<ServiceId> = services_with_digests;
@@ -378,30 +385,39 @@ async fn accumulate_parallel(
         {
             // Note: Accumulations of privileged services are not metered (accumulate outputs / gas usages)
             if metered_services.contains(&accumulate_result.accumulate_host) {
+                // Add service gas usage stats entry
                 service_gas_pairs.push(AccumulationGasPair {
                     service: accumulate_result.accumulate_host,
                     gas: accumulate_result.gas_used,
                 });
+
+                // Add service accumulate output
                 if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
                     service_output_pairs.insert(AccumulationOutputPair {
                         service: accumulate_result.accumulate_host,
                         output_hash,
                     });
                 }
+
+                // Add deferred transfers
+                new_deferred_transfers.extend(accumulate_result.deferred_transfers);
+
+                // Add provided preimages
+                add_provided_preimages(
+                    state_manager.clone(),
+                    partial_state_union,
+                    accumulate_result.provided_preimages,
+                    curr_timeslot_index,
+                )
+                .await?;
             }
-            new_deferred_transfers.extend(accumulate_result.deferred_transfers);
-            add_partial_state_change(
+
+            // Merge partial state changes for all accumulated services
+            merge_partial_state_change(
                 state_manager.clone(),
                 accumulate_result.accumulate_host,
                 partial_state_union,
                 accumulate_result.partial_state,
-            )
-            .await?;
-            add_provided_preimages(
-                state_manager.clone(),
-                partial_state_union,
-                accumulate_result.provided_preimages,
-                curr_timeslot_index,
             )
             .await?;
         }

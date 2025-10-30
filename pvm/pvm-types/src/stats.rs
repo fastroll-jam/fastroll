@@ -51,19 +51,26 @@ impl AccumulateStats {
             .collect();
 
         for service_id in service_ids {
-            inner.insert(
-                service_id,
-                AccumulateStatsEntry {
-                    gas_used: service_gas_counts
-                        .get(&service_id)
-                        .cloned()
-                        .unwrap_or_default(), // There can be services with digests but with no gas usage. (e.g., early exit on absence of service code)
-                    digests_count: service_digests_counts
-                        .get(&service_id)
-                        .cloned()
-                        .unwrap_or_default() as u32,
-                },
-            );
+            // There can be services with digests but with no gas usage. (e.g., early exit on absence of service code)
+            let gas_used = service_gas_counts
+                .get(&service_id)
+                .cloned()
+                .unwrap_or_default();
+
+            let digests_count = service_digests_counts
+                .get(&service_id)
+                .cloned()
+                .unwrap_or_default() as u32;
+
+            if gas_used > 0 || digests_count > 0 {
+                inner.insert(
+                    service_id,
+                    AccumulateStatsEntry {
+                        gas_used,
+                        digests_count,
+                    },
+                );
+            }
         }
         Self { inner }
     }
