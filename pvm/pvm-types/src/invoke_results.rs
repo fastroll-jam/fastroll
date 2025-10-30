@@ -51,5 +51,5 @@ impl JamDecode for AccumulationOutputPair {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct AccumulationOutputPairs(pub BTreeSet<AccumulationOutputPair>);

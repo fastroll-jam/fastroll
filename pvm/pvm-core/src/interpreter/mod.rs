@@ -102,6 +102,7 @@ impl Interpreter {
             let Some(inst) =
                 Self::extract_single_inst(&program_state.instructions, curr_pc, skip_distance)
             else {
+                tracing::warn!("Ψ Panic: Failed to extract instruction. PC={curr_pc}");
                 return Ok(ExitReason::Panic);
             };
 
@@ -112,7 +113,12 @@ impl Interpreter {
                 &single_invocation_result.state_change,
             ) {
                 Ok(post_gas) => post_gas,
-                Err(VMCoreError::ForbiddenMemZone(_)) => return Ok(ExitReason::Panic),
+                Err(VMCoreError::ForbiddenMemZone(addr)) => {
+                    tracing::warn!(
+                        "Ψ Panic: Forbidden mem access while applying state change @{addr}"
+                    );
+                    return Ok(ExitReason::Panic);
+                }
                 Err(VMCoreError::PageFault(page_start_address)) => {
                     vm_state.pc = 0; // TODO: PVM Revisit: (test vectors assume page-fault resets pc value but not in GP)
                     return Ok(ExitReason::PageFault(page_start_address));
@@ -135,6 +141,10 @@ impl Interpreter {
             match single_invocation_result.exit_reason {
                 ExitReason::Continue => continue,
                 termination @ (ExitReason::Panic | ExitReason::RegularHalt) => {
+                    tracing::warn!(
+                        "Ψ Terminated with exit reason {termination:?}. OP={:?}",
+                        inst.op
+                    );
                     // Reset the program counter
                     // vm_state.pc = 0; // TODO: PVM Revisit: (test vectors assume panic/halt doesn't reset pc value but not in GP)
                     return Ok(termination);
