@@ -27,7 +27,7 @@ pub struct AccumulateOperand {
 
 pub type TransferMemo = ByteArray<TRANSFER_MEMO_SIZE>;
 
-#[derive(Clone, Debug, PartialEq, JamEncode)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DeferredTransfer {
     /// `s`: Sender service id
     pub from: ServiceId,
@@ -39,6 +39,21 @@ pub struct DeferredTransfer {
     pub memo: TransferMemo,
     /// `g`: Gas limit for the transfer
     pub gas_limit: UnsignedGas,
+}
+
+impl JamEncode for DeferredTransfer {
+    fn size_hint(&self) -> usize {
+        4 + 4 + 8 + self.memo.size_hint() + 8
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.from.encode_to_fixed(dest, 4)?;
+        self.to.encode_to_fixed(dest, 4)?;
+        self.amount.encode_to_fixed(dest, 8)?;
+        self.memo.encode_to(dest)?;
+        self.gas_limit.encode_to_fixed(dest, 8)?;
+        Ok(())
+    }
 }
 
 /// Accumulation input item, which is either accumulate operand or deferred transfer.
