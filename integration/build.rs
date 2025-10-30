@@ -77,6 +77,10 @@ fn generate_block_import_tests() {
         fs::read_dir(full_path.join("storage")).expect("Failed to read storage test vectors dir");
     let storage_light_test_files = fs::read_dir(full_path.join("storage_light"))
         .expect("Failed to read storage_light test vectors dir");
+    let fuzzy_test_files =
+        fs::read_dir(full_path.join("fuzzy")).expect("Failed to read fuzzy test vectors dir");
+    let fuzzy_light_test_files = fs::read_dir(full_path.join("fuzzy_light"))
+        .expect("Failed to read fuzzy_light test vectors dir");
 
     let dest_path =
         PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_block_import_tests.rs");
@@ -96,6 +100,12 @@ fn generate_block_import_tests() {
     write_block_import_test_cases(
         storage_light_test_files,
         "storage_light",
+        &mut test_case_contents,
+    );
+    write_block_import_test_cases(fuzzy_test_files, "fuzzy", &mut test_case_contents);
+    write_block_import_test_cases(
+        fuzzy_light_test_files,
+        "fuzzy_light",
         &mut test_case_contents,
     );
 

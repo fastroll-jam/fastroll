@@ -4,7 +4,7 @@
 [submodule "integration/jamtestvectors-polkajam"]
 	path = integration/jamtestvectors-polkajam
 	url = https://github.com/davxy/jam-test-vectors.git
-	branch = master
+	branch = more-fuzzy-traces
 [submodule "integration/jamtestvectors-pvm"]
 	path = integration/jamtestvectors-pvm
 	url = https://github.com/koute/jamtestvectors.git
