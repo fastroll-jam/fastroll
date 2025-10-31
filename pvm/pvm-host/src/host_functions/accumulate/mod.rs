@@ -433,6 +433,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         continue_ok!()
     }
 
+    // FIXME: GP v0.7.2 features (TRANSFER gas limit)
     /// Transfers tokens from the accumulating service account to another service account.
     pub async fn host_transfer(
         vm: &VMState,
@@ -451,23 +452,23 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Read from Memory (Err: Panic)
 
         let Ok(offset) = vm.read_reg_as_mem_address(10) else {
-            host_call_panic!()
+            host_call_panic!(gas_charge)
         };
         if !vm
             .memory
             .is_address_range_readable(offset, TRANSFER_MEMO_SIZE)
         {
-            host_call_panic!()
+            host_call_panic!(gas_charge)
         }
         let Ok(memo_encoded) = vm.memory.read_bytes(offset, TRANSFER_MEMO_SIZE) else {
-            host_call_panic!()
+            host_call_panic!(gas_charge)
         };
         let memo = ByteArray::<TRANSFER_MEMO_SIZE>::decode(&mut memo_encoded.as_slice())?;
 
         // --- Check Destination Service (Err: WHO)
 
         let Ok(dest) = vm.read_reg_as_service_id(7) else {
-            continue_who!()
+            continue_who!(gas_charge)
         };
         // Check the global state and the accumulate context partial state to confirm that the
         // destination account exists.
@@ -478,7 +479,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             .await?
             .cloned()
         else {
-            continue_who!()
+            continue_who!(gas_charge)
         };
 
         // --- Check Transfer Gas Limit (Err: LOW)
@@ -488,14 +489,14 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
 
         if transfer_gas_limit < dest_account_metadata.gas_limit_on_transfer {
-            continue_low!()
+            continue_low!(gas_charge)
         }
 
         // --- Check Sender Balance (Err: CASH)
 
         let amount = vm.read_reg(8);
         if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
-            continue_cash!()
+            continue_cash!(gas_charge)
         }
 
         // --- OK
