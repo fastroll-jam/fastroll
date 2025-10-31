@@ -10,7 +10,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     constants::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
-    Hash32, Octets, ServiceId, SignedGas, UnsignedGas,
+    ByteEncodable, Hash32, Octets, ServiceId, SignedGas, UnsignedGas,
 };
 use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
 use fr_pvm_types::{
@@ -477,7 +477,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         // --- OK
 
         // Apply the state change
-        if let Some(new_entry) = new_storage_entry {
+        if let Some(new_entry) = new_storage_entry.clone() {
             accounts_sandbox
                 .insert_account_storage_entry(
                     state_provider.clone(),
@@ -511,8 +511,12 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             )
             .await?;
 
+        let write_val = new_storage_entry.map(|entry| {
+            entry.value.to_hex()
+        });
+
         tracing::debug!(
-            "WRITE s={service_id} key={storage_key} state_key={} len={value_size}",
+            "WRITE s={service_id} key={storage_key} state_key={} len={value_size} val={write_val:?}",
             get_account_storage_state_key(service_id, &storage_key)?,
         );
 

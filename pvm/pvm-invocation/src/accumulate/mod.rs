@@ -111,7 +111,11 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         mut partial_state: AccumulatePartialState<StateManager>,
         args: &AccumulateInvokeArgs,
     ) -> Result<Option<AccumulateResult<StateManager>>, PVMInvokeError> {
-        tracing::info!("Ψ_A (accumulate) invoked. s={}", args.accumulate_host);
+        tracing::info!(
+            "Ψ_A (accumulate) invoked. s={} gas={}",
+            args.accumulate_host,
+            args.gas_limit
+        );
 
         // Check if the accumulate host exists either in the global state or the partial state
         // and is not ejected.

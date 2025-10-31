@@ -363,26 +363,35 @@ async fn accumulate_parallel(
         // each `Δ1` within the same `Δ*` batch has isolated view of the partial state
         let partial_state_cloned = partial_state_union.clone();
 
-        let handle = tokio::spawn(async move {
-            accumulate_single_service(
-                state_manager_cloned,
-                partial_state_cloned,
-                prev_transfers_cloned,
-                reports_cloned,
-                always_accumulate_services_cloned,
-                service_id,
-                curr_timeslot_index,
-            )
-            .await
-        });
-        handles.push(handle);
+        let acc_result = accumulate_single_service(
+            state_manager_cloned,
+            partial_state_cloned,
+            prev_transfers_cloned,
+            reports_cloned,
+            always_accumulate_services_cloned,
+            service_id,
+            curr_timeslot_index,
+        )
+        .await?;
+
+        // let handle = tokio::spawn(async move {
+        //     accumulate_single_service(
+        //         state_manager_cloned,
+        //         partial_state_cloned,
+        //         prev_transfers_cloned,
+        //         reports_cloned,
+        //         always_accumulate_services_cloned,
+        //         service_id,
+        //         curr_timeslot_index,
+        //     )
+        //     .await
+        // });
+        // handles.push(handle);
+        handles.push(acc_result);
     }
 
     for handle in handles {
-        if let Some(accumulate_result) = handle
-            .await
-            .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??
-        {
+        if let Some(accumulate_result) = handle {
             // Merge partial state changes for all accumulated services
             merge_partial_state_change(
                 state_manager.clone(),
