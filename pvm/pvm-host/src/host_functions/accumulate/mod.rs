@@ -5,7 +5,7 @@ use crate::{
     context::{InvocationContext, NewAccountFields},
     error::HostCallError,
     get_accumulate_x, get_mut_accumulate_y,
-    host_functions::HostCallResult,
+    host_functions::{HostCallResult, HostCallReturnCode},
     macros::*,
     out_of_gas,
 };
@@ -446,7 +446,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Gas Charge (Err: OOG)
 
         let transfer_gas_limit = vm.read_reg(9);
-        let gas_charge = HOSTCALL_BASE_GAS_CHARGE + transfer_gas_limit;
+        let gas_charge = HOSTCALL_BASE_GAS_CHARGE.saturating_add(transfer_gas_limit);
         check_out_of_gas!(vm.gas_counter, gas_charge);
 
         // --- Read from Memory (Err: Panic)
@@ -639,7 +639,14 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Preimage Lookups Manifest Entry (Err: NONE)
 
         let Ok(preimage_size) = vm.read_reg_as_u32(8) else {
-            continue_none!()
+            return Ok(HostCallResult::continue_with_vm_change(
+                HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::NONE as RegValue),
+                    r8_write: Some(0),
+                    memory_write: None,
+                },
+            ));
         };
         let lookups_key = (preimage_hash, preimage_size);
         let Some(entry) = x
@@ -648,7 +655,14 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             .get_account_lookups_entry(state_provider, x.accumulate_host, &lookups_key)
             .await?
         else {
-            continue_none!()
+            return Ok(HostCallResult::continue_with_vm_change(
+                HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::NONE as RegValue),
+                    r8_write: Some(0),
+                    memory_write: None,
+                },
+            ));
         };
 
         // --- OK
