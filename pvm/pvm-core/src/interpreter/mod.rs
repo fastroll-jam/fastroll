@@ -3,18 +3,15 @@ use crate::{
     program::{
         instruction::{opcode::Opcode as OP, set::InstructionSet as IS, Instruction},
         loader::ProgramLoader,
-        types::program_state::{OpcodeBitmask, ProgramState},
+        types::program_state::ProgramState,
     },
     state::{
         state_change::{VMStateChange, VMStateMutator},
         vm_state::VMState,
     },
 };
-use fr_pvm_types::{
-    common::RegValue,
-    constants::{MAX_INST_BLOB_LENGTH, MAX_SKIP_DISTANCE},
-    exit_reason::ExitReason,
-};
+use fr_pvm_types::{common::RegValue, constants::MAX_SKIP_DISTANCE, exit_reason::ExitReason};
+use tracing::Level;
 
 #[derive(Debug)]
 pub struct SingleStepResult {
@@ -24,54 +21,18 @@ pub struct SingleStepResult {
 
 pub struct Interpreter;
 impl Interpreter {
-    /// Skip function that calculates skip distance to the next instruction from the instruction
-    /// sequence and the opcode bitmask
-    pub(crate) fn skip(curr_opcode_index: usize, opcode_bitmask: &OpcodeBitmask) -> usize {
-        for skip_distance in 0..=MAX_SKIP_DISTANCE {
-            if opcode_bitmask
-                .get(curr_opcode_index + 1 + skip_distance)
-                .map(|bit| *bit)
-                .unwrap_or(true)
-            {
-                return skip_distance;
-            }
-        }
-
-        MAX_SKIP_DISTANCE // Note: this case implies malformed program.
+    /// Skip function that returns pre-computed skip distance to the next instruction.
+    pub(crate) fn skip(curr_opcode_index: usize, program_state: &ProgramState) -> usize {
+        program_state
+            .skip_distance(curr_opcode_index)
+            .unwrap_or(MAX_SKIP_DISTANCE)
     }
 
     /// Get the next pc value from the current VM state and the skip function
     /// for normal instruction execution completion
     #[inline(always)]
     pub fn next_pc(vm_state: &VMState, program_state: &ProgramState) -> RegValue {
-        vm_state.pc
-            + 1
-            + Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask) as RegValue
-    }
-
-    /// Extracts a single instruction at a given program counter from the instructions blob.
-    /// Returns `None` if the parsing fails.
-    fn extract_single_inst(
-        instructions: &[u8],
-        curr_pc: RegValue,
-        skip_distance: usize,
-    ) -> Option<Instruction> {
-        let curr_ins_idx = curr_pc as usize;
-        let next_ins_idx = curr_ins_idx + 1 + skip_distance;
-
-        // Out of instructions slice boundary should be interpreted as TRAP.
-        if next_ins_idx > instructions.len() {
-            return Some(Instruction::trap());
-        }
-
-        let mut inst_blob = &instructions[curr_ins_idx..next_ins_idx];
-
-        // Instruction blob length is not greater than `MAX_INST_BLOB_LENGTH`
-        if inst_blob.len() > MAX_INST_BLOB_LENGTH {
-            inst_blob = &inst_blob[..MAX_INST_BLOB_LENGTH];
-        }
-
-        Instruction::from_inst_blob(inst_blob, curr_pc, skip_distance).ok()
+        vm_state.pc + 1 + Self::skip(vm_state.pc as usize, program_state) as RegValue
     }
 
     /// General PVM invocation function.
@@ -98,16 +59,14 @@ impl Interpreter {
 
         loop {
             let curr_pc = vm_state.pc;
-            let skip_distance = Self::skip(curr_pc as usize, &program_state.opcode_bitmask);
-            let Some(inst) =
-                Self::extract_single_inst(&program_state.instructions, curr_pc, skip_distance)
-            else {
+            let program_state_ref: &ProgramState = program_state;
+            let Some(inst) = program_state_ref.instruction_at(curr_pc as usize) else {
                 tracing::warn!("Ψ Panic: Failed to extract instruction. PC={curr_pc}");
                 return Ok(ExitReason::Panic);
             };
 
             let single_invocation_result =
-                Self::invoke_single_step(vm_state, program_state, &inst)?;
+                Self::invoke_single_step(vm_state, program_state_ref, inst)?;
             let post_gas = match VMStateMutator::apply_state_change(
                 vm_state,
                 &single_invocation_result.state_change,
@@ -129,14 +88,16 @@ impl Interpreter {
                 return Ok(ExitReason::OutOfGas);
             }
 
-            tracing::trace!(
-                "{:?}({}) pc={} gas={} regs={:?}",
-                inst.op,
-                inst.op as u8,
-                vm_state.pc,
-                vm_state.gas_counter,
-                vm_state.regs
-            );
+            if tracing::enabled!(Level::TRACE) {
+                tracing::trace!(
+                    "{:?}({}) pc={} gas={} regs={:?}",
+                    inst.op,
+                    inst.op as u8,
+                    vm_state.pc,
+                    vm_state.gas_counter,
+                    vm_state.regs
+                );
+            }
 
             match single_invocation_result.exit_reason {
                 ExitReason::Continue => continue,
