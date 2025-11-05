@@ -176,14 +176,14 @@ fn integer_size_hint<T: TryInto<u64>>(value: T) -> usize
 where
     <T as TryInto<u64>>::Error: Debug,
 {
-    let x: u64 = value.try_into().unwrap_or(9); // fallback to the maximum size if the conversion fails
+    let x: u64 = value.try_into().unwrap_or(u64::MAX); // fallback to maximum size
 
     if x == 0 {
-        1 // 1-byte prefix only
+        1 // single zero byte
     } else if x < (1 << 56) {
-        x.ilog2().div_ceil(7) as usize
+        (x.ilog2() / 7) as usize + 1 // 1 prefix + remainders
     } else {
-        9 // 1-byte prefix + 8-byte little-endian encoding
+        9 // 1 prefix + 8 data bytes
     }
 }
 
@@ -209,7 +209,7 @@ where
 
     // Case 2: 2^7l <= x < 2^7(l+1)
     let l = length_prefix;
-    let mask = 0xFFu8 >> (l + 1);
+    let mask = if l >= 7 { 0 } else { 0xFFu8 >> (l + 1) };
     let quotient = (first_byte & mask) as u64;
     let remainder = u64::decode_fixed(input, l)?;
 
@@ -768,6 +768,18 @@ mod tests {
         assert_eq!(encode_decode(u8::MAX), u8::MAX);
         assert_eq!(127u8.encode().unwrap(), vec![127]);
         assert_eq!(128u8.encode().unwrap(), vec![0b10000000, 128]); // 0b10000000 for prefix
+    }
+
+    #[test]
+    fn test_u8_codec_case_2() {
+        // integer = 2251799813685250; l = 7 (case 2)
+        let bytes = [0xfeu8, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08];
+        let decoded = u64::decode(&mut bytes.as_slice()).unwrap();
+        assert_eq!(decoded, 0x0008_0000_0000_0002);
+
+        let mut buf = vec![];
+        decoded.encode_to(&mut buf).unwrap();
+        assert_eq!(buf, bytes);
     }
 
     #[test]
