@@ -12,11 +12,8 @@ pub async fn transition_timeslot(
     state_manager: Arc<StateManager>,
     header_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
-    #[cfg(not(feature = "fuzz"))]
-    {
-        let prior_timeslot = state_manager.get_timeslot().await?; // Timeslot of the parent block.
-        validate_timeslot(&prior_timeslot, header_timeslot)?;
-    }
+    let prior_timeslot = state_manager.get_timeslot().await?; // Timeslot of the parent block.
+    validate_timeslot(&prior_timeslot, header_timeslot)?;
 
     state_manager
         .with_mut_timeslot(
@@ -30,7 +27,6 @@ pub async fn transition_timeslot(
     Ok(())
 }
 
-#[cfg(not(feature = "fuzz"))]
 fn validate_timeslot(
     prior_timeslot: &Timeslot,
     current_timeslot: &Timeslot,
@@ -44,12 +40,14 @@ fn validate_timeslot(
     // Timeslot value must be greater than the parent block
     if current_timeslot <= prior_timeslot {
         return Err(TransitionError::InvalidTimeslot {
-            next_slot: current_timeslot.slot(),
-            current_slot: prior_timeslot.slot(),
+            new_slot: current_timeslot.slot(),
+            prev_slot: prior_timeslot.slot(),
         });
     }
 
     // Timeslot value cannot be in the future
+    // Note: fuzzing may include blocks with arbitrary slot values; skip this check for fuzzing
+    #[cfg(not(feature = "fuzz"))]
     if current_timeslot.is_in_future() {
         return Err(TransitionError::FutureTimeslot(current_timeslot.slot()));
     }

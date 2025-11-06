@@ -58,8 +58,8 @@ pub enum BlockImportError {
     InvalidParentHash(String, String),
     #[error("Block header contains timeslot that is later than the current system time")]
     TimeslotInFuture,
-    #[error("Block header contains timeslot earlier than the parent header")]
-    InvalidTimeslot,
+    #[error("Timeslot value {new_slot} must be greater than the parent block {prev_slot}")]
+    InvalidTimeslot { new_slot: u32, prev_slot: u32 },
     #[error("Block header contains invalid prior state root")]
     InvalidPriorStateRoot,
     #[error(
@@ -289,8 +289,6 @@ impl BlockImporter {
         is_first_fuzz_block: bool,
     ) -> Result<(), BlockImportError> {
         let best_header = storage.header_db().get_best_header();
-        // Note: Skips timeslot validation if this function is run by fuzz target
-        #[cfg(not(feature = "fuzz"))]
         Self::validate_timeslot_index(&best_header, block)?;
 
         // Note: Skips validation of header fields related to the prior block if it is the first block for fuzzing
@@ -384,15 +382,20 @@ impl BlockImporter {
         Ok(())
     }
 
-    #[cfg(not(feature = "fuzz"))]
     fn validate_timeslot_index(
         best_header: &BlockHeader,
         block: &Block,
     ) -> Result<(), BlockImportError> {
         let current_timeslot_index = block.header.timeslot_index();
         if current_timeslot_index <= best_header.timeslot_index() {
-            return Err(BlockImportError::InvalidTimeslot);
+            return Err(BlockImportError::InvalidTimeslot {
+                new_slot: current_timeslot_index,
+                prev_slot: best_header.timeslot_index(),
+            });
         }
+
+        // Note: fuzzing may include blocks with arbitrary slot values; skip this check for fuzzing
+        #[cfg(not(feature = "fuzz"))]
         if Timeslot::new(current_timeslot_index).is_in_future() {
             return Err(BlockImportError::TimeslotInFuture);
         }

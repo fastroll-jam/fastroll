@@ -15,8 +15,8 @@ use tokio::task::JoinError;
 #[derive(Debug, Error)]
 pub enum TransitionError {
     // Timeslot errors
-    #[error("Timeslot value {next_slot} must be greater than the parent block {current_slot}")]
-    InvalidTimeslot { next_slot: u32, current_slot: u32 },
+    #[error("Timeslot value {new_slot} must be greater than the parent block {prev_slot}")]
+    InvalidTimeslot { new_slot: u32, prev_slot: u32 },
     #[error("Timeslot value {0} is in the future")]
     FutureTimeslot(u32),
     // Pending Work Reports errors
