@@ -82,6 +82,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         // Mutate the state cache to apply the received amount
         let account_exists_in_state = state_manager.account_exists(accumulate_host).await?;
         if account_exists_in_state {
+            tracing::debug!("Deferred transfer: s={accumulate_host} received {recv_amount}");
             state_manager
                 .with_mut_account_metadata(
                     StateMut::Update,
@@ -120,6 +121,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
             .account_exists_active(state_manager.clone(), args.accumulate_host)
             .await?;
         if !accumulate_host_exists {
+            tracing::debug!("Accumulate host ({}) does not exist", args.accumulate_host);
             return Ok(None);
         }
 

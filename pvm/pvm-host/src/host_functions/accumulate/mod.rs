@@ -180,8 +180,30 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Privilege (Err: HUH)
 
         // Only the privileged assign service of the core is allowed to invoke this host call
-        if x.accumulate_host != x.partial_state.assign_services.last_confirmed[core_index] {
-            continue_huh!()
+        if let Some(new_assign_services_by_manager) =
+            &x.partial_state.assign_services.change_by_manager
+        {
+            // Assigner is changed in the partial state and the accumulate host is the manager service
+            if x.accumulate_host != new_assign_services_by_manager[core_index] {
+                continue_huh!()
+            }
+        } else if let Some(new_assign_service_by_self) = x
+            .partial_state
+            .assign_services
+            .change_by_self
+            .get(&(core_index as CoreIndex))
+        {
+            // Assigner is changed in the partial state and
+            // the accumulate host was the previous assigner of the core
+            if x.accumulate_host != *new_assign_service_by_self {
+                continue_huh!()
+            }
+        } else {
+            // Assigner is not changed in the partial state.
+            // Validate against the last confirmed version.
+            if x.accumulate_host != x.partial_state.assign_services.last_confirmed[core_index] {
+                continue_huh!()
+            }
         }
 
         // --- Check New Privilege (Err: WHO)
@@ -192,7 +214,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // --- OK
 
-        x.assign_core_auth_queue(core_index as CoreIndex, new_core_auth_queue);
+        x.assign_core_auth_queue(core_index, new_core_auth_queue);
         x.assign_new_core_assign_service(core_index, core_assign_service);
         tracing::debug!("ASSIGN core={core_index} new_assigner={core_assign_service}",);
         continue_ok!()
@@ -234,8 +256,27 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Privilege (Err: HUH)
 
         // Only the privileged designate service is allowed to invoke this host call
-        if x.accumulate_host != x.partial_state.designate_service.last_confirmed {
-            continue_huh!()
+        if let Some(new_designate_service_by_manager) =
+            x.partial_state.designate_service.change_by_manager
+        {
+            // Designate service is changed in the partial state and the accumulate host is the manager service
+            if x.accumulate_host != new_designate_service_by_manager {
+                continue_huh!()
+            }
+        } else if let Some(new_designate_service_by_self) =
+            x.partial_state.designate_service.change_by_self
+        {
+            // Designate service is changed in the partial state and
+            // the accumulate host was the previous designate service
+            if x.accumulate_host != new_designate_service_by_self {
+                continue_huh!()
+            }
+        } else {
+            // Designate service is not changed in the partial state.
+            // Validate against the last confirmed version.
+            if x.accumulate_host != x.partial_state.designate_service.last_confirmed {
+                continue_huh!()
+            }
         }
 
         // --- OK
@@ -337,12 +378,30 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // Not used if this value is larger than `MIN_PUBLIC_SERVICE_ID`
         let new_small_service_id = vm.read_reg_as_service_id(12).unwrap_or(ServiceId::MAX);
-        let has_small_service_id = new_small_service_id < MIN_PUBLIC_SERVICE_ID
-            && x.accumulate_host == x.partial_state.registrar_service.last_confirmed;
+        let accumulate_host_is_registrar = {
+            if let Some(new_registrar_service_by_manager) =
+                x.partial_state.registrar_service.change_by_manager
+            {
+                // Registrar service is changed in the partial state and the accumulate host is the manager service
+                x.accumulate_host == new_registrar_service_by_manager
+            } else if let Some(new_registrar_service_by_self) =
+                x.partial_state.registrar_service.change_by_self
+            {
+                // Registrar service is changed in the partial state and
+                // the accumulate host was the previous registrar service
+                x.accumulate_host == new_registrar_service_by_self
+            } else {
+                // Registrar service is not changed in the partial state.
+                // Validate against the last confirmed version.
+                x.accumulate_host == x.partial_state.registrar_service.last_confirmed
+            }
+        };
+        let has_small_service_id =
+            new_small_service_id < MIN_PUBLIC_SERVICE_ID && accumulate_host_is_registrar;
         let new_small_service_id_already_taken = x
             .partial_state
             .accounts_sandbox
-            .account_exists_anywhere(state_provider.clone(), new_small_service_id)
+            .account_exists_active(state_provider.clone(), new_small_service_id)
             .await?;
 
         if has_small_service_id && new_small_service_id_already_taken {
@@ -512,7 +571,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             gas_limit: transfer_gas_limit,
         };
 
-        x.add_to_deferred_transfers(transfer);
+        x.add_deferred_transfer(transfer);
         tracing::debug!(
             "TRANSFER from={} to={dest} amount={amount}",
             x.accumulate_host

@@ -163,11 +163,10 @@ async fn merge_partial_state_change(
     mut accumulate_result_partial_state: AccumulatePartialState<StateManager>,
 ) -> Result<(), PVMInvokeError> {
     // Merge StagingSet changes
-    if let (None, Some(new_staging_set)) = (
-        &partial_state_union.new_staging_set,
-        accumulate_result_partial_state.new_staging_set,
-    ) {
-        partial_state_union.new_staging_set = Some(new_staging_set);
+    if accumulate_host == partial_state_union.designate_service.last_confirmed {
+        if let Some(new_staging_set) = accumulate_result_partial_state.new_staging_set {
+            partial_state_union.new_staging_set = Some(new_staging_set);
+        }
     }
 
     // Merge AuthQueue changes
@@ -176,8 +175,8 @@ async fn merge_partial_state_change(
         .last_confirmed;
 
     // Update per-core auth queues for cores whose assigner matches the current accumulate host.
-    for (core_idx, assigner) in original_assigners.iter().enumerate() {
-        if *assigner == accumulate_host {
+    for (core_idx, original_assigner) in original_assigners.iter().enumerate() {
+        if *original_assigner == accumulate_host {
             if let (Some(source_queue), Some(union_queue)) = (
                 accumulate_result_partial_state.auth_queue.0.get(core_idx),
                 partial_state_union.auth_queue.0.get_mut(core_idx),
@@ -423,12 +422,65 @@ async fn accumulate_parallel(
         }
     }
 
-    let service_output_pairs = AccumulationOutputPairs(service_output_pairs);
+    // Multiple services that are accumulated in the same `Δ*` round can produce conflicting
+    // changes to the privileged services: assigners, designate and registrar.
+    // So at this point, `partial_state_union` may hold `Some` variants for both `change_by_manager`
+    // and `change_by_self` fields for partial state of the privileged services.
+    //
+    // If such conflicts happen, changes by the manager services should be prioritized over changes
+    // by the privileged services themselves. This behavior is described in the `R(o, a, b)` util
+    // function of the Graypaper.
+    //
+    // Once the state change is confirmed, partial state change fields of the union should be cleared.
+
+    // Confirm the new assign services
+    if let Some(new_assign_services_by_manager) =
+        &partial_state_union.assign_services.change_by_manager
+    {
+        partial_state_union.assign_services.last_confirmed = new_assign_services_by_manager.clone();
+    } else {
+        for (core_idx, new_assign_service_by_self) in
+            &partial_state_union.assign_services.change_by_self
+        {
+            if let Some(assign) = partial_state_union
+                .assign_services
+                .last_confirmed
+                .get_mut(*core_idx as usize)
+            {
+                *assign = *new_assign_service_by_self;
+            }
+        }
+    }
+
+    // Confirm the new designate service
+    if let Some(new_designate_service_by_manager) =
+        partial_state_union.designate_service.change_by_manager
+    {
+        partial_state_union.designate_service.last_confirmed = new_designate_service_by_manager;
+    } else if let Some(new_designate_service_by_self) =
+        partial_state_union.designate_service.change_by_self
+    {
+        partial_state_union.designate_service.last_confirmed = new_designate_service_by_self;
+    }
+
+    // Confirm the new registrar service
+    if let Some(new_registrar_service_by_manager) =
+        partial_state_union.registrar_service.change_by_manager
+    {
+        partial_state_union.registrar_service.last_confirmed = new_registrar_service_by_manager;
+    } else if let Some(new_registrar_service_by_self) =
+        partial_state_union.registrar_service.change_by_self
+    {
+        partial_state_union.registrar_service.last_confirmed = new_registrar_service_by_self;
+    }
+
+    // Clear state changes marked in `partial_state_union`, since they are resolved
+    partial_state_union.clear_privileged_services_changes();
 
     Ok(ParallelAccumulationResult {
         service_gas_pairs,
         new_deferred_transfers,
-        service_output_pairs,
+        service_output_pairs: AccumulationOutputPairs(service_output_pairs),
     })
 }
 
