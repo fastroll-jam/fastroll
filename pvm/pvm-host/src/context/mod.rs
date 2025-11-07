@@ -285,10 +285,11 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         Ok(())
     }
 
-    pub fn add_to_deferred_transfers(&mut self, transfer: DeferredTransfer) {
+    pub fn add_deferred_transfer(&mut self, transfer: DeferredTransfer) {
         self.deferred_transfers.push(transfer);
     }
 
+    /// Used by `BLESS` host call
     pub fn assign_new_privileged_services(
         &mut self,
         accumulate_host: ServiceId,
@@ -331,6 +332,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         }
     }
 
+    /// Used by `ASSIGN` host call
     pub fn assign_new_core_assign_service(&mut self, core_index: usize, assign_service: ServiceId) {
         self.partial_state
             .assign_services
@@ -338,14 +340,12 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .insert(core_index as CoreIndex, assign_service);
     }
 
-    pub fn assign_core_auth_queue(
-        &mut self,
-        core_index: CoreIndex,
-        core_auth_queue: CoreAuthQueue,
-    ) {
-        self.partial_state.auth_queue.0[core_index as usize] = core_auth_queue;
+    /// Used by `ASSIGN` host call
+    pub fn assign_core_auth_queue(&mut self, core_index: usize, core_auth_queue: CoreAuthQueue) {
+        self.partial_state.auth_queue.0[core_index] = core_auth_queue;
     }
 
+    /// Used by `DESIGNATE` host call
     pub fn assign_new_staging_set(&mut self, staging_set: StagingSet) {
         self.partial_state.new_staging_set = Some(staging_set);
     }

@@ -1073,57 +1073,27 @@ impl AssignServicesPartialState {
         }
     }
 
-    /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
-    /// while prioritize changes by manager services.
+    /// Merges changes of the `AssignServices` state from the `other` partial state into `self`.
     pub fn merge_changes_from(
         &mut self,
         other: &AssignServicesPartialState,
     ) -> Result<(), PartialStateError> {
-        if let Some(manager_assigners) = &other.change_by_manager {
-            for (core_idx, assigner_update_by_manager) in manager_assigners.iter().enumerate() {
-                let original = *other.last_confirmed.get(core_idx).ok_or(
-                    PartialStateError::CoreIndexOutOfBounds(core_idx as CoreIndex),
-                )?;
-                if *assigner_update_by_manager != original {
-                    if let Some(assigner) = self.last_confirmed.get_mut(core_idx) {
-                        *assigner = *assigner_update_by_manager;
-                    }
-                }
-            }
+        if let Some(assigners_by_manager) = &other.change_by_manager {
+            self.change_by_manager = Some(assigners_by_manager.clone());
+            return Ok(());
         }
 
-        for (&core_idx, &assigner_update_by_self) in &other.change_by_self {
+        for (&core_idx, &assigner_by_self) in &other.change_by_self {
             let original = *other
                 .last_confirmed
                 .get(core_idx as usize)
                 .ok_or(PartialStateError::CoreIndexOutOfBounds(core_idx))?;
-            if assigner_update_by_self != original {
-                if let Some(assigner) = self.last_confirmed.get_mut(core_idx as usize) {
-                    if *assigner == original {
-                        *assigner = assigner_update_by_self;
-                    }
-                }
+            if assigner_by_self != original {
+                self.change_by_self.insert(core_idx, assigner_by_self);
             }
         }
+
         Ok(())
-    }
-
-    pub fn updated(&self) -> AssignServices {
-        if let Some(change_by_manager) = &self.change_by_manager {
-            if change_by_manager != &self.last_confirmed {
-                return change_by_manager.clone();
-            }
-        }
-
-        let mut updated = self.last_confirmed.clone();
-        for (k, v) in &self.change_by_self {
-            if let Some(assigner_mut) = updated.get_mut(*k as usize) {
-                if assigner_mut != v {
-                    *assigner_mut = *v;
-                }
-            }
-        }
-        updated
     }
 }
 
@@ -1148,36 +1118,21 @@ impl DesignateServicePartialState {
         }
     }
 
-    /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
-    /// while prioritize changes by manager services.
+    /// Merges changes of the designate service from the `other` partial state into `self`.
     pub fn merge_changes_from(&mut self, other: &DesignateServicePartialState) {
         let original = other.last_confirmed;
-        if let Some(manager_change) = other.change_by_manager {
-            if manager_change != original {
-                self.last_confirmed = manager_change;
+        if let Some(designate_by_manager) = other.change_by_manager {
+            if designate_by_manager != original {
+                self.change_by_manager = Some(designate_by_manager);
                 return;
             }
         }
 
-        if let Some(self_change) = other.change_by_self {
-            if self_change != original && self.last_confirmed == original {
-                self.last_confirmed = self_change;
+        if let Some(designate_by_self) = other.change_by_self {
+            if designate_by_self != original {
+                self.change_by_self = Some(designate_by_self);
             }
         }
-    }
-
-    pub fn updated(&self) -> Option<ServiceId> {
-        if let Some(manager_change) = self.change_by_manager {
-            if manager_change != self.last_confirmed {
-                return Some(manager_change);
-            }
-        }
-        if let Some(self_change) = self.change_by_self {
-            if self_change != self.last_confirmed {
-                return Some(self_change);
-            }
-        }
-        None
     }
 }
 
@@ -1202,36 +1157,21 @@ impl RegistrarServicePartialState {
         }
     }
 
-    /// Implements `R(o, a, b)` util function of the GP to merge partial state changes
-    /// while prioritize changes by manager services.
+    /// Merges changes of the registrar service from the `other` partial state into `self`.
     pub fn merge_changes_from(&mut self, other: &RegistrarServicePartialState) {
         let original = other.last_confirmed;
-        if let Some(manager_change) = other.change_by_manager {
-            if manager_change != original {
-                self.last_confirmed = manager_change;
+        if let Some(registrar_by_manager) = other.change_by_manager {
+            if registrar_by_manager != original {
+                self.change_by_manager = Some(registrar_by_manager);
                 return;
             }
         }
 
-        if let Some(self_change) = other.change_by_self {
-            if self_change != original && self.last_confirmed == original {
-                self.last_confirmed = self_change;
+        if let Some(registrar_by_self) = other.change_by_self {
+            if registrar_by_self != original {
+                self.change_by_self = Some(registrar_by_self);
             }
         }
-    }
-
-    pub fn updated(&self) -> Option<ServiceId> {
-        if let Some(manager_change) = self.change_by_manager {
-            if manager_change != self.last_confirmed {
-                return Some(manager_change);
-            }
-        }
-        if let Some(self_change) = self.change_by_self {
-            if self_change != self.last_confirmed {
-                return Some(self_change);
-            }
-        }
-        None
     }
 }
 
@@ -1389,5 +1329,17 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             .mark_account_metadata_updated(state_provider, service_id)
             .await?;
         Ok(())
+    }
+
+    /// Clears changes marked for privileged services. This should be invoked by
+    /// the union partial state only - which holds the merged and finalized effects of
+    /// multiple single-service accumulations within a parallel accumulation.
+    pub fn clear_privileged_services_changes(&mut self) {
+        self.assign_services.change_by_manager = None;
+        self.assign_services.change_by_self = HashMap::new();
+        self.designate_service.change_by_manager = None;
+        self.designate_service.change_by_self = None;
+        self.registrar_service.change_by_manager = None;
+        self.registrar_service.change_by_self = None;
     }
 }
