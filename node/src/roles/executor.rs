@@ -266,10 +266,9 @@ impl BlockExecutor {
 
         // AuthPool STF (post-accumulation)
         let manager = storage.state_manager();
-        let header_timeslot_index = block.header.timeslot_index();
         let guarantees_xt_cloned = guarantees_xt.clone();
         let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
-            transition_auth_pool(manager, &guarantees_xt_cloned, header_timeslot_index).await
+            transition_auth_pool(manager, &guarantees_xt_cloned, curr_timeslot.slot()).await
         });
 
         // Services last_accumulate_at STF

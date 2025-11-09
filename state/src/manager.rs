@@ -630,7 +630,7 @@ impl StateManager {
         }
     }
 
-    pub async fn get_slot_sealer(&self) -> Result<SlotSealer, StateManagerError> {
+    pub async fn get_current_slot_sealer(&self) -> Result<SlotSealer, StateManagerError> {
         let timeslot = self.get_timeslot().await?;
         Ok(self
             .get_safrole()
