@@ -1,10 +1,10 @@
 use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
-    types::work_report::WorkReport,
+    types::{work_report::WorkReport, Timeslot},
 };
 use fr_codec::prelude::*;
-use fr_common::{TimeslotIndex, WorkPackageHash, EPOCH_LENGTH};
+use fr_common::{WorkPackageHash, EPOCH_LENGTH};
 use fr_limited_vec::FixedVec;
 use std::{
     collections::BTreeSet,
@@ -87,9 +87,9 @@ impl AccumulateQueue {
     /// the most recent `m` entries at the beginning of the queue (from index `0` to `m-1`).
     pub fn partition_by_slot_phase_and_flatten(
         &self,
-        timeslot_index: TimeslotIndex,
+        curr_timeslot: Timeslot,
     ) -> Vec<WorkReportDepsMap> {
-        let slot_phase = timeslot_index as usize % EPOCH_LENGTH; // m
+        let slot_phase = curr_timeslot.slot_phase() as usize; // m
         let mut queue_ordered = self.items.clone();
         Self::rotate_left_queue(&mut queue_ordered, slot_phase);
         queue_ordered.into_iter().flatten().collect()

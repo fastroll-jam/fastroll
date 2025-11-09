@@ -235,7 +235,7 @@ impl BlockExecutor {
             available_reports.clone(),
             &acc_queue,
             &acc_history,
-            prev_timeslot.slot(),
+            curr_timeslot,
         );
         let manager = storage.state_manager();
         let acc_jh = spawn_timed("acc_stf", async move {

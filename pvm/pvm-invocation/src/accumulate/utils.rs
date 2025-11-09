@@ -1,8 +1,8 @@
-use fr_common::{workloads::work_report::WorkReport, ServiceId, TimeslotIndex, WorkPackageHash};
+use fr_common::{workloads::work_report::WorkReport, ServiceId, WorkPackageHash};
 use fr_pvm_types::invoke_args::DeferredTransfer;
 use fr_state::types::{
     accumulate::{AccumulateQueue, WorkReportDepsMap},
-    AccumulateHistory,
+    AccumulateHistory, Timeslot,
 };
 
 /// Accumulatable work reports in this block.
@@ -38,8 +38,6 @@ pub fn edit_queue(
         .iter()
         .filter(|(wr, _)| !new_accumulated_packages.contains(wr.work_package_hash()))
         .cloned()
-        .collect::<Vec<_>>()
-        .into_iter()
         .map(|(wr, deps)| {
             (
                 wr,
@@ -53,24 +51,28 @@ pub fn edit_queue(
 }
 
 /// Extracts work reports ready for accumulation from the given not-yet-accumulated work reports set,
-/// recursively resolving dependencies.
+/// iteratively resolving dependencies.
 ///
 /// Represents function *`Q`* of the GP.
-fn extract_accumulatables(queue: &[WorkReportDepsMap]) -> Vec<WorkReport> {
-    let no_deps = queue
-        .iter()
-        .filter(|(_, deps)| deps.is_empty())
-        .cloned()
-        .map(|(wr, _)| wr)
-        .collect::<Vec<_>>();
-    if no_deps.is_empty() {
-        return vec![];
+fn extract_accumulatables(queue: Vec<WorkReportDepsMap>) -> Vec<WorkReport> {
+    let mut queue = queue;
+    let mut accumulatables = Vec::new();
+
+    loop {
+        let (ready, waiting): (Vec<_>, Vec<_>) =
+            queue.into_iter().partition(|(_, deps)| deps.is_empty());
+
+        if ready.is_empty() {
+            break;
+        }
+
+        let resolved = ready.into_iter().map(|(wr, _)| wr).collect::<Vec<_>>();
+        let resolved_hashes = reports_to_package_hashes(&resolved);
+        accumulatables.extend(resolved);
+        queue = edit_queue(&waiting, &resolved_hashes);
     }
 
-    let deps_resolved =
-        extract_accumulatables(&edit_queue(queue, &reports_to_package_hashes(&no_deps)));
-
-    no_deps.into_iter().chain(deps_resolved).collect()
+    accumulatables
 }
 
 /// Extracts the corresponding work package hashes from the given work reports.
@@ -86,15 +88,13 @@ pub fn reports_to_package_hashes(reports: &[WorkReport]) -> Vec<WorkPackageHash>
 /// Partitions available work reports into two groups based on the presence of dependencies.
 ///
 /// This function is used for partitioning available reports **`R`** into
-/// **`R^!`** and **`R^Q`** of the GP.
+/// **`R^!`** and input for **`R^Q`** of the GP.
 pub fn partition_reports_by_deps(
     available_reports: Vec<WorkReport>,
 ) -> (Vec<WorkReport>, Vec<WorkReport>) {
-    let (no_deps, with_deps) = available_reports
+    available_reports
         .into_iter()
-        .partition(|wr| wr.prerequisites().is_empty() && wr.segment_roots_lookup.is_empty());
-
-    (no_deps, with_deps)
+        .partition(|wr| wr.prerequisites().is_empty() && wr.segment_roots_lookup.is_empty())
 }
 
 /// Extracts queued work reports from the available reports set.
@@ -107,8 +107,7 @@ fn extract_queued_reports(
     edit_queue(
         reports_with_deps
             .iter()
-            .cloned()
-            .map(|wr| work_report_deps(&wr))
+            .map(work_report_deps)
             .collect::<Vec<_>>()
             .as_slice(),
         accumulate_history_union,
@@ -123,10 +122,10 @@ pub fn collect_accumulatable_reports(
     available_reports: Vec<WorkReport>,
     accumulate_queue: &AccumulateQueue,
     accumulate_history: &AccumulateHistory,
-    timeslot_index: TimeslotIndex,
+    curr_timeslot: Timeslot,
 ) -> (AccumulatableReports, QueuedReports) {
     let (mut accumulatables, reports_with_deps) = partition_reports_by_deps(available_reports);
-    let mut queue = accumulate_queue.partition_by_slot_phase_and_flatten(timeslot_index);
+    let mut queue = accumulate_queue.partition_by_slot_phase_and_flatten(curr_timeslot);
 
     let new_reports_queued = extract_queued_reports(
         &reports_with_deps,
@@ -139,7 +138,7 @@ pub fn collect_accumulatable_reports(
 
     queue.extend(new_reports_queued.clone());
 
-    let queue_resolved = extract_accumulatables(&edit_queue(
+    let queue_resolved = extract_accumulatables(edit_queue(
         &queue,
         &reports_to_package_hashes(&accumulatables),
     ));

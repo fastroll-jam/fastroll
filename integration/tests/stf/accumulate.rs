@@ -189,7 +189,7 @@ impl StateTransitionTest for AccumulateTest {
             jam_input.reports,
             &pre_accumulate_queue,
             &pre_accumulate_history,
-            curr_timeslot.slot(),
+            curr_timeslot,
         );
         let acc_summary =
             transition_on_accumulate(state_manager.clone(), &accumulatable_reports).await?;
