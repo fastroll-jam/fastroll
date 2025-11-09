@@ -889,7 +889,7 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "fastroll"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "clap",
  "fr-common",
@@ -919,7 +919,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "fr-asn-types"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "bitvec",
  "fr-block",
@@ -933,7 +933,7 @@ dependencies = [
 
 [[package]]
 name = "fr-block"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "bitvec",
  "fr-codec",
@@ -948,7 +948,7 @@ dependencies = [
 
 [[package]]
 name = "fr-clock"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-common",
  "time",
@@ -956,7 +956,7 @@ dependencies = [
 
 [[package]]
 name = "fr-codec"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "bitvec",
  "fr-codec-derive",
@@ -966,7 +966,7 @@ dependencies = [
 
 [[package]]
 name = "fr-codec-derive"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "quote",
  "syn",
@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "fr-common"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "cfg-if",
  "fr-codec",
@@ -991,14 +991,14 @@ dependencies = [
 
 [[package]]
 name = "fr-config"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-db",
 ]
 
 [[package]]
 name = "fr-crypto"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "ark-vrf",
  "base32",
@@ -1018,7 +1018,7 @@ dependencies = [
 
 [[package]]
 name = "fr-db"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-codec",
  "fr-common",
@@ -1030,7 +1030,7 @@ dependencies = [
 
 [[package]]
 name = "fr-erasure-coding"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-common",
  "rayon",
@@ -1041,7 +1041,7 @@ dependencies = [
 
 [[package]]
 name = "fr-extrinsics"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-block",
  "fr-codec",
@@ -1057,7 +1057,7 @@ dependencies = [
 
 [[package]]
 name = "fr-fuzz"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-block",
  "fr-codec",
@@ -1076,7 +1076,7 @@ dependencies = [
 
 [[package]]
 name = "fr-integration"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "async-trait",
  "fr-asn-types",
@@ -1104,14 +1104,14 @@ dependencies = [
 
 [[package]]
 name = "fr-limited-vec"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "thiserror 2.0.16",
 ]
 
 [[package]]
 name = "fr-merkle"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-codec",
  "fr-common",
@@ -1121,7 +1121,7 @@ dependencies = [
 
 [[package]]
 name = "fr-network"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "async-trait",
  "dashmap 6.1.0",
@@ -1140,7 +1140,7 @@ dependencies = [
 
 [[package]]
 name = "fr-node"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "clap",
  "fr-block",
@@ -1167,7 +1167,7 @@ dependencies = [
 
 [[package]]
 name = "fr-node-bench"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "criterion",
  "fr-node",
@@ -1180,7 +1180,7 @@ dependencies = [
 
 [[package]]
 name = "fr-pvm-core"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "bitvec",
  "fr-codec",
@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "fr-pvm-host"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "async-trait",
  "fr-codec",
@@ -1209,7 +1209,7 @@ dependencies = [
 
 [[package]]
 name = "fr-pvm-interface"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-codec",
  "fr-common",
@@ -1224,7 +1224,7 @@ dependencies = [
 
 [[package]]
 name = "fr-pvm-invocation"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-codec",
  "fr-common",
@@ -1242,7 +1242,7 @@ dependencies = [
 
 [[package]]
 name = "fr-pvm-types"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-codec",
  "fr-common",
@@ -1251,7 +1251,7 @@ dependencies = [
 
 [[package]]
 name = "fr-state"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "async-trait",
  "bitvec",
@@ -1278,7 +1278,7 @@ dependencies = [
 
 [[package]]
 name = "fr-state-merkle-v2"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "bitvec",
  "fr-codec",
@@ -1294,7 +1294,7 @@ dependencies = [
 
 [[package]]
 name = "fr-storage"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "async-trait",
  "fr-block",
@@ -1307,7 +1307,7 @@ dependencies = [
 
 [[package]]
 name = "fr-test-utils"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "async-trait",
  "fr-asn-types",
@@ -1333,7 +1333,7 @@ dependencies = [
 
 [[package]]
 name = "fr-transition"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "fr-block",
  "fr-common",

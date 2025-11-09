@@ -130,7 +130,7 @@ impl BlockAuthor {
             .run_state_transition_pre_header_commitment(&storage)
             .await?;
 
-        let curr_slot_sealer = storage.state_manager().get_slot_sealer().await?;
+        let curr_slot_sealer = storage.state_manager().get_current_slot_sealer().await?;
         let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
         let curr_entropy_3 = epoch_entropy.third_history();
 
@@ -196,7 +196,7 @@ impl BlockAuthor {
         let header_markers = self
             .run_state_transition_pre_header_commitment(&storage)
             .await?;
-        let curr_slot_sealer = storage.state_manager().get_slot_sealer().await?;
+        let curr_slot_sealer = storage.state_manager().get_current_slot_sealer().await?;
         let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
         let curr_entropy_3 = epoch_entropy.third_history();
 
