@@ -1,6 +1,9 @@
-use std::{path::Path, sync::Once};
+#[cfg(feature = "flamegraph")]
+use std::path::Path;
+use std::sync::Once;
 use time::{macros::format_description, UtcOffset};
 use tracing::subscriber::set_global_default;
+#[cfg(feature = "flamegraph")]
 use tracing_flame::FlameLayer;
 use tracing_subscriber::{
     fmt,
@@ -10,6 +13,7 @@ use tracing_subscriber::{
 };
 
 // Note: test-only
+#[cfg(feature = "flamegraph")]
 pub fn setup_timed_tracing_with_flamegraph(path: &str) {
     let path = Path::new(path);
     let file_stem = path.file_stem().unwrap().to_str().unwrap();

@@ -34,7 +34,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.21"
+version = "0.1.22"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Junha Park <0xjunha@gmail.com>"]
@@ -75,7 +75,7 @@ base32 = "0.5.1"
 blake2 = "0.10.6"
 bitvec = { version = "1.0.1", features = ["serde"] }
 cfg-if = "1.0.3"
-clap = { version = "4.5.45", features = ["derive"] }
+clap = { version = "4.5.45", default-features = false, features = ["derive", "std", "help", "usage"] }
 criterion = { version = "0.7.0", features = ["html_reports"] }
 dashmap = "6.1.0"
 ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
@@ -83,13 +83,13 @@ futures = "0.3.31"
 hex = "0.4.3"
 mini-moka = "0.10.3"
 paste = "1.0.15"
-quinn = "0.11.8"
+quinn = { version = "0.11.8", default-features = false, features = ["runtime-tokio", "rustls-ring", "bloom"] }
 quote = "1.0.40"
 rand = "0.8.5"
 rayon = "1.11.0"
 reed-solomon-simd = "3.0.1"
 regex = "1.11.2"
-rcgen = "0.13.2"
+rcgen = { version = "0.13.2", default-features = false, features = ["ring"] }
 rocksdb = { version = "0.24.0", default-features = false, features = ["snappy"] }
 rustls = { version = "0.23.31", default-features = false, features = ["std"] }
 serde = { version = "1.0.219", features = ["derive"] }
@@ -104,3 +104,8 @@ tracing = "0.1.41"
 tracing-flame = "0.2.0"
 tracing-subscriber = { version = "0.3.19", features = ["std", "fmt", "time", "env-filter"] }
 zeroize = "1.8.1"
+
+[profile.prod]
+inherits = "release"
+lto = true
+codegen-units = 1

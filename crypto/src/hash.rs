@@ -15,8 +15,8 @@ impl Hasher for Blake2b256 {
         let mut hasher = Self::new();
         hasher.update(value);
         let result = hasher.finalize();
-        result
-            .as_slice()
+        let result_bytes: &[u8] = result.as_ref();
+        result_bytes
             .try_into()
             .map(Hash32::new)
             .map_err(|_| CryptoError::Blake2bHashError)
@@ -28,8 +28,8 @@ impl Hasher for Keccak256 {
         let mut hasher = Self::new();
         hasher.update(value);
         let result = hasher.finalize();
-        result
-            .as_slice()
+        let result_bytes: &[u8] = result.as_ref();
+        result_bytes
             .try_into()
             .map(Hash32::new)
             .map_err(|_| CryptoError::Keccak256HashError)
