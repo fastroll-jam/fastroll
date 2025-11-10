@@ -16,9 +16,10 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
 tracing = { workspace = true }
-tracing-flame = { workspace = true }
+tracing-flame = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true }
 
 [features]
 tiny = []
 full = []
+flamegraph = ["dep:tracing-flame"]
