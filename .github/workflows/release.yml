@@ -38,13 +38,13 @@ jobs:
         run: cargo build --profile prod --target aarch64-apple-darwin --features "tiny,fuzz"
 
       - name: Copy binary to artifacts (tiny config)
-        run: cp target/aarch64-apple-darwin/release/fastroll artifacts/fastroll-macos-aarch64-tiny
+        run: cp target/aarch64-apple-darwin/prod/fastroll artifacts/fastroll-macos-aarch64-tiny
 
       - name: Build release binary (full config)
         run: cargo build --profile prod --target aarch64-apple-darwin --features "full,fuzz"
 
       - name: Copy binary to artifacts (full config)
-        run: cp target/aarch64-apple-darwin/release/fastroll artifacts/fastroll-macos-aarch64-full
+        run: cp target/aarch64-apple-darwin/prod/fastroll artifacts/fastroll-macos-aarch64-full
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -77,13 +77,13 @@ jobs:
         run: cargo build --profile prod --target x86_64-unknown-linux-gnu --features "tiny,fuzz"
 
       - name: Copy binary to artifacts (tiny config)
-        run: cp target/x86_64-unknown-linux-gnu/release/fastroll artifacts/fastroll-linux-x86_64-tiny
+        run: cp target/x86_64-unknown-linux-gnu/prod/fastroll artifacts/fastroll-linux-x86_64-tiny
 
       - name: Build release binary (full config)
         run: cargo build --profile prod --target x86_64-unknown-linux-gnu --features "full,fuzz"
 
       - name: Copy binary to artifacts (full config)
-        run: cp target/x86_64-unknown-linux-gnu/release/fastroll artifacts/fastroll-linux-x86_64-full
+        run: cp target/x86_64-unknown-linux-gnu/prod/fastroll artifacts/fastroll-linux-x86_64-full
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
