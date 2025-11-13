@@ -52,7 +52,6 @@ impl crate::signers::Verifier for Ed25519Verifier {
 mod tests {
     use super::*;
     use crate::signers::{Signer, Verifier};
-    use fr_common::ByteEncodable;
     use rand::rngs::OsRng;
 
     // Helper function to create a message
