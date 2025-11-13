@@ -9,3 +9,7 @@
 	path = integration/jamtestvectors-pvm
 	url = https://github.com/koute/jamtestvectors.git
 	branch = master_pvm_initial
+[submodule "integration/jam-conformance"]
+	path = integration/jam-conformance
+	url = https://github.com/davxy/jam-conformance.git
+	branch = ed25519-consensus
