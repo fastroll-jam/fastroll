@@ -1,4 +1,5 @@
 use ark_vrf::reexports::ark_serialize::SerializationError;
+use ed25519_consensus::Error as Ed25519Error;
 use fr_codec::JamCodecError;
 use fr_common::CommonTypeError;
 use thiserror::Error;
@@ -31,8 +32,8 @@ pub enum CryptoError {
     CommonTypeError(#[from] CommonTypeError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
-    #[error("Ed25519SigError: {0}")]
-    Ed25519SigError(#[from] ed25519_dalek::SignatureError),
+    #[error("Ed25519Error: {0}")]
+    Ed25519Error(#[from] Ed25519Error),
     #[error("SerializationError: {0}")]
     SerializationError(#[from] SerializationError),
 }

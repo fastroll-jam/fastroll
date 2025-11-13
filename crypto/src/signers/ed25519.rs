@@ -1,5 +1,5 @@
 use crate::{error::CryptoError, types::*};
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_consensus::{Signature, SigningKey, VerificationKey};
 use fr_common::ByteEncodable;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -17,7 +17,7 @@ impl crate::signers::Signer for Ed25519Signer {
     }
 
     fn sign_message(&self, message: &[u8]) -> Result<Self::Signature, CryptoError> {
-        let signing_key = SigningKey::from_bytes(&self.secret_key.0);
+        let signing_key = SigningKey::try_from(self.secret_key.as_slice())?;
         let signature = signing_key.sign(message);
         let sig = Ed25519Sig::from_slice(signature.to_bytes().as_slice())?;
         Ok(sig)
@@ -41,12 +41,9 @@ impl crate::signers::Verifier for Ed25519Verifier {
         message: &[u8],
         signature: &Self::Signature,
     ) -> Result<(), CryptoError> {
-        let Ok(verifying_key) = VerifyingKey::from_bytes(&self.public_key.0) else {
-            return Err(CryptoError::InvalidPubKeyFormat);
-        };
-
-        let signature = Signature::from_bytes(&signature.0);
-        verifying_key.verify(message, &signature)?;
+        let verification_key = VerificationKey::try_from(self.public_key.as_slice())?;
+        let signature = Signature::try_from(signature.as_slice())?;
+        verification_key.verify(&signature, message)?;
         Ok(())
     }
 }
@@ -65,8 +62,7 @@ mod tests {
 
     // Helper function to generate a random signer
     fn generate_random_signer() -> SigningKey {
-        let mut rng = OsRng;
-        SigningKey::generate(&mut rng)
+        SigningKey::new(OsRng)
     }
 
     // Helper function to generate a random secret key and public key
@@ -74,7 +70,8 @@ mod tests {
         let signing_key = generate_random_signer();
         let secret_key = Ed25519SecretKey::from_slice(signing_key.to_bytes().as_slice()).unwrap();
         let public_key =
-            Ed25519PubKey::from_slice(signing_key.verifying_key().to_bytes().as_slice()).unwrap();
+            Ed25519PubKey::from_slice(signing_key.verification_key().to_bytes().as_slice())
+                .unwrap();
 
         let signer = Ed25519Signer::new(secret_key);
         let verifier = Ed25519Verifier::new(public_key);
@@ -108,7 +105,7 @@ mod tests {
         let mut invalid_signature = signature.0.to_vec();
         invalid_signature[0] ^= 0x01;
         let invalid_signature = Ed25519Sig::from_slice(
-            Signature::from_slice(&invalid_signature)
+            Signature::try_from(invalid_signature.as_slice())
                 .unwrap()
                 .to_bytes()
                 .as_slice(),
@@ -125,7 +122,7 @@ mod tests {
         let signature = signer.sign_message(&message).expect("Signing failed");
         let invalid_public_key = Ed25519PubKey::from_slice(
             generate_random_signer()
-                .verifying_key()
+                .verification_key()
                 .to_bytes()
                 .as_slice(),
         )

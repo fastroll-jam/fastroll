@@ -13,7 +13,7 @@ fr-limited-vec = { workspace = true }
 ark-vrf = { workspace = true }
 base32 = { workspace = true }
 blake2 = { workspace = true }
-ed25519-dalek = { workspace = true }
+ed25519-consensus = { workspace = true }
 hex = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
