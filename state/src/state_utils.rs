@@ -139,6 +139,9 @@ pub enum StateEntryType {
     Raw(Octets),
 }
 
+// Test-only type.
+impl_account_state_component!(Octets, Raw);
+
 impl JamEncode for StateEntryType {
     fn size_hint(&self) -> usize {
         match self {

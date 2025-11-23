@@ -432,41 +432,60 @@ pub async fn transition_services_integrate_preimages(
 
     for xt in preimages_xt.iter() {
         let preimage_data_hash = hash::<Blake2b256>(&xt.preimage_data)?;
-
-        // Push current timeslot value to the lookup map
         let preimage_data_len = xt.preimage_data_len();
         let lookups_key = (preimage_data_hash.clone(), preimage_data_len as u32);
-        match state_manager
-            .with_mut_account_lookups_entry(
-                StateMut::Update,
-                xt.service_id,
-                lookups_key.clone(),
-                |entry| -> Result<(), StateManagerError> {
-                    entry.value.try_push(curr_timeslot)?;
-                    Ok(())
-                },
-            )
-            .await
-        {
-            Ok(_) => {}
-            Err(StateManagerError::LimitedVecError(LimitedVecError::LimitedVecFull)) => {
-                return Err(TransitionError::PreimageNotSolicited(
-                    xt.service_id,
-                    lookups_key.0,
-                    lookups_key.1,
-                ));
-            }
-            Err(e) => return Err(e.into()),
-        }
 
-        // Add the preimage data entry
-        state_manager
-            .add_account_preimages_entry(
-                xt.service_id,
-                &preimage_data_hash,
-                AccountPreimagesEntry::new(xt.preimage_data.clone()),
-            )
-            .await?;
+        // Preimages that has become irrelevant after the accumulations simply get disregarded;
+        // validate against `δ‡`.
+        let preimage_already_integrated = state_manager
+            .get_account_preimages_entry(xt.service_id, &preimage_data_hash)
+            .await?
+            .is_some();
+
+        let preimage_solicited = match state_manager
+            .get_account_lookups_entry(xt.service_id, &lookups_key)
+            .await?
+        {
+            Some(entry) => entry.value.is_empty(),
+            None => false,
+        };
+
+        let preimage_should_be_integrated = !preimage_already_integrated && preimage_solicited;
+
+        if preimage_should_be_integrated {
+            // Push current timeslot value to the lookup map
+            match state_manager
+                .with_mut_account_lookups_entry(
+                    StateMut::Update,
+                    xt.service_id,
+                    lookups_key.clone(),
+                    |entry| -> Result<(), StateManagerError> {
+                        entry.value.try_push(curr_timeslot)?;
+                        Ok(())
+                    },
+                )
+                .await
+            {
+                Ok(_) => {}
+                Err(StateManagerError::LimitedVecError(LimitedVecError::LimitedVecFull)) => {
+                    return Err(TransitionError::PreimageNotSolicited(
+                        xt.service_id,
+                        lookups_key.0,
+                        lookups_key.1,
+                    ));
+                }
+                Err(e) => return Err(e.into()),
+            }
+
+            // Add the preimage data entry
+            state_manager
+                .add_account_preimages_entry(
+                    xt.service_id,
+                    &preimage_data_hash,
+                    AccountPreimagesEntry::new(xt.preimage_data.clone()),
+                )
+                .await?;
+        }
     }
 
     Ok(())
