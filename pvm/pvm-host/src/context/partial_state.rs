@@ -216,6 +216,10 @@ impl<S: HostStateProvider> AccountSandbox<S> {
             _phantom: PhantomData,
         })
     }
+
+    pub async fn is_ejected(&self) -> bool {
+        matches!(self.metadata.status(), SandboxEntryStatus::Removed)
+    }
 }
 
 /// Represents a collection of service account sandboxes

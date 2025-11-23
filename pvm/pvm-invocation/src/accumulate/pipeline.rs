@@ -162,6 +162,20 @@ async fn merge_partial_state_change(
     partial_state_union: &mut AccumulatePartialState<StateManager>,
     mut accumulate_result_partial_state: AccumulatePartialState<StateManager>,
 ) -> Result<(), PVMInvokeError> {
+    // Accumulating service sandbox
+    let accumulate_host_sandbox = partial_state_union
+        .accounts_sandbox
+        .get_mut_account_sandbox(state_manager.clone(), accumulate_host)
+        .await?
+        .ok_or(PVMInvokeError::MissingAccumulateHostSandbox(
+            accumulate_host,
+        ))?;
+
+    // Ejected accounts cannot produce state diff (no code)
+    if accumulate_host_sandbox.is_ejected().await {
+        return Ok(());
+    }
+
     // Merge StagingSet changes
     if accumulate_host == partial_state_union.designate_service.last_confirmed {
         if let Some(new_staging_set) = accumulate_result_partial_state.new_staging_set {
@@ -215,13 +229,6 @@ async fn merge_partial_state_change(
         .merge_changes_from(&accumulate_result_partial_state.registrar_service);
 
     // Accumulate host state change
-    let accumulate_host_sandbox = partial_state_union
-        .accounts_sandbox
-        .get_mut_account_sandbox(state_manager.clone(), accumulate_host)
-        .await?
-        .ok_or(PVMInvokeError::MissingAccumulateHostSandbox(
-            accumulate_host,
-        ))?;
     *accumulate_host_sandbox = accumulate_result_partial_state
         .accounts_sandbox
         .get_account_sandbox(state_manager, accumulate_host)
