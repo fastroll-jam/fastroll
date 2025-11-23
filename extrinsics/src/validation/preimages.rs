@@ -61,7 +61,7 @@ impl PreimagesXtValidator {
         let preimage_data_hash = hash::<Blake2b256>(&entry.preimage_data)?;
         let lookups_key = &(preimage_data_hash.clone(), preimage_data_len as u32);
 
-        // Preimage must not be already integrated (Check against `δ` and `δ‡`)
+        // Preimage must not be already integrated (Check against `δ`)
         if self
             .state_manager
             .get_account_preimages_entry_clean(service_id, &preimage_data_hash)
@@ -70,33 +70,11 @@ impl PreimagesXtValidator {
         {
             return Err(XtError::PreimageAlreadyIntegrated(service_id));
         }
-        if self
-            .state_manager
-            .get_account_preimages_entry(service_id, &preimage_data_hash)
-            .await?
-            .is_some()
-        {
-            return Err(XtError::PreimageAlreadyIntegrated(service_id));
-        }
 
-        // Preimage must be solicited (Check against `δ` and `δ‡`)
+        // Preimage must be solicited (Check against `δ`)
         match self
             .state_manager
             .get_account_lookups_entry_clean(service_id, lookups_key)
-            .await?
-        {
-            Some(entry) => {
-                if !entry.value.is_empty() {
-                    return Err(XtError::PreimageNotSolicited(service_id));
-                }
-            }
-            None => {
-                return Err(XtError::PreimageNotSolicited(service_id));
-            }
-        }
-        match self
-            .state_manager
-            .get_account_lookups_entry(service_id, lookups_key)
             .await?
         {
             Some(entry) => {
