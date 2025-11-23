@@ -503,11 +503,15 @@ impl StateManager {
         None
     }
 
+    // Note: test-only
     pub fn get_cache_entry_as_state<T>(&self, state_key: &StateKey) -> Option<T>
     where
         T: StateComponent,
     {
         if let Some(entry) = self.cache.get_entry(state_key) {
+            if let CacheEntryStatus::Dirty(StateMut::Remove) = entry.status {
+                return None;
+            }
             if let Some(state_entry) = T::from_entry_type(&entry.value) {
                 return Some(state_entry.clone());
             }
@@ -822,11 +826,25 @@ impl StateManager {
         T: StateComponent,
     {
         // Check the cache
-        if let Some(state_entry) = self.get_cache_entry_as_state(state_key) {
-            return Ok(Some(state_entry));
+        if let Some(entry) = self.cache.get_entry(state_key) {
+            // Cache entry exists and marked as removed
+            if let CacheEntryStatus::Dirty(StateMut::Remove) = entry.status {
+                return Ok(None);
+            }
+
+            // Special handling for the test-only `Raw` type
+            if let StateEntryType::Raw(raw_octets) = entry.value.as_ref() {
+                let state_entry = T::decode(&mut raw_octets.as_slice())?;
+                self.insert_clean_cache_entry_and_snapshot(state_key, state_entry.clone());
+                return Ok(Some(state_entry));
+            }
+
+            let state_entry =
+                T::from_entry_type(&entry.value).ok_or(StateManagerError::UnexpectedEntryType)?;
+            return Ok(Some(state_entry.clone()));
         }
 
-        // Retrieve the state from the DB
+        // The state entry not found from the cache; retrieve it from the DB
         let Some(state_data) = self.retrieve_state_encoded(state_key).await? else {
             return Ok(None);
         };
