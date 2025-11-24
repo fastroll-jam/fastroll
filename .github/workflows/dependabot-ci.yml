@@ -18,6 +18,18 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Free Disk Space (Ubuntu)
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+
+      - name: Enable swap space
+        run: |
+          sudo fallocate -l 4G /swapfile-ci
+          sudo chmod 600 /swapfile-ci
+          sudo mkswap /swapfile-ci
+          sudo swapon /swapfile-ci
+
       - name: Install stable toolchain
         run: rustup toolchain install stable
 
@@ -27,8 +39,21 @@ jobs:
       - name: Install libclang-dev
         run: sudo apt-get install libclang-dev
 
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
       - name: Install nextest pre-built binary
         run: cargo binstall cargo-nextest --secure
 
-      - name: Run tests
-        run: cargo +stable nextest run --workspace --profile ci
+      - name: Run tests (tiny config)
+        env:
+          CARGO_INCREMENTAL: "0"
+        run: cargo +stable nextest run --workspace --profile ci --features tiny
+
+      - name: Clean target directory
+        run: cargo clean
+
+      - name: Run tests (full config)
+        env:
+          CARGO_INCREMENTAL: "0"
+        run: cargo +stable nextest run --workspace --profile ci --features full
