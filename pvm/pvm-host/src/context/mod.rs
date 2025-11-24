@@ -221,6 +221,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         Ok(Self {
             next_new_service_id: Self::initialize_new_service_id(
                 state_provider,
+                &partial_state,
                 accumulate_host,
                 curr_entropy.clone(),
                 timeslot_index,
@@ -238,6 +239,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
 
     async fn initialize_new_service_id(
         state_provider: Arc<S>,
+        partial_state: &AccumulatePartialState<S>,
         accumulate_host: ServiceId,
         entropy: EntropyHash,
         timeslot_index: TimeslotIndex,
@@ -254,7 +256,9 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         let initial_check_id = (hash_as_u64 % modulus)
             .checked_add(s)
             .ok_or(HostCallError::ServiceIdOverflow)?;
-        let new_service_id = state_provider.check(initial_check_id as ServiceId).await?;
+        let new_service_id = partial_state
+            .check(state_provider, initial_check_id as ServiceId)
+            .await?;
         Ok(new_service_id)
     }
 
@@ -281,7 +285,10 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             let modulus = (1u64 << 32) - s - (1u64 << 8);
             ((prev_next_new_id as u64 - s + 42) % modulus + s) as ServiceId
         };
-        self.next_new_service_id = state_provider.check(bump(self.next_new_service_id)).await?;
+        self.next_new_service_id = self
+            .partial_state
+            .check(state_provider, bump(self.next_new_service_id))
+            .await?;
         Ok(())
     }
 
