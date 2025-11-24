@@ -105,6 +105,12 @@ tracing-flame = "0.2.0"
 tracing-subscriber = { version = "0.3.19", features = ["std", "fmt", "time", "env-filter"] }
 zeroize = "1.8.1"
 
+[profile.ci]
+inherits = "test"
+debug = 1
+strip = "debuginfo"
+incremental = false
+
 [profile.prod]
 inherits = "release"
 lto = true
