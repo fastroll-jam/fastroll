@@ -1,6 +1,8 @@
 use crate::error::PartialStateError;
 use fr_codec::prelude::*;
-use fr_common::{Balance, CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey};
+use fr_common::{
+    Balance, CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey, MIN_PUBLIC_SERVICE_ID,
+};
 use fr_state::{
     error::StateManagerError,
     provider::HostStateProvider,
@@ -1286,6 +1288,29 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             registrar_service: RegistrarServicePartialState::new(registrar_service),
             always_accumulate_services,
         })
+    }
+
+    /// Checks the next available new service ID from the prior (clean) partial state
+    /// copied at the beginning of the current parallel accumulation batch.
+    ///
+    /// This check is local to a single-service accumulation.
+    pub(crate) async fn check(
+        &self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+    ) -> Result<ServiceId, PartialStateError> {
+        let mut check_id = service_id;
+        loop {
+            if !self
+                .accounts_sandbox
+                .account_exists_anywhere(state_provider.clone(), check_id)
+                .await?
+            {
+                return Ok(check_id);
+            }
+            let s = MIN_PUBLIC_SERVICE_ID as u64;
+            check_id = ((check_id as u64 - s + 1) % ((1 << 32) - (1 << 8) - s) + s) as ServiceId;
+        }
     }
 
     pub async fn subtract_account_balance(

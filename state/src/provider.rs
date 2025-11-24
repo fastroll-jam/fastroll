@@ -23,11 +23,6 @@ pub trait HostStateProvider {
     /// Checks if a service account with the given service id exists in the global state.
     async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError>;
 
-    /// Ensures a unique service id by checking if the given id exists in global state.
-    /// If it exists, rotates through alternative ids using an internal rotation mechanism
-    /// until finding one that doesn't collide with existing service accounts.
-    async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError>;
-
     /// Get account metadata of the given service id.
     async fn get_account_metadata(
         &self,

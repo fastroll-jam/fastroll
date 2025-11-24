@@ -23,7 +23,6 @@ use fr_pvm_types::{
 };
 use fr_state::{
     error::StateManagerError,
-    manager::StateManager,
     provider::HostStateProvider,
     types::{
         privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata,
@@ -68,10 +67,6 @@ impl HostStateProvider for MockStateManager {
 
     async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
         Ok(self.accounts.contains_key(&service_id))
-    }
-
-    async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
-        StateManager::check_impl(service_id, |id| self.account_exists(id)).await
     }
 
     async fn get_account_metadata(

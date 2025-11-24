@@ -25,7 +25,7 @@ use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
     CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateHash, StateKey,
-    StorageKey, TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
+    StorageKey, TimeslotIndex,
 };
 use fr_config::StorageConfig;
 use fr_crypto::{
@@ -40,10 +40,7 @@ use fr_db::{
     WriteBatch,
 };
 use fr_state_merkle_v2::{merkle_db::MerkleDB, types::LeafNodeData};
-use std::{
-    future::Future,
-    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
-};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tokio::sync::mpsc;
 use tracing::{debug_span, instrument};
 
@@ -140,10 +137,6 @@ impl HostStateProvider for StateManager {
 
     async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
         self.account_exists(service_id).await
-    }
-
-    async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
-        self.check(service_id).await
     }
 
     async fn get_account_metadata(
@@ -540,28 +533,6 @@ impl StateManager {
 
     pub async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
         Ok(self.get_account_metadata(service_id).await?.is_some())
-    }
-
-    pub async fn check_impl<F, Fut>(
-        service_id: ServiceId,
-        account_exists_in_state: F,
-    ) -> Result<ServiceId, StateManagerError>
-    where
-        F: Fn(ServiceId) -> Fut,
-        Fut: Future<Output = Result<bool, StateManagerError>>,
-    {
-        let mut check_id = service_id;
-        loop {
-            if !account_exists_in_state(check_id).await? {
-                return Ok(check_id);
-            }
-            let s = MIN_PUBLIC_SERVICE_ID as u64;
-            check_id = ((check_id as u64 - s + 1) % ((1 << 32) - (1 << 8) - s) + s) as ServiceId;
-        }
-    }
-
-    pub async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
-        Self::check_impl(service_id, |id| self.account_exists(id)).await
     }
 
     pub async fn get_account_code_hash(
