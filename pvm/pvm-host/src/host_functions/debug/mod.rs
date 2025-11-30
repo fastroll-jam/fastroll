@@ -1,6 +1,11 @@
-use crate::{error::HostCallError, host_functions::HostCallResult};
+use crate::{
+    error::HostCallError,
+    host_functions::{HostCallResult, HostCallReturnCode},
+};
 use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
-use fr_pvm_types::{common::RegValue, exit_reason::ExitReason};
+use fr_pvm_types::{
+    common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, exit_reason::ExitReason,
+};
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -45,11 +50,12 @@ fn log_message(log: PVMHostLog) {
 pub fn host_log(vm: &VMState) -> Result<HostCallResult, HostCallError> {
     tracing::debug!("Hostcall invoked: LOG");
 
-    // no side effect
+    // Gas usage: 10, r7 write: WHAT
     let result = HostCallResult {
         exit_reason: ExitReason::Continue,
         vm_change: HostCallVMStateChange {
-            gas_charge: 0,
+            gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+            r7_write: Some(HostCallReturnCode::WHAT as RegValue),
             ..Default::default()
         },
     };
