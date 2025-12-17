@@ -31,8 +31,8 @@ impl Interpreter {
     /// Get the next pc value from the current VM state and the skip function
     /// for normal instruction execution completion
     #[inline(always)]
-    pub fn next_pc(vm_state: &VMState, program_state: &ProgramState) -> RegValue {
-        vm_state.pc + 1 + Self::skip(vm_state.pc as usize, program_state) as RegValue
+    pub fn next_pc(curr_pc: RegValue, program_state: &ProgramState) -> RegValue {
+        curr_pc + 1 + Self::skip(curr_pc as usize, program_state) as RegValue
     }
 
     /// General PVM invocation function.

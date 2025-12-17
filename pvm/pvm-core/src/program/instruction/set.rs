@@ -70,7 +70,7 @@ impl InstructionSet {
         ) {
             (false, _) => Ok((
                 ExitReason::Continue,
-                Interpreter::next_pc(vm_state, program_state),
+                Interpreter::next_pc(vm_state.pc, program_state),
             )),
             (true, true) => Ok((ExitReason::Continue, target as RegValue)),
             (true, false) => Ok((ExitReason::Panic, vm_state.pc)),
@@ -134,7 +134,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Panic,
             state_change: VMStateChange {
                 // TODO: PVM Revisit: (Test vectors assume `TRAP` doesn't alter pc values)
-                // new_pc: Interpreter::next_pc(vm_state, program_state),
+                // new_pc: Interpreter::next_pc(vm_state.pc, program_state),
                 new_pc: vm_state.pc,
                 ..Default::default()
             },
@@ -151,7 +151,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                new_pc: Interpreter::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state.pc, program_state),
                 ..Default::default()
             },
         })
@@ -177,7 +177,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: Interpreter::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state.pc, program_state),
                 ..Default::default()
             },
         })
@@ -195,7 +195,12 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, reg_to_u64(ins.imm1()?))
+        continue_with_reg_write!(
+            vm_state.pc,
+            program_state,
+            ins.rs1()?,
+            reg_to_u64(ins.imm1()?)
+        )
     }
 
     //
@@ -213,7 +218,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
-        continue_with_mem_write!(vm_state, program_state, imm_address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
     /// Store immediate argument value to the memory as `u16` integer type
@@ -227,7 +232,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
-        continue_with_mem_write!(vm_state, program_state, imm_address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
     /// Store immediate argument value to the memory as `u32` integer type
@@ -241,7 +246,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = ((imm_value & 0xFFFF_FFFF) as u32).encode_fixed(4)?; // mod 2^32
-        continue_with_mem_write!(vm_state, program_state, imm_address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
     /// Store immediate argument value to the memory as `u64` integer type
@@ -255,7 +260,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = imm_value.encode_fixed(8)?;
-        continue_with_mem_write!(vm_state, program_state, imm_address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
     //
@@ -307,7 +312,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, ins.imm1()?)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, ins.imm1()?)
     }
 
     /// Load an unsigned 8-bit value from memory into a register
@@ -321,7 +326,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         match vm_state.memory.read_byte(imm_address) {
             Ok(val) => {
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val as RegValue)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val as RegValue)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -341,7 +346,7 @@ impl InstructionSet {
         match vm_state.memory.read_byte(imm_address) {
             Ok(val) => {
                 let val_extended = VMUtils::sext(val, SextInputSize::Octets1);
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_extended)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_extended)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -361,7 +366,7 @@ impl InstructionSet {
         match vm_state.memory.read_bytes(imm_address, 2) {
             Ok(val) => {
                 let val_decoded = RegValue::decode_fixed(&mut &val[..], 2)?;
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_decoded)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_decoded)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -382,7 +387,7 @@ impl InstructionSet {
             Ok(val) => {
                 let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
                 let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets2);
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_extended)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_extended)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -402,7 +407,7 @@ impl InstructionSet {
         match vm_state.memory.read_bytes(imm_address, 4) {
             Ok(val) => {
                 let val_decoded = RegValue::decode_fixed(&mut &val[..], 4)?;
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_decoded)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_decoded)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -423,7 +428,7 @@ impl InstructionSet {
             Ok(val) => {
                 let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
                 let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets4);
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_extended)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_extended)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -443,7 +448,7 @@ impl InstructionSet {
         match vm_state.memory.read_bytes(imm_address, 8) {
             Ok(val) => {
                 let val_decoded = RegValue::decode_fixed(&mut &val[..], 8)?;
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val_decoded)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_decoded)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -461,7 +466,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u8(vm_state.read_rs1(ins)? & 0xFF);
-        continue_with_mem_write!(vm_state, program_state, imm_address, vec![rs1_val])
+        continue_with_mem_write!(vm_state.pc, program_state, imm_address, vec![rs1_val])
     }
 
     /// Store register value to memory as 16-bit unsigned integer
@@ -475,7 +480,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF);
         continue_with_mem_write!(
-            vm_state,
+            vm_state.pc,
             program_state,
             imm_address,
             rs1_val.encode_fixed(2)?
@@ -493,7 +498,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
         continue_with_mem_write!(
-            vm_state,
+            vm_state.pc,
             program_state,
             imm_address,
             rs1_val.encode_fixed(4)?
@@ -511,7 +516,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u64(vm_state.read_rs1(ins)?);
         continue_with_mem_write!(
-            vm_state,
+            vm_state.pc,
             program_state,
             imm_address,
             rs1_val.encode_fixed(8)?
@@ -532,7 +537,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = vec![reg_to_u8(ins.imm2()? & 0xFF)];
-        continue_with_mem_write!(vm_state, program_state, address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
     /// Store immediate 16-bit value to memory indirectly
@@ -545,7 +550,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u16(ins.imm2()? & 0xFFFF).encode_fixed(2)?;
-        continue_with_mem_write!(vm_state, program_state, address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
     /// Store immediate 32-bit value to memory indirectly
@@ -558,7 +563,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u32(ins.imm2()? & 0xFFFF_FFFF).encode_fixed(4)?;
-        continue_with_mem_write!(vm_state, program_state, address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
     /// Store immediate 64-bit value to memory indirectly
@@ -571,7 +576,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u64(ins.imm2()?).encode_fixed(8)?;
-        continue_with_mem_write!(vm_state, program_state, address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
     //
@@ -763,7 +768,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, rs1_val)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, rs1_val)
     }
 
     /// System break (allocate heap memory)
@@ -787,7 +792,12 @@ impl InstructionSet {
         vm_state.memory.expand_heap(alloc_start, expand_size)?;
 
         // returns the start of the newly allocated heap memory
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, alloc_start as RegValue)
+        continue_with_reg_write!(
+            vm_state.pc,
+            program_state,
+            ins.rd()?,
+            alloc_start as RegValue
+        )
     }
 
     /// Count the number of set bits of a 64-bit value
@@ -800,7 +810,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let set_bits = VMUtils::u64_to_bits(rs1_val).count_ones() as u64;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, set_bits)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, set_bits)
     }
 
     /// Count the number of set bits of a 64-bit value
@@ -813,7 +823,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
         let set_bits = VMUtils::u32_to_bits(rs1_val).count_ones() as u64;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, set_bits)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, set_bits)
     }
 
     /// Count the number of leading zeroes of a 64-bit value
@@ -826,7 +836,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let leading_zeros = rs1_val.leading_zeros() as u64;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, leading_zeros)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, leading_zeros)
     }
 
     /// Count the number of leading zeroes of a 32-bit value
@@ -839,7 +849,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
         let leading_zeros = rs1_val.leading_zeros() as u64;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, leading_zeros)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, leading_zeros)
     }
 
     /// Count the number of trailing zeroes of a 64-bit value
@@ -852,7 +862,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let trailing_zeros = rs1_val.trailing_zeros() as u64;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, trailing_zeros)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, trailing_zeros)
     }
 
     /// Count the number of trailing zeroes of a 32-bit value
@@ -865,7 +875,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
         let trailing_zeros = rs1_val.trailing_zeros() as u64;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, trailing_zeros)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, trailing_zeros)
     }
 
     /// Sign extend a 8-bit value
@@ -878,7 +888,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u8(vm_state.read_rs1(ins)? & 0xFF);
         let val = VMUtils::i64_to_u64(VMUtils::u8_to_i8(rs1_val) as i64);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, val)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, val)
     }
 
     /// Sign extend a 16-bit value
@@ -891,7 +901,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF);
         let val = VMUtils::i64_to_u64(VMUtils::u16_to_i16(rs1_val) as i64);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, val)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, val)
     }
 
     /// Zero extend a 16-bit value
@@ -903,7 +913,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)? & 0xFFFF;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, rs1_val)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, rs1_val)
     }
 
     /// Reverse bytes of a 64-bit value
@@ -918,7 +928,7 @@ impl InstructionSet {
         let mut rs1_val_encoded = rs1_val.encode_fixed(8)?;
         rs1_val_encoded.reverse();
         let rev_val = u64::decode_fixed(&mut rs1_val_encoded.as_slice(), 8)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, rev_val)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, rev_val)
     }
 
     //
@@ -935,7 +945,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vec![reg_to_u8(vm_state.read_rs1(ins)? & 0xFF)];
-        continue_with_mem_write!(vm_state, program_state, address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
     /// Store 16-bit value to memory indirectly
@@ -948,7 +958,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF).encode_fixed(2)?;
-        continue_with_mem_write!(vm_state, program_state, address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
     /// Store 32-bit value to memory indirectly
@@ -961,7 +971,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF).encode_fixed(4)?;
-        continue_with_mem_write!(vm_state, program_state, address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
     /// Store 64-bit value to memory indirectly
@@ -974,7 +984,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u64(vm_state.read_rs1(ins)?).encode_fixed(8)?;
-        continue_with_mem_write!(vm_state, program_state, address, value)
+        continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
     /// Load 8-bit unsigned value from memory indirectly
@@ -988,7 +998,7 @@ impl InstructionSet {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         match vm_state.memory.read_byte(address) {
             Ok(val) => {
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, val as RegValue)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val as RegValue)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -1009,7 +1019,7 @@ impl InstructionSet {
             Ok(val) => {
                 let signed_val = VMUtils::u8_to_i8(val);
                 let unsigned_val = VMUtils::i64_to_u64(signed_val as i64);
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, unsigned_val)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, unsigned_val)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -1030,7 +1040,7 @@ impl InstructionSet {
             Ok(val) => {
                 let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
                 continue_with_reg_write!(
-                    vm_state,
+                    vm_state.pc,
                     program_state,
                     ins.rs1()?,
                     val_decoded as RegValue
@@ -1056,7 +1066,7 @@ impl InstructionSet {
                 let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
                 let signed_val = VMUtils::u16_to_i16(val_decoded);
                 let unsigned_val = VMUtils::i64_to_u64(signed_val as i64);
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, unsigned_val)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, unsigned_val)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -1077,7 +1087,7 @@ impl InstructionSet {
             Ok(val) => {
                 let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
                 continue_with_reg_write!(
-                    vm_state,
+                    vm_state.pc,
                     program_state,
                     ins.rs1()?,
                     val_decoded as RegValue
@@ -1103,7 +1113,7 @@ impl InstructionSet {
                 let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
                 let signed_val = VMUtils::u32_to_i32(val_decoded);
                 let unsigned_val = VMUtils::i64_to_u64(signed_val as i64);
-                continue_with_reg_write!(vm_state, program_state, ins.rs1()?, unsigned_val)
+                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, unsigned_val)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -1124,7 +1134,7 @@ impl InstructionSet {
             Ok(val) => {
                 let val_decoded = u64::decode_fixed(&mut &val[..], 8)?;
                 continue_with_reg_write!(
-                    vm_state,
+                    vm_state.pc,
                     program_state,
                     ins.rs1()?,
                     val_decoded as RegValue
@@ -1146,7 +1156,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_extended)
     }
 
     /// Bitwise AND with immediate
@@ -1158,7 +1168,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)? & ins.imm1()?;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Bitwise XOR with immediate
@@ -1170,7 +1180,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)? ^ ins.imm1()?;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Bitwise OR with immediate
@@ -1182,7 +1192,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)? | ins.imm1()?;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Multiply with 32-bit immediate
@@ -1195,7 +1205,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_mul(ins.imm1()?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_extended)
     }
 
     /// Set if less than immediate (unsigned)
@@ -1209,7 +1219,7 @@ impl InstructionSet {
         let rs2_val = vm_state.read_rs2(ins)?;
         let imm1_val = ins.imm1()?;
         let result = if rs2_val < imm1_val { 1 } else { 0 };
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Set if less than immediate (signed)
@@ -1223,7 +1233,7 @@ impl InstructionSet {
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
         let result = if rs2_val_s < imm1_val_s { 1 } else { 0 };
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Shift left logical with 32-bit immediate
@@ -1237,7 +1247,7 @@ impl InstructionSet {
         let shift = ins.imm1()? & 0x1F; // mod 32
         let result = vm_state.read_rs2(ins)? << shift;
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_extended)
     }
 
     /// Shift right logical with 32-bit immediate
@@ -1252,7 +1262,7 @@ impl InstructionSet {
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = (rs2_val & 0xFFFF_FFFF) >> shift;
         let result_extended = VMUtils::sext(result, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_extended)
     }
 
     /// Shift right arithmetic with 32-bit immediate
@@ -1268,7 +1278,7 @@ impl InstructionSet {
         let rs2_val_s = VMUtils::u32_to_i32((rs2_val & 0xFFFF_FFFF) as u32);
         let result = rs2_val_s >> shift;
         let result_u = VMUtils::i64_to_u64(result as i64);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_u)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_u)
     }
 
     /// Negate and add 32-bit immediate
@@ -1284,7 +1294,7 @@ impl InstructionSet {
             .wrapping_add(1 << 32)
             .wrapping_sub(vm_state.read_rs2(ins)?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_extended)
     }
 
     /// Set if greater than immediate (unsigned)
@@ -1298,7 +1308,7 @@ impl InstructionSet {
         let rs2_val = vm_state.read_rs2(ins)?;
         let imm1_val = ins.imm1()?;
         let result = if rs2_val > imm1_val { 1 } else { 0 };
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Set if greater than immediate (signed)
@@ -1312,7 +1322,7 @@ impl InstructionSet {
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
         let result = if rs2_val_s > imm1_val_s { 1 } else { 0 };
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Shift left logical with 32-bit immediate (alternative)
@@ -1326,7 +1336,7 @@ impl InstructionSet {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let result = ins.imm1()? << shift;
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_extended)
     }
 
     /// Shift right logical with 32-bit immediate (alternative)
@@ -1341,7 +1351,7 @@ impl InstructionSet {
         let imm1 = ins.imm1()?;
         let result = (imm1 & 0xFFFF_FFFF) >> shift;
         let result_extended = VMUtils::sext(result, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_extended)
     }
 
     /// Shift right arithmetic with 32-bit immediate (alternative)
@@ -1357,7 +1367,7 @@ impl InstructionSet {
         let imm1_val_s = VMUtils::u32_to_i32((imm1 & 0xFFFF_FFFF) as u32);
         let result = imm1_val_s >> shift;
         let result_u = VMUtils::i64_to_u64(result as i64);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_u)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_u)
     }
 
     /// Conditional move if zero with immediate
@@ -1373,7 +1383,7 @@ impl InstructionSet {
         } else {
             vm_state.read_rs1(ins)?
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Conditional move if not zero with immediate
@@ -1389,7 +1399,7 @@ impl InstructionSet {
         } else {
             vm_state.read_rs1(ins)?
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Add 64-bit immediate to register value and allocate to another register
@@ -1401,7 +1411,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Multiply with 64-bit immediate
@@ -1413,7 +1423,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_mul(ins.imm1()?);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Shift left logical with 64-bit immediate
@@ -1427,7 +1437,7 @@ impl InstructionSet {
         let shift = ins.imm1()? & 0x3F; // mod 64
         let result = vm_state.read_rs2(ins)? << shift;
         let result_extended = VMUtils::sext(result, SextInputSize::Octets8);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_extended)
     }
 
     /// Shift right logical with 64-bit immediate
@@ -1442,7 +1452,7 @@ impl InstructionSet {
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = rs2_val >> shift;
         let result_extended = VMUtils::sext(result, SextInputSize::Octets8);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_extended)
     }
 
     /// Shift right arithmetic with 64-bit immediate
@@ -1458,7 +1468,7 @@ impl InstructionSet {
         let rs2_val_s = VMUtils::u64_to_i64(rs2_val);
         let result = rs2_val_s >> shift;
         let result_u = VMUtils::i64_to_u64(result);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_u)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_u)
     }
 
     /// Negate and add 64-bit immediate
@@ -1470,7 +1480,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = ins.imm1()?.wrapping_sub(vm_state.read_rs2(ins)?);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Shift left logical with 64-bit immediate (alternative)
@@ -1483,7 +1493,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let result = ins.imm1()? << shift;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Shift right logical with 64-bit immediate (alternative)
@@ -1497,7 +1507,7 @@ impl InstructionSet {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let imm1 = ins.imm1()?;
         let result = imm1 >> shift;
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Shift right arithmetic with 64-bit immediate (alternative)
@@ -1512,7 +1522,7 @@ impl InstructionSet {
         let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
         let result = imm1_val_s >> shift;
         let result_u = VMUtils::i64_to_u64(result);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result_u)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result_u)
     }
 
     /// Rotate right logical a 64-bit value by an immediate amount
@@ -1525,7 +1535,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(ins.imm1()?);
         let result = vm_state.read_rs2(ins)?.rotate_right(rotate);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Rotate right logical a 64-bit value by an immediate amount (alternative)
@@ -1538,7 +1548,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
         let result = ins.imm1()?.rotate_right(rotate);
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Rotate right logical a 32-bit value by an immediate amount
@@ -1554,7 +1564,7 @@ impl InstructionSet {
             reg_to_u32(vm_state.read_rs2(ins)?).rotate_right(rotate),
             SextInputSize::Octets4,
         );
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     /// Rotate right logical a 32-bit value by an immediate amount (alternative)
@@ -1570,7 +1580,7 @@ impl InstructionSet {
             reg_to_u32(ins.imm1()?).rotate_right(rotate),
             SextInputSize::Octets4,
         );
-        continue_with_reg_write!(vm_state, program_state, ins.rs1()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, result)
     }
 
     //
@@ -1714,7 +1724,7 @@ impl InstructionSet {
             .read_rs1(ins)?
             .wrapping_add(vm_state.read_rs2(ins)?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result_extended)
     }
 
     /// Subtract two registers and get a 32-bit value
@@ -1730,7 +1740,7 @@ impl InstructionSet {
             .wrapping_add(1 << 32)
             .wrapping_sub(vm_state.read_rs2(ins)? & 0xFFFF_FFFF);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result_extended)
     }
 
     /// Multiply two registers and get a 32-bit value
@@ -1745,7 +1755,7 @@ impl InstructionSet {
             .read_rs1(ins)?
             .wrapping_mul(vm_state.read_rs2(ins)?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result_extended)
     }
 
     /// Divide unsigned and get a 32-bit value
@@ -1763,7 +1773,7 @@ impl InstructionSet {
         } else {
             VMUtils::sext(dividend / divisor, SextInputSize::Octets4)
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Divide signed and get a 32-bit value
@@ -1784,7 +1794,7 @@ impl InstructionSet {
         } else {
             VMUtils::i64_to_u64((dividend / divisor) as i64)
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Remainder unsigned and get a 32-bit value
@@ -1802,7 +1812,7 @@ impl InstructionSet {
         } else {
             VMUtils::sext(dividend % divisor, SextInputSize::Octets4)
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Remainder signed and get a 32-bit value
@@ -1820,7 +1830,7 @@ impl InstructionSet {
         } else {
             VMUtils::i64_to_u64(VMUtils::smod_32(dividend, divisor) as i64)
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Shift left logical and get a 32-bit value
@@ -1834,7 +1844,7 @@ impl InstructionSet {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let result = vm_state.read_rs1(ins)? << shift;
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result_extended)
     }
 
     /// Shift right logical and get a 32-bit value
@@ -1848,7 +1858,7 @@ impl InstructionSet {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let result = (vm_state.read_rs1(ins)? & 0xFFFF_FFFF) >> shift;
         let result_extended = VMUtils::sext(result, SextInputSize::Octets4);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result_extended)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result_extended)
     }
 
     /// Shift right arithmetic and get a 32-bit value
@@ -1863,7 +1873,7 @@ impl InstructionSet {
         let value = VMUtils::u32_to_i32(((vm_state.read_rs1(ins)?) & 0xFFFF_FFFF) as u32);
         let result = value >> shift;
         let result_u = VMUtils::i64_to_u64(result as i64);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result_u)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result_u)
     }
 
     /// Add two registers and get a 64-bit value
@@ -1877,7 +1887,7 @@ impl InstructionSet {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_add(vm_state.read_rs2(ins)?);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Subtract two registers and get a 64-bit value
@@ -1891,7 +1901,7 @@ impl InstructionSet {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_sub(vm_state.read_rs2(ins)?);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Multiply two registers and get a 64-bit value
@@ -1905,7 +1915,7 @@ impl InstructionSet {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_mul(vm_state.read_rs2(ins)?);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Divide unsigned and get a 64-bit value
@@ -1923,7 +1933,7 @@ impl InstructionSet {
         } else {
             dividend / divisor
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Divide signed and get a 64-bit value
@@ -1944,7 +1954,7 @@ impl InstructionSet {
         } else {
             VMUtils::i64_to_u64(dividend / divisor)
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Remainder unsigned and get a 64-bit value
@@ -1962,7 +1972,7 @@ impl InstructionSet {
         } else {
             dividend % divisor
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Remainder signed and get a 64-bit value
@@ -1980,7 +1990,7 @@ impl InstructionSet {
         } else {
             VMUtils::i64_to_u64(VMUtils::smod_64(dividend, divisor))
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Shift left logical and get a 64-bit value
@@ -1993,7 +2003,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let result = vm_state.read_rs1(ins)? << shift;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Shift right logical and get a 64-bit value
@@ -2006,7 +2016,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let result = vm_state.read_rs1(ins)? >> shift;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Shift right arithmetic and get a 64-bit value
@@ -2021,7 +2031,7 @@ impl InstructionSet {
         let value = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let result = value >> shift;
         let result_u = VMUtils::i64_to_u64(result);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result_u)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result_u)
     }
 
     /// Bitwise AND of two registers
@@ -2033,7 +2043,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? & vm_state.read_rs2(ins)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Bitwise XOR of two registers
@@ -2045,7 +2055,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? ^ vm_state.read_rs2(ins)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Bitwise OR of two registers
@@ -2057,7 +2067,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? | vm_state.read_rs2(ins)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Multiply upper (signed * signed)
@@ -2072,7 +2082,7 @@ impl InstructionSet {
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = ((rs1_val_s as i128 * rs2_val_s as i128) >> 64) as i64;
         let result_u = VMUtils::i64_to_u64(result);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result_u)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result_u)
     }
 
     /// Multiply upper (unsigned * unsigned)
@@ -2086,7 +2096,7 @@ impl InstructionSet {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = ((rs1_val as u128 * rs2_val as u128) >> 64) as u64;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Multiply upper (signed * unsigned)
@@ -2101,7 +2111,7 @@ impl InstructionSet {
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = ((rs1_val_s as i128 * rs2_val as i128) >> 64) as i64;
         let result_u = VMUtils::i64_to_u64(result);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result_u)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result_u)
     }
 
     /// Set if less than (unsigned)
@@ -2115,7 +2125,7 @@ impl InstructionSet {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = if rs1_val < rs2_val { 1 } else { 0 };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Set if less than (signed)
@@ -2129,7 +2139,7 @@ impl InstructionSet {
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = if rs1_val_s < rs2_val_s { 1 } else { 0 };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Conditional move if zero
@@ -2146,7 +2156,7 @@ impl InstructionSet {
         } else {
             vm_state.read_rd(ins)?
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Conditional move if not zero
@@ -2163,7 +2173,7 @@ impl InstructionSet {
         } else {
             vm_state.read_rd(ins)?
         };
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Rotate left logical a 64-bit value
@@ -2176,7 +2186,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
         let result = vm_state.read_rs1(ins)?.rotate_left(rotate);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Rotate left logical a 32-bit value
@@ -2192,7 +2202,7 @@ impl InstructionSet {
             reg_to_u32(vm_state.read_rs1(ins)?).rotate_left(rotate),
             SextInputSize::Octets4,
         );
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Rotate right logical a 64-bit value
@@ -2205,7 +2215,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
         let result = vm_state.read_rs1(ins)?.rotate_right(rotate);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Rotate right logical a 32-bit value
@@ -2221,7 +2231,7 @@ impl InstructionSet {
             reg_to_u32(vm_state.read_rs1(ins)?).rotate_right(rotate),
             SextInputSize::Octets4,
         );
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Bitwise AND with the inverse of the second register.
@@ -2233,7 +2243,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? & !vm_state.read_rs2(ins)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Bitwise OR with the inverse of the second register.
@@ -2245,7 +2255,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? | !vm_state.read_rs2(ins)?;
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Bitwise XNOR of two registers.
@@ -2257,7 +2267,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = !(vm_state.read_rs1(ins)? ^ vm_state.read_rs2(ins)?);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Return the maximum of two signed 64-bit register values
@@ -2271,7 +2281,7 @@ impl InstructionSet {
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = VMUtils::i64_to_u64(rs1_val.max(rs2_val));
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Return the maximum of two unsigned 64-bit register values
@@ -2285,7 +2295,7 @@ impl InstructionSet {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = rs1_val.max(rs2_val);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Return the minimum of two signed 64-bit register values
@@ -2299,7 +2309,7 @@ impl InstructionSet {
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = VMUtils::i64_to_u64(rs1_val.min(rs2_val));
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 
     /// Return the minimum of two unsigned 64-bit register values
@@ -2313,6 +2323,6 @@ impl InstructionSet {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = rs1_val.min(rs2_val);
-        continue_with_reg_write!(vm_state, program_state, ins.rd()?, result)
+        continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
     }
 }
