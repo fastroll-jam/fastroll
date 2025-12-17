@@ -79,12 +79,13 @@ impl VMStateMutator {
     pub fn apply_state_change(
         vm_state: &mut VMState,
         change: &VMStateChange,
+        vm_state_should_change: bool,
     ) -> Result<SignedGas, VMCoreError> {
         // Check gas counter and apply gas change
         let post_gas = GasCharger::apply_gas_cost(vm_state, change.gas_charge)?;
 
-        // Early return on OOG without modification in PVM state
-        if post_gas < 0 {
+        // Early return on OOG or unknown exit reasons without modification in PVM state
+        if post_gas < 0 || !vm_state_should_change {
             return Ok(post_gas);
         }
 
