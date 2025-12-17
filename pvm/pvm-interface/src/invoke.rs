@@ -255,6 +255,7 @@ impl PVMInterface {
                             exit_reason: ExitReason::OutOfGas,
                         });
                     }
+                    pvm.state.pc = Interpreter::next_pc(pvm.state.pc, &pvm.program_state);
                 }
                 exit_reason @ (ExitReason::Panic
                 | ExitReason::RegularHalt
