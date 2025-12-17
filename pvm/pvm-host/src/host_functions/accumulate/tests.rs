@@ -2118,7 +2118,6 @@ mod transfer_tests {
     }
 
     #[tokio::test]
-    #[ignore] // FIXME: GP v0.7.2 features (TRANSFER gas limit)
     async fn test_transfer_mem_not_readable() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = TransferTestFixture::default();
@@ -2158,7 +2157,6 @@ mod transfer_tests {
     }
 
     #[tokio::test]
-    #[ignore] // FIXME: GP v0.7.2 features (TRANSFER gas limit)
     async fn test_transfer_destination_not_found() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let mut fixture = TransferTestFixture::default();
@@ -2207,7 +2205,6 @@ mod transfer_tests {
     }
 
     #[tokio::test]
-    #[ignore] // FIXME: GP v0.7.2 features (TRANSFER gas limit)
     async fn test_transfer_low_gas_limit() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = TransferTestFixture {
@@ -2253,7 +2250,6 @@ mod transfer_tests {
     }
 
     #[tokio::test]
-    #[ignore] // FIXME: GP v0.7.2 features (TRANSFER gas limit)
     async fn test_transfer_insufficient_balance() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = TransferTestFixture {
