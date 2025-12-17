@@ -84,12 +84,19 @@ pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 50_000_000;
 /// `W_A`: The maximum size of is-authorized code in octets.
 pub const MAX_IS_AUTHORIZED_CODE_SIZE: usize = 64_000;
 
-/// `W_B`: The maximum size of an encoded work-package together with its extrinsic data and import implications, in octets.
+/// `W_B`: The maximum size of the concatenated variable-size blobs, extrinsics and imported segments of
+/// a work-package, in octets.
+///
 /// `W_B` = `W_M` * (`W_G` + 1 + (32 * ceil(log2(`W_T`)))) + 4096 + 1
-pub const MAX_PACKAGE_AND_DATA_SIZE: usize = 13_794_305;
+pub const MAX_PACKAGE_AND_DATA_SIZE: usize = 13_791_360;
 
 /// `W_C`: The maximum size of service code in octets.
 pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
+
+/// `W_F`: The additional footprint in the Audits DA of a single imported segment.
+///
+/// `W_F` = `W_G` + 32 * ceil(log2(`W_M`))
+pub const AUDIT_DA_IMPORT_FOOTPRINT: usize = 4_488;
 
 /// `W_G`: Data segment size (`W_E` * `W_P`).
 pub const SEGMENT_SIZE: usize = ERASURE_CHUNK_SIZE * DATA_SEGMENTS_CHUNKS;
