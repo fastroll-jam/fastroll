@@ -83,6 +83,11 @@ impl VMStateMutator {
         // Check gas counter and apply gas change
         let post_gas = GasCharger::apply_gas_cost(vm_state, change.gas_charge)?;
 
+        // Early return on OOG without modification in PVM state
+        if post_gas < 0 {
+            return Ok(post_gas);
+        }
+
         // Apply memory change first.
         // If this results in Panic or PageFault, VM state should remain unchanged except the gas counter.
         if let Some(MemWrite {
