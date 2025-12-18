@@ -392,10 +392,10 @@ mod fetch_tests {
 
             // Check host-call result
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-            let mut buf = vec![];
-            fixture.package.auth_code_hash.encode_to(&mut buf)?;
-            fixture.package.config_blob.encode_to(&mut buf)?;
-            assert_eq!(res, fixture.host_call_result_successful(buf));
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.package.config_blob.clone().into_vec())
+            );
             Ok(())
         }
 
@@ -701,10 +701,10 @@ mod fetch_tests {
 
             // Check host-call result
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-            let mut buf = vec![];
-            fixture.package.auth_code_hash.encode_to(&mut buf)?;
-            fixture.package.config_blob.encode_to(&mut buf)?;
-            assert_eq!(res, fixture.host_call_result_successful(buf));
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.package.config_blob.clone().into_vec())
+            );
             Ok(())
         }
 

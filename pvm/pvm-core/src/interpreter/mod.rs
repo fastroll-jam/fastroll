@@ -31,8 +31,8 @@ impl Interpreter {
     /// Get the next pc value from the current VM state and the skip function
     /// for normal instruction execution completion
     #[inline(always)]
-    pub fn next_pc(vm_state: &VMState, program_state: &ProgramState) -> RegValue {
-        vm_state.pc + 1 + Self::skip(vm_state.pc as usize, program_state) as RegValue
+    pub fn next_pc(curr_pc: RegValue, program_state: &ProgramState) -> RegValue {
+        curr_pc + 1 + Self::skip(curr_pc as usize, program_state) as RegValue
     }
 
     /// General PVM invocation function.
@@ -67,9 +67,16 @@ impl Interpreter {
 
             let single_invocation_result =
                 Self::invoke_single_step(vm_state, program_state_ref, inst)?;
+
+            let vm_state_should_change = matches!(
+                single_invocation_result.exit_reason,
+                ExitReason::Continue | ExitReason::Panic | ExitReason::RegularHalt
+            );
+
             let post_gas = match VMStateMutator::apply_state_change(
                 vm_state,
                 &single_invocation_result.state_change,
+                vm_state_should_change,
             ) {
                 Ok(post_gas) => post_gas,
                 Err(VMCoreError::ForbiddenMemZone(addr)) => {
@@ -110,7 +117,7 @@ impl Interpreter {
                     // vm_state.pc = 0; // TODO: PVM Revisit: (test vectors assume panic/halt doesn't reset pc value but not in GP)
                     return Ok(termination);
                 }
-                other => return Ok(other),
+                other => return Ok(other), // This branch should not be taken
             }
         }
     }

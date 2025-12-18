@@ -145,16 +145,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
     ) -> Result<Option<Vec<u8>>, HostCallError> {
         let data = match data_id {
             7 => package.encode().ok(),
-            8 => {
-                let mut buf = vec![];
-                if package.auth_code_hash.encode_to(&mut buf).is_err() {
-                    return Ok(None);
-                }
-                if package.config_blob.encode_to(&mut buf).is_err() {
-                    return Ok(None);
-                };
-                Some(buf)
-            }
+            8 => Some(package.config_blob.clone().into_vec()),
             9 => Some(package.auth_token.clone().into_vec()),
             10 => package.context.encode().ok(),
             11 => {

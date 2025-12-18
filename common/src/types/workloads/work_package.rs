@@ -1,8 +1,8 @@
 use crate::{
     constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, CodeHash, Hash32,
     Octets, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash, ACCUMULATION_GAS_PER_CORE,
-    HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, MAX_EXTRINSICS_PER_PACKAGE, MAX_IMPORTS_PER_PACKAGE,
-    MAX_PACKAGE_AND_DATA_SIZE, REFINE_GAS_PER_WORK_PACKAGE, SEGMENT_SIZE,
+    AUDIT_DA_IMPORT_FOOTPRINT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, MAX_EXTRINSICS_PER_PACKAGE,
+    MAX_IMPORTS_PER_PACKAGE, MAX_PACKAGE_AND_DATA_SIZE, REFINE_GAS_PER_WORK_PACKAGE,
 };
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
@@ -71,7 +71,7 @@ impl JamDecode for ImportInfo {
 pub struct ExtrinsicInfo {
     /// `h`: Extrinsic data hash
     pub blob_hash: Hash32,
-    /// `i`: Extrinsic data size
+    /// `l`: Extrinsic data size
     pub blob_length: u32,
 }
 
@@ -263,7 +263,7 @@ impl WorkPackage {
             .iter()
             .map(|wi| {
                 wi.payload_blob.len()
-                    + wi.import_segment_ids.len() * SEGMENT_SIZE
+                    + wi.import_segment_ids.len() * AUDIT_DA_IMPORT_FOOTPRINT
                     + wi.extrinsic_data_info
                         .iter()
                         .map(|xt| xt.blob_length as usize)

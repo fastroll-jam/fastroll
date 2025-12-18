@@ -101,8 +101,8 @@ impl From<AsnLookupMetaMapEntry> for LookupMetaMapEntry {
 /// Subset of the `δ` relevant to the preimages STF.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnAccount {
-    pub preimages: Vec<AsnPreimagesMapEntry>,
-    pub lookup_meta: Vec<AsnLookupMetaMapEntry>,
+    pub preimage_blobs: Vec<AsnPreimagesMapEntry>,
+    pub preimage_requests: Vec<AsnLookupMetaMapEntry>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
