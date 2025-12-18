@@ -36,7 +36,7 @@ impl StateTransitionTest for PreimagesTest {
         // Convert ASN pre-state into FastRoll types and load pre-state info the state cache.
         for account in &test_pre_state.accounts {
             // Add preimages entries
-            for preimage in &account.data.preimages {
+            for preimage in &account.data.preimage_blobs {
                 let key = &preimage.hash;
                 let val = PreimagesMapEntry::from(preimage.clone()).data;
                 state_manager
@@ -44,7 +44,7 @@ impl StateTransitionTest for PreimagesTest {
                     .await?;
             }
             // Add lookups entries
-            for lookup in &account.data.lookup_meta {
+            for lookup in &account.data.preimage_requests {
                 state_manager
                     .add_account_lookups_entry(
                         account.id,
@@ -108,7 +108,7 @@ impl StateTransitionTest for PreimagesTest {
 
         // Get the posterior state from the state cache.
         let curr_accounts = join_all(pre_state.accounts.iter().map(|s| async {
-            let curr_preimages = join_all(s.data.preimages.iter().map(|e| async {
+            let curr_preimages = join_all(s.data.preimage_blobs.iter().map(|e| async {
                 // Get the key from the pre-state
                 let key = e.hash.clone();
                 // Get the posterior preimage value
@@ -124,7 +124,7 @@ impl StateTransitionTest for PreimagesTest {
             }))
             .await;
 
-            let curr_lookups = join_all(s.data.lookup_meta.iter().map(|e| async {
+            let curr_lookups = join_all(s.data.preimage_requests.iter().map(|e| async {
                 // Get the key from the pre-state
                 let key = LookupsKey::from(e.key.clone());
                 // Get the posterior lookups value
@@ -140,8 +140,8 @@ impl StateTransitionTest for PreimagesTest {
             AsnAccountsMapEntry {
                 id: s.id,
                 data: AsnAccount {
-                    preimages: curr_preimages,
-                    lookup_meta: curr_lookups,
+                    preimage_blobs: curr_preimages,
+                    preimage_requests: curr_lookups,
                 },
             }
         }))

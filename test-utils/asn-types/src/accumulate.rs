@@ -1,9 +1,9 @@
 use crate::{
     common::{
-        AsnAccumulateHistory, AsnAccumulateQueue, AsnAccumulateRoot, AsnEntropy, AsnOpaqueHash,
+        AsnAccumulateHistory, AsnAccumulateQueue, AsnAccumulateRoot, AsnEntropy,
         AsnPrivilegedServices, AsnServiceId, AsnServiceInfo, AsnTimeSlot, AsnWorkReport,
     },
-    preimages::AsnPreimagesMapEntry,
+    preimages::{AsnLookupMetaMapEntry, AsnPreimagesMapEntry},
 };
 use fr_common::{
     workloads::work_report::WorkReport, AccumulateRoot, ByteSequence, Octets, StorageKey,
@@ -47,20 +47,13 @@ impl From<AsnStorageMapEntry> for StorageMapEntry {
     }
 }
 
-/// Derived from `AsnLookupMetaMapEntry`
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnPreimageStatus {
-    pub hash: AsnOpaqueHash,
-    pub status: Vec<AsnTimeSlot>,
-}
-
 /// Subset of the `δ` relevant to the accumulate STF.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnAccount {
     pub service: AsnServiceInfo,
     pub storage: Vec<AsnStorageMapEntry>,
-    pub preimages_blob: Vec<AsnPreimagesMapEntry>,
-    pub preimages_status: Vec<AsnPreimageStatus>,
+    pub preimage_blobs: Vec<AsnPreimagesMapEntry>,
+    pub preimage_requests: Vec<AsnLookupMetaMapEntry>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
