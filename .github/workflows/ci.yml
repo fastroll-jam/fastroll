@@ -32,6 +32,18 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Free Disk Space (Ubuntu)
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+
+      - name: Enable swap space
+        run: |
+          sudo fallocate -l 4G /swapfile-ci
+          sudo chmod 600 /swapfile-ci
+          sudo mkswap /swapfile-ci
+          sudo swapon /swapfile-ci
+
       - name: Install stable toolchain
         run: rustup toolchain install stable --component clippy
 
