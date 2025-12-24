@@ -80,6 +80,21 @@ impl StateTransitionTest for StatisticsTest {
         let pre_timeslot = state_manager.get_timeslot().await?;
         let next_timeslot = jam_input.timeslot;
         let epoch_progressed = pre_timeslot.epoch() < next_timeslot.epoch();
+        let curr_active_set = state_manager.get_active_set().await?;
+
+        // Extract reporter set **G** for test
+        let reporters = jam_input
+            .extrinsics
+            .guarantees
+            .iter()
+            .flat_map(|entry| {
+                entry.credentials.iter().filter_map(|c| {
+                    curr_active_set
+                        .get_validator_ed25519_key(c.validator_index)
+                        .cloned()
+                })
+            })
+            .collect();
 
         transition_onchain_statistics(
             state_manager,
@@ -87,6 +102,7 @@ impl StateTransitionTest for StatisticsTest {
             jam_input.author_index,
             &jam_input.extrinsics,
             &Vec::new(),
+            &reporters,
             AccumulateStats::default(),
         )
         .await

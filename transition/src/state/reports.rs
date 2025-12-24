@@ -18,7 +18,7 @@ use fr_state::{
     manager::StateManager,
     types::{PendingReport, Timeslot},
 };
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 /// State transition function of `PendingReports`, eliminating invalid work reports by consuming
 /// the `DisputesXt`.
@@ -139,7 +139,7 @@ pub async fn transition_reports_update_entries(
     guarantees_xt: &GuaranteesXt,
     current_timeslot: Timeslot,
     with_ancestors: bool,
-) -> Result<(Vec<ReportedWorkPackage>, Vec<Ed25519PubKey>), TransitionError> {
+) -> Result<(Vec<ReportedWorkPackage>, HashSet<Ed25519PubKey>), TransitionError> {
     tracing::info!("Reports: {} guarantees xts", guarantees_xt.len());
     // Validate guarantees extrinsic data.
     let guarantees_validator =
