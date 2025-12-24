@@ -231,6 +231,52 @@ mod fuzz_target_tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_fuzz_reinitialize_in_same_session() -> Result<(), FuzzTargetError> {
+        setup_tracing();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
+
+        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let mut client = UnixStream::connect(socket_path.clone()).await?;
+        let _ = MockFuzzer::handshake(&mut client).await?;
+
+        let test_case_1 = load_test_case(1);
+        let test_case_2 = load_test_case(2);
+
+        let root_1 = MockFuzzer::initialize(
+            &mut client,
+            Initialize {
+                header: test_case_1.block.header.clone().into(),
+                state: test_case_1.post_state.clone().into(),
+                ancestry: Ancestry::default(),
+            },
+        )
+        .await?;
+        assert_eq!(root_1.0, test_case_1.post_state.state_root);
+
+        let root_2 = MockFuzzer::initialize(
+            &mut client,
+            Initialize {
+                header: test_case_2.block.header.clone().into(),
+                state: test_case_2.post_state.clone().into(),
+                ancestry: Ancestry::default(),
+            },
+        )
+        .await?;
+        assert_eq!(root_2.0, test_case_2.post_state.state_root);
+
+        cleanup_socket(&socket_path);
+        Ok(())
+    }
+
     // Handshake + Initialize + ImportBlock
     #[cfg(feature = "tiny")]
     #[tokio::test]
