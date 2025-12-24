@@ -132,6 +132,8 @@ pub struct FuzzTargetRunner {
     target_peer_info: PeerInfo,
     fuzz_features: FuzzFeatures,
     fork_state: SimpleForkState,
+    state_initialized: bool,
+    db_counter: usize,
     _temp_dir: TempDir,
 }
 
@@ -139,15 +141,37 @@ impl FuzzTargetRunner {
     /// Creates a `FuzzTargetRunner` with a temporary DB path.
     pub fn new(target_peer_info: PeerInfo) -> Result<Self, FuzzTargetError> {
         let _temp_dir = tempdir()?;
-        let temp_db_path = _temp_dir.path().join("fuzz_target_db");
+        let node_storage = Self::create_node_storage(&_temp_dir, 0)?;
         Ok(Self {
             _temp_dir,
-            node_storage: Arc::new(NodeStorage::new(StorageConfig::from_path(temp_db_path))?),
+            node_storage,
             latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
             fuzz_features: FuzzFeatures::default(),
             fork_state: SimpleForkState::default(),
+            state_initialized: false,
+            db_counter: 0,
         })
+    }
+
+    fn create_node_storage(
+        temp_dir: &TempDir,
+        db_counter: usize,
+    ) -> Result<Arc<NodeStorage>, FuzzTargetError> {
+        let temp_db_path = temp_dir.path().join(format!("fuzz_target_db_{db_counter}"));
+        Ok(Arc::new(NodeStorage::new(StorageConfig::from_path(
+            temp_db_path,
+        ))?))
+    }
+
+    /// Resets state context and node storage on reinitialization of the fuzzer session
+    fn reset_state_context(&mut self) -> Result<(), FuzzTargetError> {
+        self.db_counter = self.db_counter.saturating_add(1);
+        self.node_storage = Self::create_node_storage(&self._temp_dir, self.db_counter)?;
+        self.latest_state_keys = LatestStateKeys::default();
+        self.fork_state = SimpleForkState::default();
+        self.state_initialized = false;
+        Ok(())
     }
 
     fn node_storage(&self) -> Arc<NodeStorage> {
@@ -342,6 +366,9 @@ impl FuzzTargetRunner {
         match message_kind {
             FuzzMessageKind::Initialize(init) => {
                 tracing::info!("[RECV][Initialize] Received message");
+                if self.state_initialized {
+                    self.reset_state_context()?;
+                }
                 let storage = self.node_storage();
                 let state_manager = storage.state_manager();
 
@@ -383,6 +410,7 @@ impl FuzzTargetRunner {
                 )
                 .await?;
                 tracing::info!("[SEND][Initialize] root={state_root}");
+                self.state_initialized = true;
                 Ok(())
             }
             FuzzMessageKind::ImportBlock(import_block) => {
