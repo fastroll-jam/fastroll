@@ -208,7 +208,7 @@ impl BlockExecutor {
             let available_reports =
                 transition_reports_clear_availables(manager.clone(), &assurances_xt, parent_hash)
                     .await?;
-            let (reported, _reporters) = transition_reports_update_entries(
+            let (reported, reporter_keys) = transition_reports_update_entries(
                 manager,
                 header_db,
                 &guarantees_xt_cloned,
@@ -216,7 +216,7 @@ impl BlockExecutor {
                 with_ancestors,
             )
             .await?;
-            Ok::<_, TransitionError>((available_reports, reported))
+            Ok::<_, TransitionError>((available_reports, reported, reporter_keys))
         });
 
         // Second EpochEntropy STF (per-block accumulation)
@@ -228,7 +228,7 @@ impl BlockExecutor {
         .await?;
 
         // Accumulation STFs
-        let (available_reports, reported_packages) = reports_jh.await??;
+        let (available_reports, reported_packages, all_reporter_keys) = reports_jh.await??;
         let acc_queue = storage.state_manager().get_accumulate_queue().await?;
         let acc_history = storage.state_manager().get_accumulate_history().await?;
         let (accumulatable_reports, queued_reports) = collect_accumulatable_reports(
@@ -287,6 +287,7 @@ impl BlockExecutor {
                 author_index,
                 &xt_cloned,
                 &available_reports,
+                &all_reporter_keys,
                 acc_stats,
             )
             .await

@@ -90,9 +90,9 @@ impl GuaranteesXtValidator {
         &self,
         extrinsic: &GuaranteesXt,
         header_timeslot_index: TimeslotIndex,
-    ) -> Result<Vec<Ed25519PubKey>, XtError> {
+    ) -> Result<HashSet<Ed25519PubKey>, XtError> {
         if extrinsic.is_empty() {
-            return Ok(Vec::new());
+            return Ok(HashSet::new());
         }
 
         // Check if the entries are sorted
@@ -156,7 +156,7 @@ impl GuaranteesXtValidator {
             all_guarantor_keys.extend(guarantor_keys);
         }
 
-        Ok(all_guarantor_keys.into_iter().collect())
+        Ok(all_guarantor_keys)
     }
 
     /// Validates each `GuaranteesXtEntry`.
@@ -176,7 +176,7 @@ impl GuaranteesXtValidator {
         accumulate_history: &AccumulateHistory,
         work_package_hashes: &HashSet<&Hash32>,
         header_timeslot_index: TimeslotIndex,
-    ) -> Result<Vec<Ed25519PubKey>, XtError> {
+    ) -> Result<HashSet<Ed25519PubKey>, XtError> {
         self.validate_work_report(
             &entry.work_report,
             exports_manifests,
@@ -501,7 +501,7 @@ impl GuaranteesXtValidator {
     async fn validate_credentials(
         &self,
         entry: &GuaranteesXtEntry,
-    ) -> Result<Vec<Ed25519PubKey>, XtError> {
+    ) -> Result<HashSet<Ed25519PubKey>, XtError> {
         let credentials = entry.credentials();
         // Check the length limit
         if !(credentials.len() == 2 || credentials.len() == 3) {
@@ -526,12 +526,12 @@ impl GuaranteesXtValidator {
         }
 
         // Validate each credential
-        let mut guarantor_keys = Vec::with_capacity(credentials.len());
+        let mut guarantor_keys = HashSet::new();
         for credential in credentials {
             let guarantor = self
                 .validate_credential(&entry.work_report, entry.timeslot_index, credential)
                 .await?;
-            guarantor_keys.push(guarantor);
+            guarantor_keys.insert(guarantor);
         }
 
         Ok(guarantor_keys)

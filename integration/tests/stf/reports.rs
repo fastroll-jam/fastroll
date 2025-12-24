@@ -109,7 +109,7 @@ impl StateTransitionTest for ReportsTest {
         // Run state transitions.
         transition_timeslot(state_manager.clone(), &jam_input.timeslot).await?;
 
-        let (mut reported, mut reporters) = transition_reports_update_entries(
+        let (mut reported, reporters) = transition_reports_update_entries(
             state_manager,
             header_db,
             &jam_input.extrinsic,
@@ -120,6 +120,7 @@ impl StateTransitionTest for ReportsTest {
 
         // Note: Here sorting the output vectors to conform with test vectors. Not part of the GP.
         reported.sort();
+        let mut reporters = reporters.into_iter().collect::<Vec<_>>();
         reporters.sort();
 
         Ok(JamTransitionOutput {

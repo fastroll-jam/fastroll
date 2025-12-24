@@ -26,26 +26,6 @@ impl Deref for GuaranteesXt {
 }
 
 impl GuaranteesXt {
-    /// Extracts Ed25519 keys of `reporters`, who are the validators whose signatures are placed
-    /// in the guarantees extrinsic credentials.
-    ///
-    /// This set is utilized for tracking validator activity statistics.
-    ///
-    /// Note: this extraction should be performed after passing Xt validation.
-    pub fn extract_reporters(&self, validator_set: &ValidatorKeySet) -> Vec<Ed25519PubKey> {
-        self.iter()
-            .flat_map(|entry| {
-                entry.credentials.iter().filter_map(|c| {
-                    validator_set
-                        .get_validator_ed25519_key(c.validator_index)
-                        .cloned()
-                })
-            })
-            .collect()
-    }
-
-    /// Extracts work reports from the extrinsic.
-    ///
     /// This is used for aggregating all work reports that are introduced in the current guarantees
     /// extrinsic, and expected to be validated by `GuaranteesXtValidator`.
     pub fn extract_work_reports(&self) -> Vec<WorkReport> {
