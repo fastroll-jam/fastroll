@@ -87,7 +87,7 @@ quinn = { version = "0.11.8", default-features = false, features = ["runtime-tok
 quote = "1.0.40"
 rand = "0.8.5"
 rayon = "1.11.0"
-reed-solomon-simd = "3.0.1"
+reed-solomon-simd = "3.1.0"
 regex = "1.11.2"
 rcgen = { version = "0.13.2", default-features = false, features = ["ring"] }
 rocksdb = { version = "0.24.0", default-features = false, features = ["snappy"] }
