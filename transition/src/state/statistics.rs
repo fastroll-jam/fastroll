@@ -3,6 +3,7 @@ use fr_block::types::extrinsics::{
     assurances::AssurancesXt, guarantees::GuaranteesXt, preimages::PreimagesXt, Extrinsics,
 };
 use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE, VALIDATOR_COUNT};
+use fr_crypto::types::Ed25519PubKey;
 use fr_pvm_types::stats::AccumulateStats;
 use fr_state::{
     cache::StateMut,
@@ -10,7 +11,7 @@ use fr_state::{
     manager::StateManager,
     types::{CoreStats, ServiceStats},
 };
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 /// State transition function of `OnChainStatistics`
 pub async fn transition_onchain_statistics(
@@ -19,6 +20,7 @@ pub async fn transition_onchain_statistics(
     header_block_author_index: ValidatorIndex,
     xts: &Extrinsics,
     available_reports: &[WorkReport],
+    reporter_keys: &HashSet<Ed25519PubKey>,
     accumulate_stats: AccumulateStats,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
@@ -26,8 +28,13 @@ pub async fn transition_onchain_statistics(
     }
 
     // Validator stats accumulator transition (the first entry of the `ValidatorStats`)
-    handle_validator_stats_accumulation(state_manager.clone(), header_block_author_index, xts)
-        .await?;
+    handle_validator_stats_accumulation(
+        state_manager.clone(),
+        header_block_author_index,
+        xts,
+        reporter_keys,
+    )
+    .await?;
     handle_per_block_transition(
         state_manager,
         &xts.assurances,
@@ -64,6 +71,7 @@ async fn handle_validator_stats_accumulation(
     state_manager: Arc<StateManager>,
     header_block_author_index: ValidatorIndex,
     xts: &Extrinsics,
+    reporter_keys: &HashSet<Ed25519PubKey>,
 ) -> Result<(), TransitionError> {
     let current_active_set = state_manager.get_active_set().await?;
     let validator_keys = (0..VALIDATOR_COUNT as ValidatorIndex)
@@ -94,12 +102,7 @@ async fn handle_validator_stats_accumulation(
                 .zip(&validator_keys)
             {
                 // Update `guarantees_count` if the current validator's Ed25519 public key is in reporters set.
-                if xts
-                    .guarantees
-                    .extract_reporters(&current_active_set)
-                    .iter()
-                    .any(|reporter| reporter == *validator_ed25519_key)
-                {
+                if reporter_keys.contains(validator_ed25519_key) {
                     validator_stats.guarantees_count += 1;
                 }
 
