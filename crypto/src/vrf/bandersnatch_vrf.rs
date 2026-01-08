@@ -8,10 +8,7 @@ use crate::{
         },
     },
 };
-use ark_vrf::{
-    codec::point_decode, reexports::ark_serialize::CanonicalDeserialize,
-    suites::bandersnatch::BandersnatchSha512Ell2, Public, Secret,
-};
+use ark_vrf::{reexports::ark_serialize::CanonicalDeserialize, Public, Secret};
 use fr_common::{ByteArray, ByteEncodable, Hash32, ValidatorIndex};
 use tracing::instrument;
 
@@ -21,7 +18,7 @@ pub struct VrfProver {
 
 impl VrfProver {
     pub fn from_secret_key(secret_key: &BandersnatchSecretKey) -> Result<Self, CryptoError> {
-        let sk = Secret::deserialize_compressed(secret_key.as_slice())?;
+        let sk = Secret::deserialize_compressed_unchecked(secret_key.as_slice())?;
         Ok(Self {
             core: IetfVrfProverCore::new(sk),
         })
@@ -51,10 +48,8 @@ impl VrfVerifier {
             context,
             message,
             signature.as_slice(),
-            Public::from(
-                point_decode::<BandersnatchSha512Ell2>(public_key.as_slice())
-                    .map_err(|_| CryptoError::BandersnatchDecodeError)?,
-            ),
+            Public::deserialize_compressed_unchecked(public_key.as_slice())
+                .map_err(|_| CryptoError::BandersnatchDecodeError)?,
         )
         .map(Hash32::new)
     }
@@ -72,7 +67,7 @@ impl RingVrfProver {
     ) -> Result<Self, CryptoError> {
         let ring = validator_set_to_bandersnatch_ring(&validator_set)?;
         let prover = author_index as usize;
-        let secret = Secret::deserialize_compressed(secret_key.as_slice())?;
+        let secret = Secret::deserialize_compressed_unchecked(secret_key.as_slice())?;
 
         Ok(Self {
             core: RingVrfProverCore::new(ring, prover, secret),

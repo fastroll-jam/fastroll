@@ -69,7 +69,7 @@ fr-storage = { path = "storage" }
 fr-test-utils = { path = "test-utils" }
 fr-transition = { path = "transition" }
 # External dependencies
-ark-vrf = { version = "0.1.0", features = ["bandersnatch", "ring"] }
+ark-vrf = { version = "0.1.1", features = ["bandersnatch", "ring"] }
 async-trait = "0.1.89"
 base32 = "0.5.1"
 blake2 = "0.10.6"

@@ -40,7 +40,7 @@ impl SecretKey for BandersnatchSecretKey {
     }
 
     fn public_key(&self) -> Result<Self::PublicKey, CryptoError> {
-        let ark_public = ArkSecret::deserialize_compressed(self.as_slice())?.public();
+        let ark_public = ArkSecret::deserialize_compressed_unchecked(self.as_slice())?.public();
         let mut buf = Vec::with_capacity(32);
         ark_public.serialize_compressed(&mut buf)?;
         let key = Self::PublicKey::from_slice(&buf)?;
