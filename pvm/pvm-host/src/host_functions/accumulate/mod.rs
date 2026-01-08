@@ -501,11 +501,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         tracing::debug!("Hostcall invoked: TRANSFER");
         let x = get_mut_accumulate_x!(context);
 
-        // --- Check Gas Charge (Err: OOG)
+        // --- Check Base Gas Charge (Err: OOG)
 
+        check_out_of_gas!(vm.gas_counter);
         let transfer_gas_limit = vm.read_reg(9);
-        let gas_charge = HOSTCALL_BASE_GAS_CHARGE.saturating_add(transfer_gas_limit);
-        check_out_of_gas!(vm.gas_counter, gas_charge);
 
         // --- Read from Memory (Err: Panic)
 
@@ -558,6 +557,9 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         }
 
         // --- OK
+
+        let gas_charge = HOSTCALL_BASE_GAS_CHARGE.saturating_add(transfer_gas_limit);
+        check_out_of_gas!(vm.gas_counter, gas_charge);
 
         x.subtract_accumulator_balance(state_provider, amount)
             .await?;
