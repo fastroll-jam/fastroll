@@ -176,7 +176,7 @@ impl IetfVrfVerifierCore {
     ) -> Result<[u8; 32], CryptoError> {
         use ark_vrf::ietf::Verifier as _;
 
-        let signature = IetfVrfSignature::deserialize_compressed(signature)?;
+        let signature = IetfVrfSignature::deserialize_compressed_unchecked(signature)?;
 
         let input = vrf_input_point(vrf_input_data)?;
         let output = signature.output;
@@ -245,7 +245,7 @@ impl RingVrfVerifierCore {
     ) -> Result<[u8; 32], CryptoError> {
         use ark_vrf::ring::Verifier as _;
 
-        let signature = RingVrfSignature::deserialize_compressed(signature)?;
+        let signature = RingVrfSignature::deserialize_compressed_unchecked(signature)?;
 
         let input = vrf_input_point(vrf_input_data)?;
         let output = signature.output; // extracted from the signature

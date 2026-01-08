@@ -21,7 +21,7 @@ impl VrfSignature for BandersnatchSig {
 
     /// `Y` hash output function for a VRF signature.
     fn output_hash(&self) -> Result<Self::VrfOutput, CryptoError> {
-        let sig = IetfVrfSignature::deserialize_compressed(self.as_slice())?;
+        let sig = IetfVrfSignature::deserialize_compressed_unchecked(self.as_slice())?;
         Ok(BandersnatchOutputHash::new(sig.output_hash()))
     }
 }
@@ -54,7 +54,7 @@ impl VrfSignature for BandersnatchRingVrfSig {
 
     /// `Y` hash output function for an anonymous RingVRF signature.
     fn output_hash(&self) -> Result<Self::VrfOutput, CryptoError> {
-        let sig = RingVrfSignature::deserialize_compressed(self.as_slice())?;
+        let sig = RingVrfSignature::deserialize_compressed_unchecked(self.as_slice())?;
         Ok(BandersnatchOutputHash::new(sig.output_hash()))
     }
 }
