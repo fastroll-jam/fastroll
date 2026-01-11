@@ -181,7 +181,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // Only the privileged assign service of the core is allowed to invoke this host call
         if let Some(new_assign_services_by_manager) =
-            &x.partial_state.assign_services.change_by_manager
+            &x.partial_state.assign_services.change_by_bless
         {
             // Assigner is changed in the partial state and the accumulate host is the manager service
             if x.accumulate_host != new_assign_services_by_manager[core_index] {
@@ -257,7 +257,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // Only the privileged designate service is allowed to invoke this host call
         if let Some(new_designate_service_by_manager) =
-            x.partial_state.designate_service.change_by_manager
+            x.partial_state.designate_service.change_by_bless
         {
             // Designate service is changed in the partial state and the accumulate host is the manager service
             if x.accumulate_host != new_designate_service_by_manager {
@@ -380,7 +380,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let new_small_service_id = vm.read_reg_as_service_id(12).unwrap_or(ServiceId::MAX);
         let accumulate_host_is_registrar = {
             if let Some(new_registrar_service_by_manager) =
-                x.partial_state.registrar_service.change_by_manager
+                x.partial_state.registrar_service.change_by_bless
             {
                 // Registrar service is changed in the partial state and the accumulate host is the manager service
                 x.accumulate_host == new_registrar_service_by_manager

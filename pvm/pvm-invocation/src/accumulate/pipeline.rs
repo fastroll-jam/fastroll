@@ -189,13 +189,13 @@ async fn merge_partial_state_change(
     if !is_prev_manager {
         accumulate_result_partial_state
             .assign_services
-            .change_by_manager = None;
+            .change_by_bless = None;
         accumulate_result_partial_state
             .designate_service
-            .change_by_manager = None;
+            .change_by_bless = None;
         accumulate_result_partial_state
             .registrar_service
-            .change_by_manager = None;
+            .change_by_bless = None;
     }
 
     accumulate_result_partial_state
@@ -250,7 +250,7 @@ async fn merge_partial_state_change(
     let manager_invoked_bless = is_prev_manager
         && accumulate_result_partial_state
             .assign_services
-            .change_by_manager
+            .change_by_bless
             .is_some();
     if manager_invoked_bless {
         partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
@@ -482,7 +482,7 @@ async fn accumulate_parallel(
 
     // Multiple services that are accumulated in the same `Δ*` round can produce conflicting
     // changes to the privileged services: assigners, designate and registrar.
-    // So at this point, `partial_state_union` may hold `Some` variants for both `change_by_manager`
+    // So at this point, `partial_state_union` may hold `Some` variants for both `change_by_bless`
     // and `change_by_self` fields for partial state of the privileged services.
     //
     // If such conflicts happen, changes by the manager services should be prioritized over changes
@@ -493,7 +493,7 @@ async fn accumulate_parallel(
 
     // Confirm the new assign services
     if let Some(new_assign_services_by_manager) =
-        &partial_state_union.assign_services.change_by_manager
+        &partial_state_union.assign_services.change_by_bless
     {
         partial_state_union.assign_services.last_confirmed = new_assign_services_by_manager.clone();
     } else {
@@ -512,7 +512,7 @@ async fn accumulate_parallel(
 
     // Confirm the new designate service
     if let Some(new_designate_service_by_manager) =
-        partial_state_union.designate_service.change_by_manager
+        partial_state_union.designate_service.change_by_bless
     {
         partial_state_union.designate_service.last_confirmed = new_designate_service_by_manager;
     } else if let Some(new_designate_service_by_self) =
@@ -523,7 +523,7 @@ async fn accumulate_parallel(
 
     // Confirm the new registrar service
     if let Some(new_registrar_service_by_manager) =
-        partial_state_union.registrar_service.change_by_manager
+        partial_state_union.registrar_service.change_by_bless
     {
         partial_state_union.registrar_service.last_confirmed = new_registrar_service_by_manager;
     } else if let Some(new_registrar_service_by_self) =

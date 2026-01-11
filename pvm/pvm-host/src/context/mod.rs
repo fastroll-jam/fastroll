@@ -314,9 +314,9 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         // roles, so only the pre‑state manager’s bless candidate (and eligible self‑candidates)
         // can be committed. (Mutates local context first, filters later)
         self.partial_state.manager_service = manager_service;
-        self.partial_state.assign_services.change_by_manager = Some(assign_services.clone());
-        self.partial_state.designate_service.change_by_manager = Some(designate_service);
-        self.partial_state.registrar_service.change_by_manager = Some(registrar_service);
+        self.partial_state.assign_services.change_by_bless = Some(assign_services.clone());
+        self.partial_state.designate_service.change_by_bless = Some(designate_service);
+        self.partial_state.registrar_service.change_by_bless = Some(registrar_service);
         self.partial_state.always_accumulate_services = always_accumulate_services;
 
         prev_assigns
@@ -349,12 +349,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .change_by_self
             .insert(core_index as CoreIndex, assign_service);
 
-        if let Some(assigners) = self
-            .partial_state
-            .assign_services
-            .change_by_manager
-            .as_mut()
-        {
+        if let Some(assigners) = self.partial_state.assign_services.change_by_bless.as_mut() {
             if let Some(assigner) = assigners.get_mut(core_index) {
                 *assigner = assign_service;
             }

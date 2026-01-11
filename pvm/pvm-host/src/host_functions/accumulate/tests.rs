@@ -212,7 +212,7 @@ mod bless_tests {
             fixture.manager as ServiceId
         );
         assert_eq!(
-            x.partial_state.assign_services.change_by_manager,
+            x.partial_state.assign_services.change_by_bless,
             Some(fixture.assign_services)
         );
         assert_eq!(
@@ -220,12 +220,12 @@ mod bless_tests {
             HashMap::new()
         );
         assert_eq!(
-            x.partial_state.designate_service.change_by_manager,
+            x.partial_state.designate_service.change_by_bless,
             Some(fixture.designate as ServiceId)
         );
         assert!(x.partial_state.designate_service.change_by_self.is_none());
         assert_eq!(
-            x.partial_state.registrar_service.change_by_manager,
+            x.partial_state.registrar_service.change_by_bless,
             Some(fixture.registrar as ServiceId)
         );
         assert!(x.partial_state.registrar_service.change_by_self.is_none());
@@ -266,7 +266,7 @@ mod bless_tests {
             fixture.manager as ServiceId
         );
         assert_eq!(
-            x.partial_state.assign_services.change_by_manager,
+            x.partial_state.assign_services.change_by_bless,
             Some(fixture.assign_services)
         );
         assert_eq!(
@@ -274,7 +274,7 @@ mod bless_tests {
             HashMap::new()
         );
         assert_eq!(
-            x.partial_state.designate_service.change_by_manager,
+            x.partial_state.designate_service.change_by_bless,
             Some(fixture.designate as ServiceId)
         );
         assert_eq!(
@@ -282,7 +282,7 @@ mod bless_tests {
             Some(fixture.designate as ServiceId)
         );
         assert_eq!(
-            x.partial_state.registrar_service.change_by_manager,
+            x.partial_state.registrar_service.change_by_bless,
             Some(fixture.registrar as ServiceId)
         );
         assert!(x.partial_state.registrar_service.change_by_self.is_none());
@@ -324,7 +324,7 @@ mod bless_tests {
         );
         let assign_services = fixture.assign_services.clone();
         assert_eq!(
-            x.partial_state.assign_services.change_by_manager,
+            x.partial_state.assign_services.change_by_bless,
             Some(assign_services.clone())
         );
         let assign_services_vec = vec![(0, assign_services[0])];
@@ -333,12 +333,12 @@ mod bless_tests {
             HashMap::from_iter(assign_services_vec)
         );
         assert_eq!(
-            x.partial_state.designate_service.change_by_manager,
+            x.partial_state.designate_service.change_by_bless,
             Some(fixture.designate as ServiceId)
         );
         assert!(x.partial_state.designate_service.change_by_self.is_none());
         assert_eq!(
-            x.partial_state.registrar_service.change_by_manager,
+            x.partial_state.registrar_service.change_by_bless,
             Some(fixture.registrar as ServiceId)
         );
         assert!(x.partial_state.registrar_service.change_by_self.is_none());
@@ -377,7 +377,7 @@ mod bless_tests {
             fixture.manager as ServiceId
         );
         assert_eq!(
-            x.partial_state.assign_services.change_by_manager,
+            x.partial_state.assign_services.change_by_bless,
             Some(fixture.assign_services)
         );
         assert_eq!(
@@ -385,12 +385,12 @@ mod bless_tests {
             HashMap::new()
         );
         assert_eq!(
-            x.partial_state.designate_service.change_by_manager,
+            x.partial_state.designate_service.change_by_bless,
             Some(fixture.designate as ServiceId)
         );
         assert!(x.partial_state.designate_service.change_by_self.is_none());
         assert_eq!(
-            x.partial_state.registrar_service.change_by_manager,
+            x.partial_state.registrar_service.change_by_bless,
             Some(fixture.registrar as ServiceId)
         );
         assert!(x.partial_state.registrar_service.change_by_self.is_none());
@@ -426,22 +426,14 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        assert!(x.partial_state.assign_services.change_by_bless.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
             HashMap::new()
         );
-        assert!(x
-            .partial_state
-            .designate_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.designate_service.change_by_bless.is_none());
         assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x
-            .partial_state
-            .registrar_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
         assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
@@ -475,22 +467,14 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        assert!(x.partial_state.assign_services.change_by_bless.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
             HashMap::new()
         );
-        assert!(x
-            .partial_state
-            .designate_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.designate_service.change_by_bless.is_none());
         assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x
-            .partial_state
-            .registrar_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
         assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
@@ -524,22 +508,14 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        assert!(x.partial_state.assign_services.change_by_bless.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
             HashMap::new()
         );
-        assert!(x
-            .partial_state
-            .designate_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.designate_service.change_by_bless.is_none());
         assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x
-            .partial_state
-            .registrar_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
         assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
@@ -569,22 +545,14 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        assert!(x.partial_state.assign_services.change_by_bless.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
             HashMap::new()
         );
-        assert!(x
-            .partial_state
-            .designate_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.designate_service.change_by_bless.is_none());
         assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x
-            .partial_state
-            .registrar_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
         assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
@@ -615,22 +583,14 @@ mod bless_tests {
         // Partial state should remain unchanged
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        assert!(x.partial_state.assign_services.change_by_bless.is_none());
         assert_eq!(
             x.partial_state.assign_services.change_by_self,
             HashMap::new()
         );
-        assert!(x
-            .partial_state
-            .designate_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.designate_service.change_by_bless.is_none());
         assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x
-            .partial_state
-            .registrar_service
-            .change_by_manager
-            .is_none());
+        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
         assert!(x.partial_state.registrar_service.change_by_self.is_none());
         assert_eq!(
             x.partial_state.always_accumulate_services,
@@ -816,7 +776,7 @@ mod assign_tests {
         // Check partial state after host-call
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.auth_queue, fixture.updated_auth_queue);
-        assert!(x.partial_state.assign_services.change_by_manager.is_none());
+        assert!(x.partial_state.assign_services.change_by_bless.is_none());
         assert_eq!(
             x.partial_state
                 .assign_services
