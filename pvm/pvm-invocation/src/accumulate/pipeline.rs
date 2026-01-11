@@ -17,7 +17,7 @@ use fr_pvm_types::{
 };
 use fr_state::{
     manager::StateManager,
-    types::{AccountPreimagesEntry, Timeslot},
+    types::{privileges::AssignServices, AccountPreimagesEntry, Timeslot},
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -156,11 +156,16 @@ struct ParallelAccumulationResult {
 }
 
 /// Merges changes produced by a single-service accumulation into the `partial_state_union`.
+#[allow(clippy::too_many_arguments)]
 async fn merge_partial_state_change(
     state_manager: Arc<StateManager>,
     accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState<StateManager>,
     mut accumulate_result_partial_state: AccumulatePartialState<StateManager>,
+    prev_manager: ServiceId,
+    prev_assigns: &AssignServices,
+    prev_designate: ServiceId,
+    prev_registrar: ServiceId,
 ) -> Result<(), PVMInvokeError> {
     // Accumulating service sandbox
     let accumulate_host_sandbox = partial_state_union
@@ -174,6 +179,43 @@ async fn merge_partial_state_change(
     // Ejected accounts cannot produce state diff (no code)
     if accumulate_host_sandbox.is_ejected().await {
         return Ok(());
+    }
+
+    // Filter local privilege candidates to pre-state roles before merging into global state
+    let is_prev_manager = accumulate_host == prev_manager;
+    let is_prev_designate = accumulate_host == prev_designate;
+    let is_prev_registrar = accumulate_host == prev_registrar;
+
+    if !is_prev_manager {
+        accumulate_result_partial_state
+            .assign_services
+            .change_by_manager = None;
+        accumulate_result_partial_state
+            .designate_service
+            .change_by_manager = None;
+        accumulate_result_partial_state
+            .registrar_service
+            .change_by_manager = None;
+    }
+
+    accumulate_result_partial_state
+        .assign_services
+        .change_by_self
+        .retain(|core_idx, _| {
+            prev_assigns
+                .get(*core_idx as usize)
+                .is_some_and(|assigner| *assigner == accumulate_host)
+        });
+
+    if !is_prev_designate {
+        accumulate_result_partial_state
+            .designate_service
+            .change_by_self = None;
+    }
+    if !is_prev_registrar {
+        accumulate_result_partial_state
+            .registrar_service
+            .change_by_self = None;
     }
 
     // Merge StagingSet changes
@@ -205,10 +247,11 @@ async fn merge_partial_state_change(
     // Merge PrivilegedServices changes
 
     // Extra check - only manager can mutate manager / always-accumulate services
-    let manager_invoked_bless = accumulate_result_partial_state
-        .assign_services
-        .change_by_manager
-        .is_some();
+    let manager_invoked_bless = is_prev_manager
+        && accumulate_result_partial_state
+            .assign_services
+            .change_by_manager
+            .is_some();
     if manager_invoked_bless {
         partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
         partial_state_union.always_accumulate_services = accumulate_result_partial_state
@@ -320,6 +363,10 @@ async fn accumulate_parallel(
 ) -> Result<ParallelAccumulationResult, PVMInvokeError> {
     tracing::info!("Δ* invoked");
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
+    let prev_manager = partial_state_union.manager_service;
+    let prev_assigns = partial_state_union.assign_services.last_confirmed.clone();
+    let prev_designate = partial_state_union.designate_service.last_confirmed;
+    let prev_registrar = partial_state_union.registrar_service.last_confirmed;
 
     // Accumulating service groups: 1) With Digests 2) Transfer Receivers 3) Always-accumulates 4) Privileged Services
     let services_with_digests: BTreeSet<ServiceId> = reports
@@ -395,6 +442,10 @@ async fn accumulate_parallel(
                 accumulate_result.accumulate_host,
                 partial_state_union,
                 accumulate_result.partial_state,
+                prev_manager,
+                &prev_assigns,
+                prev_designate,
+                prev_registrar,
             )
             .await?;
 
