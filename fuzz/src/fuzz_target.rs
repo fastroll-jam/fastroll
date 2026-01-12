@@ -12,14 +12,17 @@ use fr_block::{
     types::block::{Block, BlockHeader, BlockHeaderError},
 };
 use fr_codec::JamCodecError;
-use fr_common::{ByteSequence, CommonTypeError};
+use fr_common::{ByteSequence, CommonTypeError, TimeslotIndex};
 use fr_config::StorageConfig;
 use fr_limited_vec::LimitedVecError;
 use fr_node::{
     reexports::AccountStateChanges,
     roles::importer::{BlockCommitMode, BlockImportOutput, BlockImporter},
 };
-use fr_state::{error::StateManagerError, manager::StateCommitArtifact};
+use fr_state::{
+    error::StateManagerError,
+    manager::{RingContext, StateCommitArtifact, StateManager},
+};
 use fr_storage::node_storage::{NodeStorage, NodeStorageError};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -97,6 +100,31 @@ struct StagedBlock {
     header: BlockHeader,
     account_state_changes: AccountStateChanges,
     state_commit_artifact: Option<StateCommitArtifact>,
+    ring_snapshot: RingCacheStateSnapshot,
+}
+
+/// Snapshot of ring-cache entries with the last staging transition slot.
+#[derive(Clone)]
+struct RingCacheStateSnapshot {
+    ring_cache: (Option<RingContext>, Option<RingContext>),
+    last_staging_set_transition_slot: TimeslotIndex,
+}
+
+impl RingCacheStateSnapshot {
+    /// Captures the ring-cache state from the given state manager.
+    fn capture(state_manager: &StateManager) -> Self {
+        Self {
+            ring_cache: state_manager.ring_cache_snapshot(),
+            last_staging_set_transition_slot: state_manager.last_staging_set_transition_slot(),
+        }
+    }
+
+    /// Restores the ring-cache state into the given state manager.
+    fn restore(&self, state_manager: &StateManager) {
+        state_manager.restore_ring_cache_snapshot(self.ring_cache.clone());
+        state_manager
+            .update_last_staging_set_transition_slot(self.last_staging_set_transition_slot);
+    }
 }
 
 /// The state that keeps minimal context to support simple forking.
@@ -222,6 +250,7 @@ impl FuzzTargetRunner {
         header: BlockHeader,
         account_state_changes: AccountStateChanges,
         state_commit_artifact: Option<StateCommitArtifact>,
+        ring_snapshot: RingCacheStateSnapshot,
     ) {
         self.fork_state.insert_staged_block(
             header_hash,
@@ -229,6 +258,7 @@ impl FuzzTargetRunner {
                 header,
                 account_state_changes,
                 state_commit_artifact,
+                ring_snapshot,
             },
         );
     }
@@ -238,13 +268,15 @@ impl FuzzTargetRunner {
         header_hash: HeaderHash,
         staged_block: StagedBlock,
     ) -> Result<(), FuzzTargetError> {
+        let state_manager = self.node_storage().state_manager();
+
         if let Some(artifact) = &staged_block.state_commit_artifact {
-            self.node_storage()
-                .state_manager()
-                .apply_dirty_cache_commit(artifact)
-                .await?;
+            state_manager.apply_dirty_cache_commit(artifact).await?;
         }
         self.apply_account_state_changes(&staged_block.account_state_changes);
+
+        staged_block.ring_snapshot.restore(state_manager.as_ref());
+
         self.node_storage()
             .header_db()
             .set_best_header(staged_block.header);
@@ -434,6 +466,9 @@ impl FuzzTargetRunner {
 
                 let block_commit_mode = self.determine_block_commit_mode(&block);
 
+                let state_manager = storage.state_manager();
+                let ring_snapshot_before = RingCacheStateSnapshot::capture(state_manager.as_ref());
+
                 let block_header = block.header.clone();
                 match BlockImporter::import_block(
                     storage.clone(),
@@ -455,11 +490,16 @@ impl FuzzTargetRunner {
                                 self.fork_state.set_last_finalized(header_hash.clone());
                             }
                             BlockCommitMode::StageOnly => {
+                                let ring_snapshot_after =
+                                    RingCacheStateSnapshot::capture(state_manager.as_ref());
+                                ring_snapshot_before.restore(state_manager.as_ref());
+
                                 self.stage_block(
                                     header_hash.clone(),
                                     block_header,
                                     account_state_changes,
                                     state_commit_artifact,
+                                    ring_snapshot_after,
                                 );
                             }
                         }
@@ -480,6 +520,8 @@ impl FuzzTargetRunner {
                     }
                     Err(e) => {
                         tracing::debug!("Invalid block - import failed: {e:?}");
+
+                        ring_snapshot_before.restore(state_manager.as_ref());
 
                         // Rollback the state cache (revert all dirty entries)
                         storage.state_manager().rollback_dirty_cache();
@@ -540,6 +582,9 @@ impl FuzzTargetRunner {
                 header,
                 account_state_changes: AccountStateChanges::default(),
                 state_commit_artifact: None,
+                ring_snapshot: RingCacheStateSnapshot::capture(
+                    self.node_storage().state_manager().as_ref(),
+                ),
             },
         );
         Ok(header_hash)
