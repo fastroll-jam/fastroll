@@ -258,6 +258,12 @@ impl FuzzTargetRunner {
         staged_parent_hash: &HeaderHash,
     ) -> Result<(), FuzzTargetError> {
         if let Some(staged_block) = self.fork_state.take_staged_block(staged_parent_hash) {
+            // Insert the finalized header into header DB and ancestors set
+            self.node_storage()
+                .header_db()
+                .insert_header(staged_parent_hash.clone(), staged_block.header.clone())
+                .await?;
+
             // Apply state commitment of the new finalized block
             self.apply_staged_block_commit(staged_parent_hash.clone(), staged_block)
                 .await?;
@@ -369,6 +375,7 @@ impl FuzzTargetRunner {
                 if self.state_initialized {
                     self.reset_state_context()?;
                 }
+                *is_first_block = true;
                 let storage = self.node_storage();
                 let state_manager = storage.state_manager();
 
@@ -517,5 +524,37 @@ impl FuzzTargetRunner {
             }
             e => Err(FuzzTargetError::InvalidMessageKind(format!("{e:?}"))),
         }
+    }
+}
+
+#[cfg(test)]
+impl FuzzTargetRunner {
+    pub(crate) async fn stage_block_for_test(
+        &mut self,
+        header: BlockHeader,
+    ) -> Result<HeaderHash, FuzzTargetError> {
+        let header_hash = header.hash()?;
+        self.fork_state.insert_staged_block(
+            header_hash.clone(),
+            StagedBlock {
+                header,
+                account_state_changes: AccountStateChanges::default(),
+                state_commit_artifact: None,
+            },
+        );
+        Ok(header_hash)
+    }
+
+    pub(crate) async fn finalize_staged_parent_for_test(
+        &mut self,
+        staged_parent_hash: &HeaderHash,
+    ) -> Result<(), FuzzTargetError> {
+        self.finalize_if_parent_staged(staged_parent_hash).await
+    }
+
+    pub(crate) fn ancestor_set_contains_for_test(&self, entry: &AncestorEntry) -> bool {
+        self.node_storage()
+            .header_db()
+            .header_exists_in_ancestor_set(entry)
     }
 }

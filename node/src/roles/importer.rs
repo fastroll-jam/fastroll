@@ -161,10 +161,12 @@ impl BlockImporter {
         with_ancestors: bool,
         block_commit_mode: BlockCommitMode,
     ) -> Result<BlockImportOutput, BlockImportError> {
+        let header = block.header.clone();
+        let header_hash = header.hash()?;
         tracing::info!(
             "📥 Block imported (slot={})(header_hash={})",
             block.header.timeslot_index(),
-            &block.header.hash()?,
+            &header_hash,
         );
         let block_import_output = Self::validate_block(
             storage.clone(),
@@ -175,11 +177,11 @@ impl BlockImporter {
         )
         .await?;
 
-        // Store the block header to the block header DB & ancestor set
-        let header_db = storage.header_db();
-        header_db
-            .insert_header(block.header.hash()?, block.header)
-            .await?;
+        if matches!(block_commit_mode, BlockCommitMode::Immediate) {
+            // Store the block header to the block header DB & ancestor set
+            let header_db = storage.header_db();
+            header_db.insert_header(header_hash, header).await?;
+        }
 
         Ok(block_import_output)
     }

@@ -186,6 +186,34 @@ mod fuzz_target_tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_fuzz_stage_only_skips_ancestors_until_finalize() -> Result<(), FuzzTargetError> {
+        let mut fuzz_target = init_fuzz_target_runner();
+        let parent_hash = HeaderHash::from_hex("0x01")?;
+
+        // Simple forks
+        let mut header_a = BlockHeader::from_parent_hash(parent_hash.clone());
+        header_a.set_timeslot(10);
+        header_a.set_author_index(0);
+        let mut header_b = BlockHeader::from_parent_hash(parent_hash);
+        header_b.set_timeslot(10);
+        header_b.set_author_index(1);
+
+        let hash_a = fuzz_target.stage_block_for_test(header_a.clone()).await?;
+        let hash_b = fuzz_target.stage_block_for_test(header_b.clone()).await?;
+
+        let entry_a = (header_a.timeslot_index(), hash_a.clone());
+        let entry_b = (header_b.timeslot_index(), hash_b.clone());
+        assert!(!fuzz_target.ancestor_set_contains_for_test(&entry_a));
+        assert!(!fuzz_target.ancestor_set_contains_for_test(&entry_b));
+
+        // Finalize one fork; only the canonical fork should enter the ancestor set.
+        fuzz_target.finalize_staged_parent_for_test(&hash_a).await?;
+        assert!(fuzz_target.ancestor_set_contains_for_test(&entry_a));
+        assert!(!fuzz_target.ancestor_set_contains_for_test(&entry_b));
+        Ok(())
+    }
+
     // Handshake + Initialize
     #[tokio::test]
     async fn test_fuzz_initialize() -> Result<(), FuzzTargetError> {
