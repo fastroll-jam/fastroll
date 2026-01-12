@@ -36,7 +36,7 @@ pub fn schedule_ring_cache_update(
                 };
 
                 // Cache ring verifier and ring root for the next epoch
-                state_manager.update_staging_ring_cache_entry(ring_context);
+                state_manager.update_staging_ring_cache_entry_guarded(ring_context);
                 tracing::info!(
                     "A new RingVrfVerifier constructed and cached on privileged transitions"
                 );

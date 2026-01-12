@@ -356,6 +356,14 @@ impl StateManager {
         guard.staging = Some(ring_cache_entry);
     }
 
+    /// Updates the `staging` ring cache entry only when it matches the latest staging-set slot.
+    pub fn update_staging_ring_cache_entry_guarded(&self, ring_cache_entry: RingContext) {
+        if self.last_staging_set_transition_slot() != ring_cache_entry.inserted_at {
+            return;
+        }
+        self.update_staging_ring_cache_entry(ring_cache_entry);
+    }
+
     /// Commits and rotates the ring cache, advancing `staging` to `curr`.
     ///
     /// This is invoked at the very beginning of epoch-changing STFs, so that if StagingSet gets
@@ -394,10 +402,21 @@ impl StateManager {
     }
 
     /// Returns clones of the current and staging ring cache entries.
-    /// Note: test-only
+    /// Required to support simple forking scenarios.
     pub fn ring_cache_snapshot(&self) -> (Option<RingContext>, Option<RingContext>) {
         let guard = self.ring_cache_read_guard();
         (guard.curr.clone(), guard.staging.clone())
+    }
+
+    /// Restores the ring cache entries from a snapshot.
+    /// Required to support simple forking scenarios.
+    pub fn restore_ring_cache_snapshot(
+        &self,
+        snapshot: (Option<RingContext>, Option<RingContext>),
+    ) {
+        let mut guard = self.ring_cache_write_guard();
+        guard.curr = snapshot.0;
+        guard.staging = snapshot.1;
     }
 
     pub async fn get_raw_state_entry(
