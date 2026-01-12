@@ -2,7 +2,9 @@
 
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
-use fr_common::{ByteArray, ByteSequence, Hash32, TimeslotIndex, STATE_KEY_SIZE};
+use fr_common::{
+    ByteArray, ByteSequence, Hash32, TimeslotIndex, MAX_LOOKUP_ANCHOR_AGE, STATE_KEY_SIZE,
+};
 use fr_limited_vec::LimitedVec;
 use fr_test_utils::importer_harness::AsnRawState;
 use std::{
@@ -214,7 +216,7 @@ impl JamDecode for AncestryItem {
     }
 }
 
-pub type Ancestry = LimitedVec<AncestryItem, 24>;
+pub type Ancestry = LimitedVec<AncestryItem, MAX_LOOKUP_ANCHOR_AGE>;
 
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct ImportBlock(pub Block);
