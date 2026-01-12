@@ -356,6 +356,14 @@ impl StateManager {
         guard.staging = Some(ring_cache_entry);
     }
 
+    /// Updates the `staging` ring cache entry only when it matches the latest staging-set slot.
+    pub fn update_staging_ring_cache_entry_guarded(&self, ring_cache_entry: RingContext) {
+        if self.last_staging_set_transition_slot() != ring_cache_entry.inserted_at {
+            return;
+        }
+        self.update_staging_ring_cache_entry(ring_cache_entry);
+    }
+
     /// Commits and rotates the ring cache, advancing `staging` to `curr`.
     ///
     /// This is invoked at the very beginning of epoch-changing STFs, so that if StagingSet gets
