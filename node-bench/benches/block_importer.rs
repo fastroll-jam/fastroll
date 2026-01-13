@@ -96,7 +96,6 @@ fn bench_block_import(c: &mut Criterion) {
                         fixture.storage.clone(),
                         fixture.test_case.block.clone(),
                         false,
-                        false,
                         BlockCommitMode::Immediate,
                     )
                     .await

@@ -108,7 +108,6 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
         importer_node.storage(),
         new_block,
         false,
-        false,
         BlockCommitMode::Immediate,
     )
     .await?;

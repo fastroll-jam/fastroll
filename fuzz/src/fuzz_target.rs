@@ -343,13 +343,9 @@ impl FuzzTargetRunner {
         self.handle_handshake(&mut stream).await?;
 
         // Handle incoming messages
-        let mut is_first_block = true;
         loop {
             match StreamUtils::read_message(&mut stream).await {
-                Ok(message_kind) => {
-                    self.process_message(&mut stream, message_kind, &mut is_first_block)
-                        .await?
-                }
+                Ok(message_kind) => self.process_message(&mut stream, message_kind).await?,
                 Err(e) => {
                     if let FuzzTargetError::IoError(io_error) = e {
                         // Normal disconnection (EOF)
@@ -399,7 +395,6 @@ impl FuzzTargetRunner {
         &mut self,
         stream: &mut UnixStream,
         message_kind: FuzzMessageKind,
-        is_first_block: &mut bool,
     ) -> Result<(), FuzzTargetError> {
         match message_kind {
             FuzzMessageKind::Initialize(init) => {
@@ -407,7 +402,6 @@ impl FuzzTargetRunner {
                 if self.state_initialized {
                     self.reset_state_context()?;
                 }
-                *is_first_block = true;
                 let storage = self.node_storage();
                 let state_manager = storage.state_manager();
 
@@ -473,7 +467,6 @@ impl FuzzTargetRunner {
                 match BlockImporter::import_block(
                     storage.clone(),
                     block,
-                    *is_first_block,
                     self.fuzz_features.with_ancestors,
                     block_commit_mode,
                 )
@@ -535,9 +528,7 @@ impl FuzzTargetRunner {
                         tracing::info!("[SEND][ImportBlock] Err {}", e.to_string());
                     }
                 };
-                if *is_first_block {
-                    *is_first_block = false;
-                }
+
                 Ok(())
             }
             FuzzMessageKind::GetState(get_state) => {

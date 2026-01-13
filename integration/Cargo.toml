@@ -17,6 +17,7 @@ fr-erasure-coding = { workspace = true }
 fr-extrinsics = { workspace = true }
 fr-pvm-invocation = { workspace = true }
 fr-pvm-types = { workspace = true }
+fr-fuzz = { workspace = true }
 fr-state = { workspace = true }
 fr-test-utils = { workspace = true }
 fr-transition = { workspace = true }
@@ -34,3 +35,4 @@ tokio = { workspace = true }
 [features]
 tiny = ["fr-test-utils/tiny"]
 full = ["fr-test-utils/full"]
+fuzz = ["fr-node/fuzz", "fr-transition/fuzz"]
