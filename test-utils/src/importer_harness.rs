@@ -117,6 +117,9 @@ impl From<AsnRawState> for RawState {
 
 // --- Test Harness
 
+/// A test harness for simple, linear block sequence import with no forks.
+/// For more complex test scenarios involving simple forks ("fuzzy blocks"),
+/// use the fuzz protocol via unix socket.
 pub struct BlockImportHarness;
 impl BlockImportHarness {
     pub fn load_test_case(file_path: &Path) -> AsnTestCase {
@@ -167,8 +170,7 @@ impl BlockImportHarness {
         block: Block,
     ) -> Result<(StateRoot, AccountStateChanges), Box<dyn Error>> {
         let output =
-            BlockImporter::import_block(storage, block, false, false, BlockCommitMode::Immediate)
-                .await?;
+            BlockImporter::import_block(storage, block, false, BlockCommitMode::Immediate).await?;
         Ok((output.post_state_root, output.account_state_changes))
     }
 

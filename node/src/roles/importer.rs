@@ -126,14 +126,8 @@ impl BlockImporter {
                 }
             };
             let timeslot_index = block.header.timeslot_index();
-            match Self::import_block(
-                storage.clone(),
-                block,
-                false,
-                false,
-                BlockCommitMode::Immediate,
-            )
-            .await
+            match Self::import_block(storage.clone(), block, false, BlockCommitMode::Immediate)
+                .await
             {
                 Ok(output) => {
                     tracing::info!("✅ Block validated ({header_hash}) (slot: {timeslot_index})");
@@ -157,7 +151,6 @@ impl BlockImporter {
     pub async fn import_block(
         storage: Arc<NodeStorage>,
         block: Block,
-        is_first_fuzz_block: bool,
         with_ancestors: bool,
         block_commit_mode: BlockCommitMode,
     ) -> Result<BlockImportOutput, BlockImportError> {
@@ -168,14 +161,9 @@ impl BlockImporter {
             block.header.timeslot_index(),
             &header_hash,
         );
-        let block_import_output = Self::validate_block(
-            storage.clone(),
-            &block,
-            is_first_fuzz_block,
-            with_ancestors,
-            block_commit_mode,
-        )
-        .await?;
+        let block_import_output =
+            Self::validate_block(storage.clone(), &block, with_ancestors, block_commit_mode)
+                .await?;
 
         if matches!(block_commit_mode, BlockCommitMode::Immediate) {
             // Store the block header to the block header DB & ancestor set
@@ -189,7 +177,6 @@ impl BlockImporter {
     async fn validate_block(
         storage: Arc<NodeStorage>,
         block: &Block,
-        is_first_fuzz_block: bool,
         with_ancestors: bool,
         block_commit_mode: BlockCommitMode,
     ) -> Result<BlockImportOutput, BlockImportError> {
@@ -202,7 +189,7 @@ impl BlockImporter {
         }
 
         // Validate header fields (prior to STF)
-        Self::validate_block_header_prior_stf(&storage, block, is_first_fuzz_block).await?;
+        Self::validate_block_header_prior_stf(&storage, block).await?;
         // Re-execute STF
         let output =
             Self::run_state_transition(&storage, block, with_ancestors, block_commit_mode).await?;
@@ -288,16 +275,11 @@ impl BlockImporter {
     async fn validate_block_header_prior_stf(
         storage: &NodeStorage,
         block: &Block,
-        is_first_fuzz_block: bool,
     ) -> Result<(), BlockImportError> {
         let best_header = storage.header_db().get_best_header();
         Self::validate_timeslot_index(&best_header, block)?;
-
-        // Skip validation of header fields related to the prior block if explicitly requested.
-        if !is_first_fuzz_block {
-            Self::validate_parent_hash(&best_header, block)?;
-            Self::validate_prior_state_root(storage.post_state_root_db(), &block.header).await?;
-        }
+        Self::validate_parent_hash(&best_header, block)?;
+        Self::validate_prior_state_root(storage.post_state_root_db(), &block.header).await?;
         Self::validate_xt_hash(block)?;
         Ok(())
     }
