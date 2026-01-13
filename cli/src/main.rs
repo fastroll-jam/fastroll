@@ -1,12 +1,13 @@
 use clap::Parser;
-use fastroll::{
-    cli::{Cli, CliCommand, NETWORK_INFO},
-    CLIENT_VERSION, FUZZ_FEATURES, FUZZ_PROTO_VERSION, SPEC_VERSION,
+use fastroll::{Cli, CliCommand, NETWORK_INFO};
+use fr_common::{
+    utils::tracing::setup_tracing,
+    versions::{CLIENT_VERSION, SPEC_VERSION},
 };
-use fr_common::utils::tracing::setup_tracing;
 use fr_fuzz::{
     fuzz_target::FuzzTargetRunner,
     types::{PeerInfo, Version},
+    versions::{FUZZ_FEATURES, FUZZ_PROTO_VERSION},
 };
 use fr_node::jam_node::{init::init_node, runner::run_node};
 use std::{error::Error, str::FromStr};
@@ -32,8 +33,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }) => run_node(init_node(dev_account, db_path.as_str()).await?).await,
         Some(CliCommand::Fuzz { socket }) => {
             let mut target_runner = FuzzTargetRunner::new(PeerInfo::new(
-                u8::from_str(FUZZ_PROTO_VERSION)?,
-                u32::from_str(FUZZ_FEATURES)?,
+                FUZZ_PROTO_VERSION,
+                FUZZ_FEATURES,
                 Version::from_str(SPEC_VERSION)?,
                 Version::from_str(CLIENT_VERSION)?,
                 "FastRoll".to_string(),

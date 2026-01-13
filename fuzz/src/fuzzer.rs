@@ -10,6 +10,7 @@ use crate::{
 use fr_block::types::block::{Block, BlockHeader, BlockHeaderError};
 use fr_common::{
     utils::serde::{FileReader, FileReaderError},
+    versions::{CLIENT_VERSION, SPEC_VERSION},
     ByteEncodable,
 };
 use fr_test_utils::importer_harness::{AsnGenesisBlockTestCase, AsnTestCase};
@@ -17,6 +18,7 @@ use std::{
     fs,
     io::Error as IoError,
     path::{Path, PathBuf},
+    str::FromStr,
     time::Duration,
 };
 use tempfile::tempdir;
@@ -176,11 +178,11 @@ fn load_trace_suite(trace_dir: &Path) -> Result<TraceSuite, FuzzerError> {
 }
 
 fn app_version() -> Version {
-    unimplemented!()
+    Version::from_str(CLIENT_VERSION).expect("client version invalid")
 }
 
 fn jam_version() -> Version {
-    unimplemented!()
+    Version::from_str(SPEC_VERSION).expect("spec version invalid")
 }
 
 fn target_peer_info() -> PeerInfo {

@@ -343,7 +343,7 @@ impl FuzzTargetRunner {
         self.handle_handshake(&mut stream).await?;
 
         // Handle incoming messages
-        let mut is_first_block = true;
+        let mut is_first_block = false;
         loop {
             match StreamUtils::read_message(&mut stream).await {
                 Ok(message_kind) => {
@@ -407,7 +407,7 @@ impl FuzzTargetRunner {
                 if self.state_initialized {
                     self.reset_state_context()?;
                 }
-                *is_first_block = true;
+                *is_first_block = false;
                 let storage = self.node_storage();
                 let state_manager = storage.state_manager();
 
