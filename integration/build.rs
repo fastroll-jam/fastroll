@@ -6,8 +6,8 @@ fn main() {
     generate_pvm_tests();
     // Block import test cases
     generate_block_import_tests();
-    // Fuzzy Block import test cases
-    generate_fuzzy_block_import_tests();
+    // Fuzzer Block import test cases
+    generate_fuzzer_block_import_tests();
 }
 
 fn generate_pvm_tests() {
@@ -113,4 +113,38 @@ fn generate_block_import_tests() {
     fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
 }
 
-fn generate_fuzzy_block_import_tests() {}
+fn generate_fuzzer_block_import_tests() {
+    let test_vectors_dir = PathBuf::from("jam-conformance/fuzz-reports/0.7.2/traces");
+    let full_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(test_vectors_dir);
+    println!("cargo:rerun-if-changed={}", full_path.display());
+
+    let dest_path =
+        PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_fuzzer_block_import_tests.rs");
+
+    let mut test_case_contents = String::new();
+
+    let trace_dirs = match fs::read_dir(&full_path) {
+        Ok(dir) => dir,
+        Err(_) => {
+            fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
+            return;
+        }
+    };
+
+    for trace_dir in trace_dirs {
+        let trace_path = trace_dir.expect("Failed to get trace dir").path();
+        if !trace_path.is_dir() {
+            continue;
+        }
+        let trace_name = match trace_path.file_name().and_then(|name| name.to_str()) {
+            Some(name) => name,
+            None => continue,
+        };
+        let test_group = format!("fuzzer_0_7_2_{}", trace_name);
+        let test_files =
+            fs::read_dir(&trace_path).expect("Failed to read conformance trace files dir");
+        write_block_import_test_cases(test_files, &test_group, &mut test_case_contents);
+    }
+
+    fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
+}
