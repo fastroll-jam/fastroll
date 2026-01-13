@@ -6,6 +6,8 @@ fn main() {
     generate_pvm_tests();
     // Block import test cases
     generate_block_import_tests();
+    // Fuzzy Block import test cases
+    generate_fuzzy_block_import_tests();
 }
 
 fn generate_pvm_tests() {
@@ -59,7 +61,6 @@ fn write_block_import_test_cases(
     }
 }
 
-#[allow(dead_code)]
 fn generate_block_import_tests() {
     let test_vectors_dir = PathBuf::from("jamtestvectors-polkajam/traces");
     let full_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(test_vectors_dir);
@@ -77,6 +78,10 @@ fn generate_block_import_tests() {
         fs::read_dir(full_path.join("storage")).expect("Failed to read storage test vectors dir");
     let storage_light_test_files = fs::read_dir(full_path.join("storage_light"))
         .expect("Failed to read storage_light test vectors dir");
+    let fuzzy_test_files =
+        fs::read_dir(full_path.join("fuzzy")).expect("Failed to read fuzzy test vectors dir");
+    let fuzzy_light_test_files =
+        fs::read_dir(full_path.join("fuzzy_light")).expect("Failed to read fuzzy test vectors dir");
 
     let dest_path =
         PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_block_import_tests.rs");
@@ -98,6 +103,14 @@ fn generate_block_import_tests() {
         "storage_light",
         &mut test_case_contents,
     );
+    write_block_import_test_cases(fuzzy_test_files, "fuzzy", &mut test_case_contents);
+    write_block_import_test_cases(
+        fuzzy_light_test_files,
+        "fuzzy_light",
+        &mut test_case_contents,
+    );
 
     fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
 }
+
+fn generate_fuzzy_block_import_tests() {}
