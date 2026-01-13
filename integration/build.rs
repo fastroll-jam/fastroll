@@ -121,7 +121,7 @@ fn generate_fuzzer_block_import_tests() {
     let dest_path =
         PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_fuzzer_block_import_tests.rs");
 
-    let mut test_case_contents = String::new();
+    let mut test_case_contents = String::from("use fr_fuzz::fuzzer::run_fuzz_trace_dir;");
 
     let trace_dirs = match fs::read_dir(&full_path) {
         Ok(dir) => dir,
@@ -131,19 +131,27 @@ fn generate_fuzzer_block_import_tests() {
         }
     };
 
-    for trace_dir in trace_dirs {
-        let trace_path = trace_dir.expect("Failed to get trace dir").path();
-        if !trace_path.is_dir() {
-            continue;
-        }
+    let mut trace_paths: Vec<PathBuf> = trace_dirs
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|path| path.is_dir())
+        .collect();
+    trace_paths.sort();
+
+    for trace_path in trace_paths {
         let trace_name = match trace_path.file_name().and_then(|name| name.to_str()) {
             Some(name) => name,
             None => continue,
         };
-        let test_group = format!("fuzzer_0_7_2_{}", trace_name);
-        let test_files =
-            fs::read_dir(&trace_path).expect("Failed to read conformance trace files dir");
-        write_block_import_test_cases(test_files, &test_group, &mut test_case_contents);
+        let test_name = format!("block_import_conformance_0_7_2_{}", trace_name);
+        let trace_path_str = trace_path.to_str().unwrap();
+        test_case_contents.push_str(&format!(
+            "\
+            #[tokio::test]\
+            async fn {test_name}() -> Result<(), Box<dyn std::error::Error>> {{
+                run_fuzz_trace_dir(\"{trace_path_str}\").await?;
+                Ok(())
+            }}"
+        ));
     }
 
     fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
