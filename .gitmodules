@@ -12,4 +12,4 @@
 [submodule "integration/jam-conformance"]
 	path = integration/jam-conformance
 	url = https://github.com/davxy/jam-conformance.git
-	branch = ed25519-consensus
+	branch = main
