@@ -113,7 +113,7 @@ jobs:
         env:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-C debuginfo=0"
-        run: cargo +stable nextest run --workspace --profile ci --features tiny
+        run: cargo +stable nextest run --workspace --profile ci --features "tiny,fuzz"
 
       - name: Clean target directory
         run: cargo clean
