@@ -29,8 +29,8 @@ use tokio::{
     time::{error::Elapsed, sleep, timeout, Instant},
 };
 
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
-const SOCKET_READY_TIMEOUT: Duration = Duration::from_secs(2);
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+const SOCKET_READY_TIMEOUT: Duration = Duration::from_secs(10);
 const SOCKET_POLL_INTERVAL: Duration = Duration::from_millis(20);
 
 #[derive(Debug, Error)]
