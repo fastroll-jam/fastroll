@@ -30,12 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
 
       - name: Free Disk Space (Ubuntu)
         run: |
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
 
       - name: Enable swap space
         run: |
@@ -43,6 +45,11 @@ jobs:
           sudo chmod 600 /swapfile-ci
           sudo mkswap /swapfile-ci
           sudo swapon /swapfile-ci
+
+      - name: Checkout submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --depth 1
 
       - name: Install stable toolchain
         run: rustup toolchain install stable --component clippy
@@ -62,12 +69,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
 
       - name: Free Disk Space (Ubuntu)
         run: |
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
 
       - name: Enable swap space
         run: |
@@ -75,6 +84,11 @@ jobs:
           sudo chmod 600 /swapfile-ci
           sudo mkswap /swapfile-ci
           sudo swapon /swapfile-ci
+
+      - name: Checkout submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --depth 1
 
       - name: Install stable toolchain
         run: rustup toolchain install stable
@@ -110,12 +124,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
 
       - name: Free Disk Space (Ubuntu)
         run: |
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
 
       - name: Enable swap space
         run: |
@@ -123,6 +139,11 @@ jobs:
           sudo chmod 600 /swapfile-ci
           sudo mkswap /swapfile-ci
           sudo swapon /swapfile-ci
+
+      - name: Checkout submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --depth 1
 
       - name: Install stable toolchain
         run: rustup toolchain install stable --component llvm-tools-preview
