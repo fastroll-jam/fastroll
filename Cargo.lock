@@ -1184,6 +1184,7 @@ name = "fr-transition"
 version = "0.1.28"
 dependencies = [
  "fr-block",
+ "fr-codec",
  "fr-common",
  "fr-crypto",
  "fr-extrinsics",

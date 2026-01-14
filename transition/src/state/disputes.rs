@@ -1,4 +1,4 @@
-use crate::error::TransitionError;
+use crate::{error::TransitionError, ring_cache::compute_effective_staging_set_hash};
 use fr_block::types::extrinsics::disputes::DisputesXt;
 use fr_crypto::types::Ed25519PubKey;
 use fr_extrinsics::validation::disputes::DisputesXtValidator;
@@ -37,6 +37,19 @@ pub async fn transition_disputes(
             },
         )
         .await?;
+
+    match state_manager.get_staging_set().await {
+        Ok(staging_set) => {
+            let punish_set = state_manager.get_disputes().await?.punish_set;
+            let effective_staging_set_hash =
+                compute_effective_staging_set_hash(&staging_set, &punish_set)?;
+            state_manager.update_last_staging_set_hash(effective_staging_set_hash);
+        }
+        Err(StateManagerError::StateKeyNotInitialized(_)) => {
+            // Disputes STF tests do not always load the staging set.
+        }
+        Err(e) => return Err(e.into()),
+    }
 
     Ok(())
 }

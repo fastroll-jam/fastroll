@@ -1,4 +1,5 @@
 use fr_block::header_db::BlockHeaderDBError;
+use fr_codec::JamCodecError;
 use fr_common::{CoreIndex, Hash32, PreimagesKey, ServiceId, StorageKey, ValidatorIndex};
 use fr_crypto::error::CryptoError;
 use fr_extrinsics::validation::error::XtError;
@@ -50,6 +51,8 @@ pub enum TransitionError {
     SlotSealerError(#[from] SlotSealerError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
     #[error("LimitedVecError: {0}")]
     LimitedVecError(#[from] LimitedVecError),
     #[error("StateManagerError: {0}")]

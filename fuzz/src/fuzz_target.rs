@@ -12,7 +12,7 @@ use fr_block::{
     types::block::{Block, BlockHeader, BlockHeaderError},
 };
 use fr_codec::JamCodecError;
-use fr_common::{ByteSequence, CommonTypeError, TimeslotIndex};
+use fr_common::{ByteSequence, CommonTypeError};
 use fr_config::StorageConfig;
 use fr_limited_vec::LimitedVecError;
 use fr_node::{
@@ -21,7 +21,7 @@ use fr_node::{
 };
 use fr_state::{
     error::StateManagerError,
-    manager::{RingContext, StateCommitArtifact, StateManager},
+    manager::{LastStagingSetTransitionContext, RingContext, StateCommitArtifact, StateManager},
 };
 use fr_storage::node_storage::{NodeStorage, NodeStorageError};
 use std::{
@@ -107,7 +107,7 @@ struct StagedBlock {
 #[derive(Clone)]
 struct RingCacheStateSnapshot {
     ring_cache: (Option<RingContext>, Option<RingContext>),
-    last_staging_set_transition_slot: TimeslotIndex,
+    last_staging_set_transition_context: LastStagingSetTransitionContext,
 }
 
 impl RingCacheStateSnapshot {
@@ -115,15 +115,21 @@ impl RingCacheStateSnapshot {
     fn capture(state_manager: &StateManager) -> Self {
         Self {
             ring_cache: state_manager.ring_cache_snapshot(),
-            last_staging_set_transition_slot: state_manager.last_staging_set_transition_slot(),
+            last_staging_set_transition_context: state_manager
+                .last_staging_set_transition_context(),
         }
     }
 
     /// Restores the ring-cache state into the given state manager.
     fn restore(&self, state_manager: &StateManager) {
         state_manager.restore_ring_cache_snapshot(self.ring_cache.clone());
-        state_manager
-            .update_last_staging_set_transition_slot(self.last_staging_set_transition_slot);
+        state_manager.update_last_staging_set_transition_context(
+            self.last_staging_set_transition_context
+                .last_staging_set_transition_slot,
+            self.last_staging_set_transition_context
+                .last_effective_staging_set_hash
+                .clone(),
+        );
     }
 }
 
