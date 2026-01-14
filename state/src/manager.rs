@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
     error::StateManagerError,
@@ -24,13 +23,15 @@ use crate::{
 use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
-    CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateHash, StateKey,
+    CodeHash, Hash32, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateHash, StateKey,
     StorageKey, TimeslotIndex,
 };
 use fr_config::StorageConfig;
 use fr_crypto::{
+    hash,
     types::{BandersnatchRingRoot, Ed25519PubKey, ValidatorKeySet},
     vrf::bandersnatch_vrf::RingVrfVerifier,
+    Blake2b256,
 };
 use fr_db::{
     core::{
@@ -87,12 +88,21 @@ impl RingCache {
     }
 }
 
+/// Context of the last transitioned staging set used for identifying validity of RingVrfVerifier in ring cache.
+#[derive(Clone, Debug, Default)]
+pub struct LastStagingSetTransitionContext {
+    /// Timeslot index for the last RingVrfVerifier update.
+    pub last_staging_set_transition_slot: TimeslotIndex,
+    /// Hash of the effective staging set (with offenders removed) used to derive the last RingVrfVerifier.
+    pub last_effective_staging_set_hash: Hash32,
+}
+
 pub struct StateManager {
     state_db: StateDB,
     cache: StateCache,
     merkle_manager: MerkleManagerHandle,
     ring_cache: RwLock<RingCache>,
-    last_staging_set_transition_slot: RwLock<TimeslotIndex>,
+    last_staging_set_transition_context: RwLock<LastStagingSetTransitionContext>,
 }
 
 macro_rules! impl_simple_state_accessors {
@@ -218,37 +228,57 @@ impl StateManager {
                 sender: merkle_mpsc_send,
             },
             ring_cache: RwLock::new(RingCache::default()),
-            last_staging_set_transition_slot: RwLock::new(0),
+            last_staging_set_transition_context: RwLock::new(
+                LastStagingSetTransitionContext::default(),
+            ),
         }
     }
 
-    fn last_staging_set_transition_slot_read_guard(&self) -> RwLockReadGuard<'_, TimeslotIndex> {
-        self
-            .last_staging_set_transition_slot
-            .read()
-            .unwrap_or_else(|poisoned| {
-                tracing::error!("Last staging set transition slot read lock poisoned; continuing with inner data");
-                poisoned.into_inner()
-            })
+    fn last_staging_set_transition_context_read_guard(
+        &self,
+    ) -> RwLockReadGuard<'_, LastStagingSetTransitionContext> {
+        self.last_staging_set_transition_context
+            .read().unwrap_or_else(|poisoned| {
+            tracing::error!("Last staging set transition context read lock poisoned; continuing with inner data");
+            poisoned.into_inner()
+        })
     }
 
-    fn last_staging_set_transition_slot_write_guard(&self) -> RwLockWriteGuard<'_, TimeslotIndex> {
-        self
-            .last_staging_set_transition_slot
-            .write()
-            .unwrap_or_else(|poisoned| {
-                tracing::error!("Last staging set transition slot write lock poisoned; continuing with inner data");
-                poisoned.into_inner()
-            })
+    fn last_staging_set_transition_context_write_guard(
+        &self,
+    ) -> RwLockWriteGuard<'_, LastStagingSetTransitionContext> {
+        self.last_staging_set_transition_context
+            .write().unwrap_or_else(|poisoned| {
+            tracing::error!("Last staging set transition context write lock poisoned; continuing with inner data");
+            poisoned.into_inner()
+        })
+    }
+
+    pub fn last_staging_set_transition_context(&self) -> LastStagingSetTransitionContext {
+        self.last_staging_set_transition_context_read_guard()
+            .clone()
     }
 
     pub fn last_staging_set_transition_slot(&self) -> TimeslotIndex {
-        *self.last_staging_set_transition_slot_read_guard()
+        self.last_staging_set_transition_context()
+            .last_staging_set_transition_slot
     }
 
-    pub fn update_last_staging_set_transition_slot(&self, slot: TimeslotIndex) {
-        let mut guard = self.last_staging_set_transition_slot_write_guard();
-        *guard = slot;
+    pub fn update_last_staging_set_hash(&self, staging_set_hash: Hash32) {
+        let mut guard = self.last_staging_set_transition_context_write_guard();
+        guard.last_effective_staging_set_hash = staging_set_hash;
+    }
+
+    pub fn update_last_staging_set_transition_context(
+        &self,
+        slot: TimeslotIndex,
+        staging_set_hash: Hash32,
+    ) {
+        let mut guard = self.last_staging_set_transition_context_write_guard();
+        *guard = LastStagingSetTransitionContext {
+            last_staging_set_transition_slot: slot,
+            last_effective_staging_set_hash: staging_set_hash,
+        };
     }
 
     fn ring_cache_read_guard(&self) -> RwLockReadGuard<'_, RingCache> {
@@ -276,14 +306,28 @@ impl StateManager {
         // Check the cache
         if let Some(RingContext {
             inserted_at,
-            validator_set: _validator_set,
+            validator_set,
             verifier,
             ring_root,
         }) = self.ring_cache_read_guard().curr()
         {
             // Validate if the `curr` ring cache holds the correct latest ring context
-            if self.last_staging_set_transition_slot() <= *inserted_at {
+            let LastStagingSetTransitionContext {
+                last_staging_set_transition_slot,
+                last_effective_staging_set_hash,
+            } = self.last_staging_set_transition_context();
+
+            if last_staging_set_transition_slot < *inserted_at {
                 return Ok((verifier.clone(), ring_root.clone()));
+            }
+
+            // Extra check for the same-slot fork making the ring cache stale
+            if last_staging_set_transition_slot == *inserted_at {
+                let expected_effective_staging_set_hash =
+                    hash::<Blake2b256>(&StagingSet(validator_set.clone()).encode()?)?;
+                if last_effective_staging_set_hash == expected_effective_staging_set_hash {
+                    return Ok((verifier.clone(), ring_root.clone()));
+                }
             }
         }
 
@@ -313,13 +357,24 @@ impl StateManager {
         // Check the cache
         if let Some(RingContext {
             inserted_at,
-            validator_set: _validator_set,
+            validator_set,
             verifier,
             ring_root,
         }) = self.ring_cache_read_guard().staging()
         {
+            let expected_effective_staging_set_hash =
+                hash::<Blake2b256>(&StagingSet(validator_set.clone()).encode()?)?;
+
             // The cache entry is valid only if StagingSet was not mutated after its insertion
-            if self.last_staging_set_transition_slot() <= *inserted_at {
+            // Check both the transition slot and the effective staging set hash
+            let LastStagingSetTransitionContext {
+                last_staging_set_transition_slot,
+                last_effective_staging_set_hash,
+            } = self.last_staging_set_transition_context();
+
+            if last_staging_set_transition_slot <= *inserted_at
+                && last_effective_staging_set_hash == expected_effective_staging_set_hash
+            {
                 return Ok((verifier.clone(), ring_root.clone()));
             }
         }
@@ -356,11 +411,24 @@ impl StateManager {
         guard.staging = Some(ring_cache_entry);
     }
 
-    /// Updates the `staging` ring cache entry only when it matches the latest staging-set slot.
-    pub fn update_staging_ring_cache_entry_guarded(&self, ring_cache_entry: RingContext) {
-        if self.last_staging_set_transition_slot() != ring_cache_entry.inserted_at {
+    /// Updates the `staging` ring cache entry only when it matches the latest staging-set state.
+    pub fn update_staging_ring_cache_entry_guarded(
+        &self,
+        ring_cache_entry: RingContext,
+        expected_effective_staging_set_hash: Hash32,
+    ) {
+        let LastStagingSetTransitionContext {
+            last_staging_set_transition_slot,
+            last_effective_staging_set_hash,
+        } = self.last_staging_set_transition_context();
+
+        if last_staging_set_transition_slot != ring_cache_entry.inserted_at {
             return;
         }
+        if last_effective_staging_set_hash != expected_effective_staging_set_hash {
+            return;
+        }
+
         self.update_staging_ring_cache_entry(ring_cache_entry);
     }
 
@@ -386,6 +454,7 @@ impl StateManager {
         new_offenders: &[Ed25519PubKey],
     ) -> Result<(), StateManagerError> {
         let mut guard = self.ring_cache_write_guard();
+        let mut staging_set_hash = None;
         if let Some(ref mut staging_entry) = guard.staging {
             let has_offender = staging_entry
                 .validator_set
@@ -396,7 +465,16 @@ impl StateManager {
                 let ring_root = verifier.compute_ring_root()?;
                 staging_entry.verifier = verifier;
                 staging_entry.ring_root = ring_root;
+
+                let staging_set = StagingSet(staging_entry.validator_set.clone());
+                staging_set_hash = Some(hash::<Blake2b256>(&staging_set.encode()?)?);
             }
+        }
+
+        drop(guard);
+
+        if let Some(staging_set_hash) = staging_set_hash {
+            self.update_last_staging_set_hash(staging_set_hash);
         }
         Ok(())
     }

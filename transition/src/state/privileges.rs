@@ -1,4 +1,7 @@
-use crate::{error::TransitionError, ring_cache::schedule_ring_cache_update};
+use crate::{
+    error::TransitionError,
+    ring_cache::{compute_effective_staging_set_hash, schedule_ring_cache_update},
+};
 use fr_pvm_invocation::prelude::AccumulatePartialState;
 use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager};
 use std::sync::Arc;
@@ -23,7 +26,14 @@ pub(crate) async fn run_privileged_transitions(
                 },
             )
             .await?;
-        state_manager.update_last_staging_set_transition_slot(curr_timeslot.slot());
+
+        // This will be later used to validate ring cache entry which is computed and cached asynchronously
+        let effective_staging_set_hash =
+            compute_effective_staging_set_hash(&new_staging_set_cloned, &curr_punish_set)?;
+        state_manager.update_last_staging_set_transition_context(
+            curr_timeslot.slot(),
+            effective_staging_set_hash.clone(),
+        );
 
         // Fire and forget: speculatively construct the new ring vrf verifier
         schedule_ring_cache_update(
@@ -31,6 +41,7 @@ pub(crate) async fn run_privileged_transitions(
             curr_timeslot.slot(),
             new_staging_set_cloned,
             curr_punish_set,
+            effective_staging_set_hash,
         );
     }
 

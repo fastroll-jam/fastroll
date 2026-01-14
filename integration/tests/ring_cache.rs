@@ -1,6 +1,9 @@
 use fr_block::types::extrinsics::tickets::TicketsXt;
 use fr_common::{TimeslotIndex, EPOCH_LENGTH};
-use fr_crypto::types::{BandersnatchRingRoot, ValidatorKey, ValidatorKeySet, ValidatorKeys};
+use fr_crypto::{
+    types::{BandersnatchRingRoot, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys},
+    vrf::bandersnatch_vrf::RingVrfVerifier,
+};
 use fr_node::genesis::load_genesis_validator_set;
 use fr_state::{
     cache::StateMut,
@@ -13,7 +16,7 @@ use fr_state::{
     },
 };
 use fr_transition::{
-    ring_cache::schedule_ring_cache_update,
+    ring_cache::{compute_effective_staging_set_hash, schedule_ring_cache_update},
     state::{safrole::transition_safrole, timeslot::transition_timeslot},
 };
 use std::{convert::TryFrom, error::Error, path::PathBuf, sync::Arc, time::Duration};
@@ -37,6 +40,23 @@ fn compute_ring_root(set: &ValidatorKeySet) -> BandersnatchRingRoot {
     use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
     let verifier = RingVrfVerifier::new(set).unwrap();
     verifier.compute_ring_root().unwrap()
+}
+
+fn build_ring_context(
+    inserted_at: TimeslotIndex,
+    staging_set: &StagingSet,
+    punish_set: &[Ed25519PubKey],
+) -> RingContext {
+    let mut effective_set = staging_set.clone();
+    effective_set.nullify_punished_validators(punish_set);
+    let verifier = RingVrfVerifier::new(&effective_set).unwrap();
+    let ring_root = verifier.compute_ring_root().unwrap();
+    RingContext {
+        inserted_at,
+        validator_set: (*effective_set).clone(),
+        verifier,
+        ring_root,
+    }
 }
 
 struct RingCacheHarness {
@@ -114,14 +134,17 @@ impl RingCacheHarness {
         new_staging_set: &ValidatorKeySet,
     ) -> Result<(), Box<dyn Error>> {
         let punish_set = self.manager.get_disputes().await?.punish_set;
+        let new_staging_set_cloned = new_staging_set.clone();
+        let staging_set = StagingSet(new_staging_set_cloned.clone());
+        let staging_set_hash = compute_effective_staging_set_hash(&staging_set, &punish_set)?;
         schedule_ring_cache_update(
             self.manager.clone(),
             timeslot_index,
-            StagingSet(new_staging_set.clone()),
+            staging_set.clone(),
             punish_set,
+            staging_set_hash.clone(),
         );
 
-        let new_staging_set_cloned = new_staging_set.clone();
         self.manager
             .with_mut_staging_set(
                 StateMut::Update,
@@ -133,7 +156,7 @@ impl RingCacheHarness {
             .await?;
 
         self.manager
-            .update_last_staging_set_transition_slot(timeslot_index);
+            .update_last_staging_set_transition_context(timeslot_index, staging_set_hash);
 
         Ok(())
     }
@@ -305,6 +328,47 @@ async fn ring_cache_nullifies_offenders_from_staging_entry() -> Result<(), Box<d
         compute_ring_root(&validator_set_with_punishment)
     );
     assert_ne!(new_staging_entry.ring_root, compute_ring_root(&genesis_set));
+
+    Ok(())
+}
+
+/// Rejects stale ring-cache updates when same-slot forks differ only in the punish set.
+#[tokio::test]
+async fn ring_cache_rejects_stale_update_on_same_slot_punish_set_fork() -> Result<(), Box<dyn Error>>
+{
+    let _temp_dir = tempdir().unwrap();
+    let db_path = _temp_dir.path().join("ring_cache_sync_test");
+    let harness = RingCacheHarness::new(db_path).await?;
+    let manager = harness.manager();
+    let staging_set = manager.get_staging_set().await?;
+    let timeslot = 7;
+
+    harness.set_timeslot(timeslot).await?;
+
+    let punish_set_a: Vec<Ed25519PubKey> = Vec::new();
+    let hash_a = compute_effective_staging_set_hash(&staging_set, &punish_set_a)?;
+    manager.update_last_staging_set_transition_context(timeslot, hash_a.clone());
+
+    let ring_context_a = build_ring_context(timeslot, &staging_set, &punish_set_a);
+
+    let offender_key = staging_set[0].ed25519.clone();
+    let punish_set_b = vec![offender_key];
+    manager
+        .with_mut_disputes(
+            StateMut::Update,
+            |disputes| -> Result<(), StateManagerError> {
+                disputes.punish_set = punish_set_b.clone();
+                Ok(())
+            },
+        )
+        .await?;
+    let hash_b = compute_effective_staging_set_hash(&staging_set, &punish_set_b)?;
+    manager.update_last_staging_set_transition_context(timeslot, hash_b.clone());
+
+    manager.update_staging_ring_cache_entry_guarded(ring_context_a, hash_a);
+
+    let (_curr, staging) = manager.ring_cache_snapshot();
+    assert!(staging.is_none(), "stale update should be rejected");
 
     Ok(())
 }
