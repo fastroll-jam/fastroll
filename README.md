@@ -64,10 +64,11 @@ cargo run --features "tiny,fuzz" -- fuzz --socket "/tmp/jam_target.sock"
 
 FastRoll relies on external test-vector repos as Git submodules:
 
-- [integration/jamtestvectors](integration/jamtestvectors) (official W3F test vectors)
-- [integration/jamtestvectors-polkajam](integration/jamtestvectors-polkajam) (test vectors release candidate)
-- [integration/jamtestvectors-pvm](integration/jamtestvectors-pvm) (PVM/RISC-V test vectors)
-- [integration/jam-conformance](integration/jam-conformance) (fuzzing traces)
+- [integration/jamtestvectors](https://github.com/w3f/jamtestvectors): official W3F test vectors
+- [integration/jamtestvectors-polkajam](https://github.com/davxy/jam-test-vectors): test vectors release candidate
+- [integration/jamtestvectors-pvm](https://github.com/koute/jamtestvectors/tree/master_pvm_initial/pvm): PVM/RISC-V test
+  vectors
+- [integration/jam-conformance](https://github.com/davxy/jam-conformance): fuzzing traces
 
 Initialize them with:
 
@@ -77,20 +78,20 @@ git submodule update --init --recursive
 
 ### State Transition Function (STF) tests
 
-- Vectors: [integration/jamtestvectors-polkajam/stf](integration/jamtestvectors-polkajam/stf)
+- Vectors: `integration/jamtestvectors/stf`
 - Harness: [test-utils/src/stf_harness.rs](test-utils/src/stf_harness.rs)
 - Test Cases: [integration/tests/stf](integration/tests/stf)
 
 ### PVM/RISC-V tests
 
-- Vectors: [integration/jamtestvectors-pvm/pvm/programs](integration/jamtestvectors-pvm/pvm/programs)
+- Vectors: `integration/jamtestvectors-pvm/pvm/programs`
 - Harness: [test-utils/src/pvm_harness.rs](test-utils/src/pvm_harness.rs)
 - Build Script: [integration/build.rs](integration/build.rs)
 - Test Cases: [integration/tests/pvm.rs](integration/tests/pvm.rs)
 
 ### Block import tests
 
-- Vectors: [integration/jamtestvectors-polkajam/traces](integration/jamtestvectors-polkajam/traces)
+- Vectors: `integration/jamtestvectors-polkajam/traces`
 - Harness: [test-utils/src/importer_harness.rs](test-utils/src/importer_harness.rs)
 - Build Script: [integration/build.rs](integration/build.rs)
 - Test Cases: [integration/tests/block_importer.rs](integration/tests/block_importer.rs)
@@ -98,9 +99,8 @@ git submodule update --init --recursive
 ### Block import tests (simple forks)
 
 - Vectors:
-    - [integration/jamtestvectors-polkajam/traces](integration/jamtestvectors-polkajam/traces) (fuzzy blocks)
-    - [integration/jam-conformance/fuzz-reports/0.7.2/traces](integration/jam-conformance/fuzz-reports/0.7.2/traces)
-      (fuzzing traces)
+    - `integration/jamtestvectors-polkajam/traces`: fuzzy blocks
+    - `integration/jam-conformance/fuzz-reports/0.7.2/traces`: fuzzing traces
 - Harness: [fuzz/src/fuzzer.rs](fuzz/src/fuzzer.rs)
 - Build Script: [integration/build.rs](integration/build.rs)
 - Test Cases: [integration/tests/block_importer.rs](integration/tests/block_importer.rs)
@@ -127,15 +127,8 @@ Run block import tests for a specific group:
 cargo nextest run block_import_storage_ --no-fail-fast --features "tiny,fuzz" --release
 ```
 
-- Available groups:
-    - [fallback](integration/jamtestvectors-polkajam/traces/fallback)
-    - [safrole](integration/jamtestvectors-polkajam/traces/safrole)
-    - [storage](integration/jamtestvectors-polkajam/traces/storage)
-    - [storage_light](integration/jamtestvectors-polkajam/traces/storage_light)
-    - [preimages](integration/jamtestvectors-polkajam/traces/preimages)
-    - [preimages_light](integration/jamtestvectors-polkajam/traces/preimages_light)
-    - [fuzzy](integration/jamtestvectors-polkajam/traces/fuzzy)
-    - [fuzzy_light](integration/jamtestvectors-polkajam/traces/fuzzy_light)
+- Available groups: `fallback`, `safrole`, `storage`, `storage_light`, `preimages`, `preimages_light`, `fuzzy`,
+  `fuzzy_light`
 
 Run block import tests for fuzzing traces:
 
