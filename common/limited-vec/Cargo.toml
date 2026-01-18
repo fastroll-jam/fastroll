@@ -1,7 +1,7 @@
 [package]
 name = "fr-limited-vec"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
