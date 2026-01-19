@@ -5,3 +5,4 @@
 .env
 .rocksdb/
 flamegraphs/
+node-bench/reports
