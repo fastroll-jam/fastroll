@@ -7,17 +7,16 @@ authors.workspace = true
 repository.workspace = true
 
 [dev-dependencies]
+fr-clock = { workspace = true }
+fr-fuzz = { workspace = true }
 fr-node = { workspace = true }
-fr-state = { workspace = true }
-fr-storage = { workspace = true }
 fr-test-utils = { workspace = true }
 criterion = { workspace = true }
-tempfile = { workspace = true }
 tokio = { workspace = true }
 
 [features]
-tiny = ["fr-test-utils/tiny", "fr-node/tiny"]
-full = ["fr-test-utils/full", "fr-node/full"]
+tiny = ["fr-test-utils/tiny", "fr-node/tiny", "fr-fuzz/tiny"]
+full = ["fr-test-utils/full", "fr-node/full", "fr-fuzz/full"]
 
 [[bench]]
 name = "block_importer"

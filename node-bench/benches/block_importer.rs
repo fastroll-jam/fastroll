@@ -1,123 +1,198 @@
-use criterion::{criterion_group, criterion_main, BatchSize, Bencher, Criterion};
-use fr_node::roles::importer::{BlockCommitMode, BlockImporter};
-use fr_state::state_utils::add_all_simple_state_entries;
-use fr_storage::node_storage::NodeStorage;
-use fr_test_utils::importer_harness::{get_parent_block_header, BlockImportHarness, TestCase};
+use criterion::{criterion_group, criterion_main, Criterion};
+use fr_clock::{TimeProvider, UnixTimeProvider};
+use fr_fuzz::fuzzer::{run_fuzz_trace_dir_with_timings, FuzzImportTiming};
 use std::{
     env,
+    fs::{create_dir_all, File, OpenOptions},
+    io::Write,
     path::{Path, PathBuf},
-    sync::Arc,
     time::Duration,
 };
-use tempfile::{tempdir, TempDir};
 use tokio::runtime::Runtime;
 
-struct BenchFixture {
-    storage: Arc<NodeStorage>,
-    test_case: TestCase,
-    _temp_dir: TempDir,
+const DEFAULT_SAMPLE_SIZE: usize = 30;
+const DEFAULT_MEASUREMENT_TIME: Duration = Duration::from_secs(10);
+
+fn resolve_trace_dir() -> PathBuf {
+    let trace_kind = env::var("TRACE_KIND")
+        .or_else(|_| env::var("KIND"))
+        .unwrap_or_else(|_| "storage".to_string());
+    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("../integration/jamtestvectors-polkajam/traces")
+        .join(trace_kind)
 }
 
-async fn setup(file_path: &Path) -> BenchFixture {
-    // load test case
-    let test_case = BlockImportHarness::load_test_case(file_path);
-    let test_case = BlockImportHarness::convert_test_case(test_case);
+fn format_case_label(timing: &FuzzImportTiming) -> String {
+    timing
+        .path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("case")
+        .to_string()
+}
 
-    // TempDir guard
-    let _temp_dir = tempdir().expect("Failed to create temporary directory for bench");
-    let temp_db_path = _temp_dir.path().join("bench_db");
+fn bench_report_dir() -> PathBuf {
+    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("reports")
+}
 
-    // init node storage
-    let storage = Arc::new(BlockImportHarness::init_node_storage(
-        temp_db_path.to_path_buf(),
-    ));
+fn create_bench_report_file(trace_label: &str, report_dir: &Path) -> (File, u64) {
+    create_dir_all(report_dir).expect("Failed to create bench report directory");
+    let unix_timestamp = TimeProvider::now_unix_timestamp();
+    let report_path = report_dir.join(format!("{trace_label}_{unix_timestamp}.log"));
 
-    // initialize state keys if genesis block
-    if test_case.block.is_genesis() {
-        add_all_simple_state_entries(&storage.state_manager(), None)
-            .await
-            .expect("Failed to initialize simple state entries");
+    match OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&report_path)
+    {
+        Ok(file) => (file, unix_timestamp),
+        Err(err) => panic!("Failed to create bench report file: {err}"),
+    }
+}
+
+fn write_bench_report(
+    report_dir: &Path,
+    trace_label: &str,
+    total_iters: u64,
+    block_labels: &[String],
+    per_block_totals: &[Duration],
+    suite_total: Duration,
+) {
+    let (mut file, timestamp) = create_bench_report_file(trace_label, report_dir);
+
+    let denom = total_iters as f64;
+    let suite_avg_ms = suite_total.as_secs_f64() * 1000.0 / denom;
+
+    writeln!(
+        file,
+        "timestamp={} trace_label={} total_iters={} blocks={}",
+        timestamp,
+        trace_label,
+        total_iters,
+        block_labels.len()
+    )
+    .expect("Failed to write bench report header");
+
+    writeln!(file, "total_avg_ms={:.3}", suite_avg_ms)
+        .expect("Failed to write bench report suite average");
+
+    writeln!(file, "per_block_avg_ms:").expect("Failed to write bench report block header");
+    for (label, total) in block_labels.iter().zip(per_block_totals.iter()) {
+        let avg_ms = total.as_secs_f64() * 1000.0 / denom;
+        writeln!(file, "{:>8} {:.3}", label, avg_ms).expect("Failed to write bench report");
     }
 
-    BlockImportHarness::commit_pre_state(&storage.state_manager(), test_case.pre_state.clone())
-        .await
-        .expect("Failed to commit pre state");
+    writeln!(file, "----").expect("Failed to write bench report");
+}
 
-    if !test_case.block.is_genesis() {
-        // Workaround: Import parent block from the previous test case and then set it as best header.
-        let parent_header = get_parent_block_header(file_path.to_str().unwrap());
-        let parent_header_hash = parent_header
-            .hash()
-            .expect("Failed to compute parent header hash");
-        storage.header_db().set_best_header(parent_header);
+/// Aggregates per-sample timing totals across Criterion iterations.
+#[derive(Default)]
+struct BenchAggregate {
+    total_iters: u64,
+    per_block_totals: Vec<Duration>,
+    block_labels: Vec<String>,
+    suite_total: Duration,
+}
 
-        // Set post state root of the parent block (prior state root)
-        storage
-            .post_state_root_db()
-            .set_post_state_root(
-                &parent_header_hash,
-                test_case.block.header.parent_state_root().clone(),
-            )
-            .await
-            .expect("Failed to set post state root");
-    }
+impl BenchAggregate {
+    fn add_sample(
+        &mut self,
+        iters: u64,
+        block_labels: &[String],
+        per_block_totals: &[Duration],
+        suite_total: Duration,
+    ) {
+        if self.per_block_totals.is_empty() {
+            self.per_block_totals = vec![Duration::ZERO; per_block_totals.len()];
+            self.block_labels = block_labels.to_vec();
+        } else if self.per_block_totals.len() != per_block_totals.len() {
+            panic!("Trace case count changed between iterations");
+        }
 
-    BenchFixture {
-        storage,
-        test_case,
-        _temp_dir,
+        for (idx, total) in per_block_totals.iter().enumerate() {
+            self.per_block_totals[idx] += *total;
+        }
+        self.suite_total += suite_total;
+        self.total_iters += iters;
     }
 }
 
 fn bench_block_import(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let mut group = c.benchmark_group("block_import");
+    let mut group = c.benchmark_group("block_import_fuzz_per_block");
 
-    let test_kind = env::var("KIND").unwrap_or("fallback".to_string());
-    let block_num = env::var("BLOCK").unwrap_or("1".to_string());
-    let block_num: u32 = block_num.parse().expect("Failed to parse BLOCK env");
-    let test_file = format!("{block_num:08}.json");
+    let trace_dir = resolve_trace_dir();
+    if !trace_dir.is_dir() {
+        panic!("Trace directory does not exist: {}", trace_dir.display());
+    }
+    let trace_dir_str = trace_dir
+        .to_str()
+        .expect("Invalid trace directory path")
+        .to_string();
+    let trace_label = trace_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("trace")
+        .to_string();
 
-    let bench_id = format!("{test_kind}-{test_file}");
-    let test_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("../integration")
-        .join("jamtestvectors-polkajam/traces")
-        .join(test_kind)
-        .join(test_file);
+    let mut aggregate = BenchAggregate::default();
+    let bench_id = format!("import-bench-{trace_label}");
+    group.bench_function(bench_id, |b| {
+        let trace_dir_str = trace_dir_str.clone();
+        b.iter_custom(|iters| {
+            let iters = iters.max(1);
+            let mut per_block_totals = vec![];
+            let mut block_labels = vec![];
 
-    group.bench_function(bench_id, |b: &mut Bencher| {
-        b.iter_batched(
-            // Setup
-            || rt.block_on(setup(&test_path)),
-            // Routine
-            |fixture| {
-                rt.block_on(async {
-                    let _post_state_root = match BlockImporter::import_block(
-                        fixture.storage.clone(),
-                        fixture.test_case.block.clone(),
-                        false,
-                        BlockCommitMode::Immediate,
-                    )
-                    .await
-                    {
-                        Ok(output) => output.post_state_root,
-                        Err(e) => {
-                            panic!("Block import failed during benchmarking: {e:?}");
-                        }
-                    };
-                });
-            },
-            // Size
-            BatchSize::SmallInput,
-        );
+            let total = rt.block_on(async {
+                let mut total = Duration::ZERO;
+                for _ in 0..iters {
+                    let timings = run_fuzz_trace_dir_with_timings(&trace_dir_str)
+                        .await
+                        .unwrap_or_else(|e| panic!("Fuzz trace failed: {e:?}"));
+                    if timings.is_empty() {
+                        panic!("No import cases found in {trace_dir_str}");
+                    }
+                    if per_block_totals.is_empty() {
+                        per_block_totals = vec![Duration::ZERO; timings.len()];
+                        block_labels = timings.iter().map(format_case_label).collect();
+                    }
+                    if timings.len() != per_block_totals.len() {
+                        panic!("Trace case count changed between iterations");
+                    }
+                    for (idx, timing) in timings.iter().enumerate() {
+                        per_block_totals[idx] += timing.duration;
+                        total += timing.duration;
+                    }
+                }
+                total
+            });
+
+            aggregate.add_sample(iters, &block_labels, &per_block_totals, total);
+            total
+        });
     });
 
     group.finish();
+
+    if aggregate.total_iters > 0 {
+        write_bench_report(
+            &bench_report_dir(),
+            &trace_label,
+            aggregate.total_iters,
+            &aggregate.block_labels,
+            &aggregate.per_block_totals,
+            aggregate.suite_total,
+        );
+    }
 }
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().measurement_time(Duration::from_secs(15));
+    config = Criterion::default()
+        .sample_size(DEFAULT_SAMPLE_SIZE)
+        .measurement_time(DEFAULT_MEASUREMENT_TIME)
+        .configure_from_args();
     targets = bench_block_import
 }
 criterion_main!(benches);

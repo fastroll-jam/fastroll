@@ -155,6 +155,12 @@ struct TraceSuite {
     cases: Vec<(PathBuf, AsnTestCase)>,
 }
 
+#[derive(Clone, Debug)]
+pub struct FuzzImportTiming {
+    pub path: PathBuf,
+    pub duration: Duration,
+}
+
 fn load_trace_suite(trace_dir: &Path) -> Result<TraceSuite, FuzzerError> {
     let mut json_files: Vec<PathBuf> = fs::read_dir(trace_dir)?
         .filter_map(|entry| entry.ok().map(|e| e.path()))
@@ -213,7 +219,13 @@ async fn run_fuzz_target(
     Ok(server_jh)
 }
 
-pub async fn run_fuzz_trace_dir(trace_dir: &str) -> Result<(), FuzzerError> {
+async fn run_fuzz_trace_dir_internal<F>(
+    trace_dir: &str,
+    mut on_import: F,
+) -> Result<(), FuzzerError>
+where
+    F: FnMut(&Path, Duration),
+{
     // Load block traces
     let trace_dir = Path::new(trace_dir);
     let trace_suite = load_trace_suite(trace_dir)?;
@@ -301,7 +313,11 @@ pub async fn run_fuzz_trace_dir(trace_dir: &str) -> Result<(), FuzzerError> {
     for (case_path, case) in cases.iter() {
         let block: Block = case.block.clone().into();
         let expected_root = case.post_state.state_root.clone();
+        let import_start = Instant::now();
         let response = client.import_block(ImportBlock(block.clone())).await?;
+
+        // Block import hook: per-block measurement, stats, etc.
+        on_import(case_path, import_start.elapsed());
         match response {
             FuzzMessageKind::StateRoot(root) => {
                 if root.0 != expected_root {
@@ -337,4 +353,23 @@ pub async fn run_fuzz_trace_dir(trace_dir: &str) -> Result<(), FuzzerError> {
     }
 
     Ok(())
+}
+
+pub async fn run_fuzz_trace_dir(trace_dir: &str) -> Result<(), FuzzerError> {
+    run_fuzz_trace_dir_internal(trace_dir, |_path, _elapsed| {}).await
+}
+
+/// Runs a fuzz trace directory and returns per-block import timings.
+pub async fn run_fuzz_trace_dir_with_timings(
+    trace_dir: &str,
+) -> Result<Vec<FuzzImportTiming>, FuzzerError> {
+    let mut timings = Vec::new();
+    run_fuzz_trace_dir_internal(trace_dir, |path, duration| {
+        timings.push(FuzzImportTiming {
+            path: path.to_path_buf(),
+            duration,
+        });
+    })
+    .await?;
+    Ok(timings)
 }

@@ -1018,11 +1018,10 @@ name = "fr-node-bench"
 version = "0.1.29"
 dependencies = [
  "criterion",
+ "fr-clock",
+ "fr-fuzz",
  "fr-node",
- "fr-state",
- "fr-storage",
  "fr-test-utils",
- "tempfile",
  "tokio",
 ]
 
