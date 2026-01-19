@@ -10,6 +10,8 @@ use std::{
 };
 use tokio::runtime::Runtime;
 
+const TRACES_PATH: &str = "../integration/jamtestvectors-polkajam/traces";
+const BENCH_GROUP_NAME: &str = "block_import_fuzz_per_block";
 const DEFAULT_SAMPLE_SIZE: usize = 30;
 const DEFAULT_MEASUREMENT_TIME: Duration = Duration::from_secs(10);
 
@@ -18,7 +20,7 @@ fn resolve_trace_dir() -> PathBuf {
         .or_else(|_| env::var("KIND"))
         .unwrap_or_else(|_| "storage".to_string());
     PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("../integration/jamtestvectors-polkajam/traces")
+        .join(TRACES_PATH)
         .join(trace_kind)
 }
 
@@ -119,7 +121,7 @@ impl BenchAggregate {
 
 fn bench_block_import(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let mut group = c.benchmark_group("block_import_fuzz_per_block");
+    let mut group = c.benchmark_group(BENCH_GROUP_NAME);
 
     let trace_dir = resolve_trace_dir();
     if !trace_dir.is_dir() {
@@ -132,7 +134,7 @@ fn bench_block_import(c: &mut Criterion) {
     let trace_label = trace_dir
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or("trace")
+        .expect("Invalid file name")
         .to_string();
 
     let mut aggregate = BenchAggregate::default();
