@@ -136,6 +136,24 @@ Run block import tests for fuzzing traces:
 cargo nextest run block_import_conformance_ --no-fail-fast --features "tiny,fuzz" --release
 ```
 
+## Benchmarking
+
+### Block import benchmark
+
+Run a per-block import benchmark over a trace directory:
+
+```bash
+TRACE_KIND=storage cargo bench -p fr-node-bench --bench block_importer --features tiny -- --sample-size 10 --measurement-time 10
+```
+
+- `TRACE_KIND` selects a directory under `integration/jamtestvectors-polkajam/traces/` (e.g., `storage`).
+- `--sample-size` sets the number of measurement samples.
+- `--measurement-time` is the total target time for the measurement phase.
+- A report file is written per run to `node-bench/reports/<trace_label>_<unix_timestamp>.log`.
+- The report includes `total_avg_ms` (average per trace run, from per-block timings) and `per_block_avg_ms`;
+  handshake/init time is not included in these averages.
+- Warm-up iterations are included in the report aggregates; set `--warm-up-time` to adjust warm-up impact.
+
 ## Repository Map
 
 Top-level directories and their roles:
