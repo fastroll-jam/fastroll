@@ -107,34 +107,53 @@ git submodule update --init --recursive
 
 ### Running tests
 
-- `fuzz` feature is required for fuzzing trace block imports.
-
-Run all tests:
+- Note: Git submodule initialization is required. See **Test vector submodules** section above.
 
 ```bash
+# Run all tests:
 cargo nextest run --workspace --no-fail-fast --features "tiny,fuzz" --release
-```
 
-Run all block import tests:
-
-```bash
+# Run all block import tests:
 cargo nextest run block_import_ --no-fail-fast --features "tiny,fuzz" --release
-```
 
-Run block import tests for a specific group:
-
-```bash
+# Run block import tests for a specific group:
 cargo nextest run block_import_storage_ --no-fail-fast --features "tiny,fuzz" --release
-```
 
-- Available groups: `fallback`, `safrole`, `storage`, `storage_light`, `preimages`, `preimages_light`, `fuzzy`,
-  `fuzzy_light`
-
-Run block import tests for fuzzing traces:
-
-```bash
+# Run block import tests for fuzzing traces:
 cargo nextest run block_import_conformance_ --no-fail-fast --features "tiny,fuzz" --release
 ```
+
+- `fuzz` feature is required for fuzzing trace block imports.
+- Available block groups: `fallback`, `safrole`, `storage`, `storage_light`, `preimages`, `preimages_light`, `fuzzy`,
+  `fuzzy_light`.
+- `RUST_LOG` env variable can be used for tracing test run and filter logs.
+    - e.g.
+      `RUST_LOG="fr_node=debug" cargo nextest run block_import_storage_00000001 --features "tiny,fuzz" --release --no-capture`
+
+## Benchmarking
+
+### Block import benchmark
+
+Run a per-block import benchmark over a trace directory:
+
+```bash
+TRACE_KIND=storage cargo bench -p fr-node-bench --bench block_importer --features tiny -- --sample-size 10 --measurement-time 10
+```
+
+- `TRACE_KIND` selects a directory under `integration/jamtestvectors-polkajam/traces/` (e.g., `storage`).
+- `--sample-size` sets the number of measurement samples.
+- `--measurement-time` is the total target time for the measurement phase.
+- A report file is written per run to `node-bench/reports/<trace_label>_<unix_timestamp>.log`.
+- The report includes `total_avg_ms` (average per trace run, from per-block timings) and `per_block_avg_ms`;
+  handshake/init time is not included in these averages.
+- Warm-up iterations are included in the report aggregates; set `--warm-up-time` to adjust warm-up impact.
+
+### Fuzzing benchmark
+
+Community fuzzing performance reports across implementations are available at:
+
+- [Performance Reports](https://github.com/davxy/jam-conformance/tree/main/fuzz-perf)
+- [Performance Dashboard](https://paritytech.github.io/jam-conformance-dashboard/)
 
 ## Repository Map
 
@@ -158,11 +177,11 @@ Top-level directories and their roles:
 - `node/`: Node runtime, block importer, and service wiring.
 - `node-bench/`: Criterion benchmarks.
 - `pvm/`: PVM sub-crates:
-    - `pvm-core`: VM execution primitives; architectural state, interpreter, program loader, instructions.
-    - `pvm-host`: Host functions, partial state.
-    - `pvm-interface`: Host/guest interface types.
-    - `pvm-invocation`: PVM invocation entry-points (is_authorized, refine, accumulate).
-    - `pvm-types`: Common PVM data types.
+    - `pvm-core/`: VM execution primitives; architectural state, interpreter, program loader, instructions.
+    - `pvm-host/`: Host functions, partial state.
+    - `pvm-interface/`: Host/guest interface types.
+    - `pvm-invocation/`: PVM invocation entry-points (is_authorized, refine, accumulate).
+    - `pvm-types/`: Common PVM data types.
 - `scripts/`: Utility scripts (e.g., flamegraph generation).
 - `state/`: Global state types, stores, state cache, manager, and merkle interfaces.
     - `state-merkle-v2/`: Current merkle trie and store implementation.
