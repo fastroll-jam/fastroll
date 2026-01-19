@@ -148,6 +148,13 @@ TRACE_KIND=storage cargo bench -p fr-node-bench --bench block_importer --feature
   handshake/init time is not included in these averages.
 - Warm-up iterations are included in the report aggregates; set `--warm-up-time` to adjust warm-up impact.
 
+### Fuzzing benchmark
+
+Community fuzzing performance reports across implementations are available at:
+
+- [Performance Reports](https://github.com/davxy/jam-conformance/tree/main/fuzz-perf)
+- [Performance Dashboard](https://paritytech.github.io/jam-conformance-dashboard/)
+
 ## Repository Map
 
 Top-level directories and their roles:
