@@ -451,14 +451,13 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
                 .try_into()
                 .map_err(|_| HostCallError::GasLimitOverflow(gas_limit))?,
         };
+
+        // Load program and invoke the PVM.
         let inner_vm_program_code = &inner_vm_mut.program_code;
         let mut inner_vm_program_state = ProgramState::default();
-
-        let inner_vm_exit_reason = Interpreter::invoke_general(
-            &mut inner_vm_state_copy,
-            &mut inner_vm_program_state,
-            inner_vm_program_code,
-        )?;
+        ProgramLoader::load_program(inner_vm_program_code, &mut inner_vm_program_state)?;
+        let inner_vm_exit_reason =
+            Interpreter::invoke_general(&mut inner_vm_state_copy, &inner_vm_program_state)?;
 
         // Apply the mutation of the `VMState` to the InnerVM state of the refine context
         inner_vm_mut.pc = inner_vm_state_copy.pc;

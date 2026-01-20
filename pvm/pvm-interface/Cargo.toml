@@ -14,5 +14,6 @@ fr-pvm-core = { workspace = true }
 fr-pvm-host = { workspace = true }
 fr-pvm-types = { workspace = true }
 fr-state = { workspace = true }
+mini-moka = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

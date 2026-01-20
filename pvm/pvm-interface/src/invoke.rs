@@ -1,6 +1,18 @@
 use crate::{error::PVMError, pvm::PVM};
-use fr_common::{workloads::WorkExecutionResult, ServiceId, SignedGas, TimeslotIndex, UnsignedGas};
-use fr_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator};
+use fr_common::{
+    workloads::WorkExecutionResult, Hash32, ServiceId, SignedGas, TimeslotIndex, UnsignedGas,
+    BLOCK_HISTORY_LENGTH, MAX_WORK_ITEMS_PER_PACKAGE,
+};
+use fr_crypto::{hash, Blake2b256};
+use fr_pvm_core::{
+    error::VMCoreError,
+    interpreter::Interpreter,
+    program::{
+        loader::ProgramLoader,
+        types::{formatted_program::FormattedProgram, program_state::ProgramState},
+    },
+    state::state_change::VMStateMutator,
+};
 use fr_pvm_host::{
     context::InvocationContext,
     error::HostCallError::InvalidExitReason,
@@ -11,8 +23,25 @@ use fr_pvm_host::{
 };
 use fr_pvm_types::{common::RegValue, exit_reason::ExitReason, hostcall::HostCallType};
 use fr_state::manager::StateManager;
-use std::sync::Arc;
+use mini_moka::sync::Cache;
+use std::sync::{Arc, OnceLock};
 use tracing::instrument;
+
+struct CachedProgram {
+    formatted_program: Arc<FormattedProgram>,
+    program_state: Arc<ProgramState>,
+}
+
+/// Safe estimate of cache capacity to cover the typical set of frequently accessed programs.
+const PROGRAM_CACHE_MAX_ENTRIES: u64 =
+    (MAX_WORK_ITEMS_PER_PACKAGE * BLOCK_HISTORY_LENGTH * 8) as u64;
+
+/// Global PVM program cache that is reused across multiple invocations.
+static PROGRAM_CACHE: OnceLock<Cache<Hash32, Arc<CachedProgram>>> = OnceLock::new();
+
+fn program_cache() -> &'static Cache<Hash32, Arc<CachedProgram>> {
+    PROGRAM_CACHE.get_or_init(|| Cache::new(PROGRAM_CACHE_MAX_ENTRIES))
+}
 
 struct ExtendedInvocationResult {
     exit_reason: ExitReason,
@@ -161,8 +190,35 @@ impl PVMInterface {
         curr_timeslot_index: Option<TimeslotIndex>,
     ) -> Result<PVMInvocationResult, PVMError> {
         tracing::info!("Ψ_M invoked. s={service_id}");
+        let program_hash = hash::<Blake2b256>(standard_program)?;
+        // First attempt to fetch the program from the global program cache that is persisted across
+        // multiple block executions. Decode and load program on cache miss only.
+        let cached_program = if let Some(entry) = program_cache().get(&program_hash) {
+            entry
+        } else {
+            let formatted_program = FormattedProgram::from_standard_program(standard_program)?;
+            if !formatted_program.is_program_size_valid() {
+                return Err(PVMError::VMCoreError(VMCoreError::InvalidProgram));
+            }
+
+            // Initialize the program state
+            let mut program_state = ProgramState::default();
+            ProgramLoader::load_program(&formatted_program.code, &mut program_state)?;
+
+            let cached = Arc::new(CachedProgram {
+                formatted_program: Arc::new(formatted_program),
+                program_state: Arc::new(program_state),
+            });
+            program_cache().insert(program_hash, cached.clone());
+            cached
+        };
+
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
-        let Ok(mut pvm) = PVM::new_with_standard_program(standard_program, args) else {
+        let Ok(mut pvm) = PVM::new_with_formatted_program(
+            &cached_program.formatted_program,
+            cached_program.program_state.clone(),
+            args,
+        ) else {
             tracing::error!("Failed to initialize PVM instance");
             return Ok(PVMInvocationResult::panic(0));
         };
@@ -218,11 +274,7 @@ impl PVMInterface {
     ) -> Result<ExtendedInvocationResult, PVMError> {
         tracing::info!("Ψ_H invoked. s={service_id}");
         loop {
-            let exit_reason = Interpreter::invoke_general(
-                &mut pvm.state,
-                &mut pvm.program_state,
-                &pvm.program_blob,
-            )?;
+            let exit_reason = Interpreter::invoke_general(&mut pvm.state, &pvm.program_state)?;
 
             let host_call_result = match exit_reason {
                 ExitReason::HostCall(h) => {

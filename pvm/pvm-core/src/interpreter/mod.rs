@@ -2,7 +2,6 @@ use crate::{
     error::VMCoreError,
     program::{
         instruction::{opcode::Opcode as OP, set::InstructionSet as IS, Instruction},
-        loader::ProgramLoader,
         types::program_state::ProgramState,
     },
     state::{
@@ -48,15 +47,8 @@ impl Interpreter {
     /// Represents `Ψ` of the GP.
     pub fn invoke_general(
         vm_state: &mut VMState,
-        program_state: &mut ProgramState, // program code loaded from the `invoke_extended`
-        program_code: &[u8],
+        program_state: &ProgramState,
     ) -> Result<ExitReason, VMCoreError> {
-        // Ensure the program state is initialized only once, as the general invocation
-        // is triggered within a loop during the extended invocation.
-        if !program_state.is_loaded {
-            ProgramLoader::load_program(program_code, program_state)?;
-        }
-
         loop {
             let curr_pc = vm_state.pc;
             let program_state_ref: &ProgramState = program_state;

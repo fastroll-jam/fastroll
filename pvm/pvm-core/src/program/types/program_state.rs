@@ -28,8 +28,6 @@ pub struct ProgramState {
     pub instruction_lookup: Vec<InstructionIndex>,
     /// Lookup from program counter (byte index) to precomputed skip distances.
     pub skip_distances: Vec<u8>,
-    /// Boolean flag indicating whether the program is loaded.
-    pub is_loaded: bool,
 }
 
 impl ProgramState {

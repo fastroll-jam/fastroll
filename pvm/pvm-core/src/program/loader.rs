@@ -45,7 +45,6 @@ impl ProgramLoader {
         if tracing::enabled!(Level::TRACE) {
             program_state.print_all_opcodes();
         }
-        program_state.is_loaded = true;
         Ok(())
     }
 

@@ -12,45 +12,42 @@ use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
 };
+use std::sync::Arc;
 
 /// Main stateful PVM struct.
 #[derive(Default)]
 pub struct PVM {
     /// The mutable VM state
     pub state: VMState,
-    /// The static program state initialized in the general invocation `Ψ`
-    pub program_state: ProgramState,
-    /// Equivalent to `code` of `FormattedProgram`
-    pub program_blob: Vec<u8>,
+    /// The static program state initialized in the `Ψ_M` invocation.
+    pub program_state: Arc<ProgramState>,
 }
 
 impl PVM {
-    /// Initialize memory and registers of PVM with provided program and arguments
-    ///
-    /// Represents `Y` of the GP
-    pub(crate) fn new_with_standard_program(
-        standard_program: &[u8],
+    /// Initialize memory and registers of PVM with provided program and arguments.
+    pub(crate) fn new_with_formatted_program(
+        formatted_program: &FormattedProgram,
+        program_state: Arc<ProgramState>,
         args: &[u8],
     ) -> Result<Self, PVMError> {
-        let mut pvm = Self::default();
+        let mut pvm = Self {
+            state: VMState::default(),
+            program_state,
+        };
 
         // Check argument data size limit
         if args.len() > INIT_INPUT_SIZE {
             return Err(PVMError::VMCoreError(ProgramArgsSizeLimitExceeded));
         }
 
-        // Decode program and check program size limit
-        let formatted_program = FormattedProgram::from_standard_program(standard_program)?;
-        tracing::info!("PVM program decoded.");
         if !formatted_program.is_program_size_valid() {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }
 
-        pvm.setup_memory_layout(&formatted_program, args)?;
+        pvm.setup_memory_layout(formatted_program, args)?;
         tracing::info!("PVM memory setup.");
         pvm.initialize_registers(args.len());
         tracing::info!("PVM registers setup.");
-        pvm.program_blob = formatted_program.code;
 
         tracing::info!("PVM initialized.");
         Ok(pvm)
