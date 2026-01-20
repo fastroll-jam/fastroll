@@ -1058,6 +1058,7 @@ dependencies = [
 name = "fr-pvm-interface"
 version = "0.1.29"
 dependencies = [
+ "dashmap 6.1.0",
  "fr-codec",
  "fr-common",
  "fr-crypto",

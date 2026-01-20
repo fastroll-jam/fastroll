@@ -14,7 +14,10 @@ use fr_pvm_types::{
     exit_reason::ExitReason,
 };
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tracing::instrument;
 // --- Types
 
@@ -245,20 +248,19 @@ pub fn run_test_case(filename: &str) {
     } = PVMHarness::parse_test_case(test_case.clone());
 
     // initialize PVM
+    let mut program_state = ProgramState::default();
+    ProgramLoader::load_program(&program, &mut program_state).expect("Failed to load program");
     let mut pvm = PVM {
         state: initial_vm,
-        program_blob: program.clone(),
-        program_state: ProgramState::default(),
+        program_state: Arc::new(program_state),
     };
 
-    ProgramLoader::load_program(&program, &mut pvm.program_state).expect("Failed to load program");
-
     // Debugging
-    tracing::trace!("{:?}", pvm.program_state);
+    tracing::trace!("{:?}", &pvm.program_state);
 
     // execute PVM
-    let exit_reason = Interpreter::invoke_general(&mut pvm.state, &mut pvm.program_state, &program)
-        .expect("Failed to run PVM");
+    let exit_reason =
+        Interpreter::invoke_general(&mut pvm.state, &pvm.program_state).expect("Failed to run PVM");
 
     let (actual_status, actual_page_fault_address) = match exit_reason {
         ExitReason::Panic => (ExpectedStatus::panic, None),
