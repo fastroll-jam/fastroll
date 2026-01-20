@@ -1,7 +1,7 @@
 use crate::{error::PVMError, pvm::PVM};
-use dashmap::DashMap;
 use fr_common::{
     workloads::WorkExecutionResult, Hash32, ServiceId, SignedGas, TimeslotIndex, UnsignedGas,
+    BLOCK_HISTORY_LENGTH, MAX_WORK_ITEMS_PER_PACKAGE,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::{
@@ -23,6 +23,7 @@ use fr_pvm_host::{
 };
 use fr_pvm_types::{common::RegValue, exit_reason::ExitReason, hostcall::HostCallType};
 use fr_state::manager::StateManager;
+use mini_moka::sync::Cache;
 use std::sync::{Arc, OnceLock};
 use tracing::instrument;
 
@@ -31,11 +32,15 @@ struct CachedProgram {
     program_state: Arc<ProgramState>,
 }
 
-/// Global PVM program cache that is reused across multiple invocations.
-static PROGRAM_CACHE: OnceLock<DashMap<Hash32, Arc<CachedProgram>>> = OnceLock::new();
+/// Safe estimate of cache capacity to cover the typical set of frequently accessed programs.
+const PROGRAM_CACHE_MAX_ENTRIES: u64 =
+    (MAX_WORK_ITEMS_PER_PACKAGE * BLOCK_HISTORY_LENGTH * 8) as u64;
 
-fn program_cache() -> &'static DashMap<Hash32, Arc<CachedProgram>> {
-    PROGRAM_CACHE.get_or_init(DashMap::new)
+/// Global PVM program cache that is reused across multiple invocations.
+static PROGRAM_CACHE: OnceLock<Cache<Hash32, Arc<CachedProgram>>> = OnceLock::new();
+
+fn program_cache() -> &'static Cache<Hash32, Arc<CachedProgram>> {
+    PROGRAM_CACHE.get_or_init(|| Cache::new(PROGRAM_CACHE_MAX_ENTRIES))
 }
 
 struct ExtendedInvocationResult {
@@ -189,7 +194,7 @@ impl PVMInterface {
         // First attempt to fetch the program from the global program cache that is persisted across
         // multiple block executions. Decode and load program on cache miss only.
         let cached_program = if let Some(entry) = program_cache().get(&program_hash) {
-            entry.clone()
+            entry
         } else {
             let formatted_program = FormattedProgram::from_standard_program(standard_program)?;
             if !formatted_program.is_program_size_valid() {

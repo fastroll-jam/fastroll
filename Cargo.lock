@@ -1058,7 +1058,6 @@ dependencies = [
 name = "fr-pvm-interface"
 version = "0.1.29"
 dependencies = [
- "dashmap 6.1.0",
  "fr-codec",
  "fr-common",
  "fr-crypto",
@@ -1066,6 +1065,7 @@ dependencies = [
  "fr-pvm-host",
  "fr-pvm-types",
  "fr-state",
+ "mini-moka",
  "thiserror 2.0.17",
  "tracing",
 ]
