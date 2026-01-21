@@ -6,3 +6,4 @@
 .rocksdb/
 flamegraphs/
 node-bench/reports
+scripts/bench.sh
