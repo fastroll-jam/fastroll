@@ -12,13 +12,22 @@ generate_flamegraph() {
   local test_name="${kind}_${block_num_padded}"
   local file_name="${kind}-${block_num_padded}"
   local folded_file="./integration/target/${file_name}.folded"
+  local folded_alt_file="./target/${file_name}.folded"
   local svg_file="flamegraphs/${file_name}.svg"
 
   echo "Running test: ${test_name}"
-  RUST_LOG=debug cargo nextest run "${test_name}" --features tiny --release
+  RUST_LOG=debug cargo nextest run "${test_name}" --features "tiny,flamegraph" --release
 
   echo "Generating flamegraph: ${svg_file}"
-  cat "${folded_file}" | inferno-flamegraph > "${svg_file}"
+  local input_file="${folded_file}"
+  if [[ ! -s "${input_file}" && -s "${folded_alt_file}" ]]; then
+    input_file="${folded_alt_file}"
+  fi
+  if [[ ! -s "${input_file}" ]]; then
+    echo "No folded data found at ${folded_file} or ${folded_alt_file}"
+    exit 1
+  fi
+  cat "${input_file}" | inferno-flamegraph > "${svg_file}"
 
   echo "Done: ${svg_file}"
 }

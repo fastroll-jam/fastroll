@@ -31,3 +31,4 @@ tracing = { workspace = true }
 [features]
 tiny = ["fr-common/tiny", "fr-node/tiny"]
 full = ["fr-common/full", "fr-node/full"]
+flamegraph = ["fr-common/flamegraph"]
