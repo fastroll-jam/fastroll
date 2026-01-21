@@ -2,10 +2,11 @@ use crate::state_display::display_state_entry;
 use fr_asn_types::common::{AsnBlock, AsnHeader, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
-use fr_common::{
-    utils::{serde::FileReader, tracing::setup_timed_tracing},
-    ByteArray, ByteSequence, StateKey, StateRoot,
-};
+#[cfg(not(feature = "flamegraph"))]
+use fr_common::utils::tracing::setup_timed_tracing;
+#[cfg(feature = "flamegraph")]
+use fr_common::utils::tracing::setup_timed_tracing_with_flamegraph;
+use fr_common::{utils::serde::FileReader, ByteArray, ByteSequence, StateKey, StateRoot};
 use fr_config::StorageConfig;
 use fr_node::roles::importer::{BlockCommitMode, BlockImporter};
 use fr_state::{
@@ -236,6 +237,9 @@ impl BlockImportHarness {
 
 pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
+    #[cfg(feature = "flamegraph")]
+    setup_timed_tracing_with_flamegraph(file_path);
+    #[cfg(not(feature = "flamegraph"))]
     setup_timed_tracing();
 
     // TempDir guard

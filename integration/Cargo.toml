@@ -36,3 +36,4 @@ tokio = { workspace = true }
 tiny = ["fr-test-utils/tiny"]
 full = ["fr-test-utils/full"]
 fuzz = ["fr-node/fuzz", "fr-transition/fuzz"]
+flamegraph = ["fr-test-utils/flamegraph"]
