@@ -11,7 +11,6 @@ use crate::{
     },
     utils::{SextInputSize, VMUtils},
 };
-use fr_codec::prelude::*;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::JUMP_ALIGNMENT,
@@ -217,7 +216,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
-        let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
+        let value = [(imm_value & 0xFF) as u8]; // mod 2^8
         continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
@@ -231,7 +230,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
-        let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
+        let value = ((imm_value & 0xFFFF) as u16).to_le_bytes(); // mod 2^16
         continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
@@ -245,7 +244,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
-        let value = ((imm_value & 0xFFFF_FFFF) as u32).encode_fixed(4)?; // mod 2^32
+        let value = ((imm_value & 0xFFFF_FFFF) as u32).to_le_bytes(); // mod 2^32
         continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
@@ -259,7 +258,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
-        let value = imm_value.encode_fixed(8)?;
+        let value = imm_value.to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
@@ -476,7 +475,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u8(vm_state.read_rs1(ins)? & 0xFF);
-        continue_with_mem_write!(vm_state.pc, program_state, imm_address, vec![rs1_val])
+        continue_with_mem_write!(vm_state.pc, program_state, imm_address, [rs1_val])
     }
 
     /// Store register value to memory as 16-bit unsigned integer
@@ -493,7 +492,7 @@ impl InstructionSet {
             vm_state.pc,
             program_state,
             imm_address,
-            rs1_val.encode_fixed(2)?
+            rs1_val.to_le_bytes()
         )
     }
 
@@ -511,7 +510,7 @@ impl InstructionSet {
             vm_state.pc,
             program_state,
             imm_address,
-            rs1_val.encode_fixed(4)?
+            rs1_val.to_le_bytes()
         )
     }
 
@@ -529,7 +528,7 @@ impl InstructionSet {
             vm_state.pc,
             program_state,
             imm_address,
-            rs1_val.encode_fixed(8)?
+            rs1_val.to_le_bytes()
         )
     }
 
@@ -546,7 +545,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        let value = vec![reg_to_u8(ins.imm2()? & 0xFF)];
+        let value = [reg_to_u8(ins.imm2()? & 0xFF)];
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -559,7 +558,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u16(ins.imm2()? & 0xFFFF).encode_fixed(2)?;
+        let value = reg_to_u16(ins.imm2()? & 0xFFFF).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -572,7 +571,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u32(ins.imm2()? & 0xFFFF_FFFF).encode_fixed(4)?;
+        let value = reg_to_u32(ins.imm2()? & 0xFFFF_FFFF).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -585,7 +584,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u64(ins.imm2()?).encode_fixed(8)?;
+        let value = reg_to_u64(ins.imm2()?).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -952,7 +951,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = vec![reg_to_u8(vm_state.read_rs1(ins)? & 0xFF)];
+        let value = [reg_to_u8(vm_state.read_rs1(ins)? & 0xFF)];
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -965,7 +964,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF).encode_fixed(2)?;
+        let value = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -978,7 +977,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF).encode_fixed(4)?;
+        let value = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -991,7 +990,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u64(vm_state.read_rs1(ins)?).encode_fixed(8)?;
+        let value = reg_to_u64(vm_state.read_rs1(ins)?).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -1153,6 +1152,7 @@ impl InstructionSet {
             Err(e) => Err(e.into()),
         }
     }
+
     /// Add 32-bit immediate to register value and allocate to another register
     ///
     /// Opcode: 131

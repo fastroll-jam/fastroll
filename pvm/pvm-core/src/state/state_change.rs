@@ -13,17 +13,66 @@ use fr_pvm_types::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, INST_BASE_GAS_CHARGE, REGISTERS_COUNT},
 };
 
+/// Stores small writes inline to avoid heap allocations for <=8 bytes.
+#[derive(Clone, Debug, PartialEq)]
+pub enum MemWriteData {
+    Inline { len: u8, data: [u8; 8] },
+    Vec(Vec<u8>),
+}
+
+impl MemWriteData {
+    pub fn as_slice(&self) -> &[u8] {
+        match self {
+            Self::Inline { len, data } => &data[..*len as usize],
+            Self::Vec(data) => data.as_slice(),
+        }
+    }
+}
+
+impl Default for MemWriteData {
+    fn default() -> Self {
+        Self::Inline {
+            len: 0,
+            data: [0u8; 8],
+        }
+    }
+}
+
+impl From<Vec<u8>> for MemWriteData {
+    fn from(data: Vec<u8>) -> Self {
+        Self::Vec(data)
+    }
+}
+
+impl<const N: usize> From<[u8; N]> for MemWriteData {
+    fn from(data: [u8; N]) -> Self {
+        if N <= 8 {
+            let mut buf = [0u8; 8];
+            buf[..N].copy_from_slice(&data);
+            Self::Inline {
+                len: N as u8,
+                data: buf,
+            }
+        } else {
+            Self::Vec(data.to_vec())
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MemWrite {
     pub buf_offset: MemAddress,
-    pub write_data: Vec<u8>,
+    pub write_data: MemWriteData,
 }
 
 impl MemWrite {
-    pub fn new(buf_offset: MemAddress, write_data: Vec<u8>) -> Self {
+    pub fn new<T>(buf_offset: MemAddress, write_data: T) -> Self
+    where
+        T: Into<MemWriteData>,
+    {
         Self {
             buf_offset,
-            write_data,
+            write_data: write_data.into(),
         }
     }
 }
@@ -100,7 +149,10 @@ impl VMStateMutator {
                 return Err(VMCoreError::ForbiddenMemZone(*buf_offset));
             }
 
-            match vm_state.memory.write_bytes(*buf_offset, write_data) {
+            match vm_state
+                .memory
+                .write_bytes(*buf_offset, write_data.as_slice())
+            {
                 Ok(_) => {}
                 Err(MemoryError::AccessViolation(address)) => {
                     return Err(VMCoreError::PageFault(VMUtils::page_start_address(address)))
@@ -136,12 +188,10 @@ impl VMStateMutator {
         }
 
         // Apply memory change
-        if let Some(MemWrite {
-            buf_offset,
-            write_data,
-        }) = change.memory_write.clone()
-        {
-            vm_state.memory.write_bytes(buf_offset, &write_data)?;
+        if let Some(mem_write) = change.memory_write.as_ref() {
+            vm_state
+                .memory
+                .write_bytes(mem_write.buf_offset, mem_write.write_data.as_slice())?;
         }
 
         // Check gas counter and apply gas change
