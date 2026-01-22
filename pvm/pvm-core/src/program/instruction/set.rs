@@ -935,9 +935,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
-        let mut rs1_val_encoded = rs1_val.encode_fixed(8)?;
-        rs1_val_encoded.reverse();
-        let rev_val = u64::decode_fixed(&mut rs1_val_encoded.as_slice(), 8)?;
+        let rev_val = rs1_val.swap_bytes();
         continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, rev_val)
     }
 
