@@ -229,12 +229,12 @@ impl Memory {
         }
     }
 
-    /// Read a specified number of bytes from memory starting at the given address.
-    pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, MemoryError> {
-        if length == 0 {
-            return Ok(Vec::new());
-        }
-
+    /// Returns bytes read range if valid.
+    fn validate_read(
+        &self,
+        address: MemAddress,
+        length: usize,
+    ) -> Result<Range<usize>, MemoryError> {
         if address < INIT_ZONE_SIZE as MemAddress {
             return Err(MemoryError::Forbidden(address));
         }
@@ -255,8 +255,30 @@ impl Memory {
         {
             return Err(MemoryError::AccessViolation(not_readable_addr));
         }
+        Ok(start..end)
+    }
 
-        Ok(self.data[start..end].to_vec())
+    /// Read a specified number of bytes from memory starting at the given address.
+    pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, MemoryError> {
+        if length == 0 {
+            return Ok(Vec::new());
+        }
+        let range = self.validate_read(address, length)?;
+        Ok(self.data[range].to_vec())
+    }
+
+    /// Reads a fixed-size byte array from memory starting at the given address.
+    pub fn read_bytes_fixed<const N: usize>(
+        &self,
+        address: MemAddress,
+    ) -> Result<[u8; N], MemoryError> {
+        let mut bytes = [0u8; N];
+        if N == 0 {
+            return Ok(bytes);
+        }
+        let range = self.validate_read(address, N)?;
+        bytes.copy_from_slice(&self.data[range]);
+        Ok(bytes)
     }
 
     /// Write a byte to a memory cell at the given address.

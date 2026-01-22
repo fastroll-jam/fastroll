@@ -11,7 +11,6 @@ use crate::{
     },
     utils::{SextInputSize, VMUtils},
 };
-use fr_codec::prelude::*;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::JUMP_ALIGNMENT,
@@ -217,7 +216,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
-        let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
+        let value = [(imm_value & 0xFF) as u8]; // mod 2^8
         continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
@@ -231,7 +230,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
-        let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
+        let value = ((imm_value & 0xFFFF) as u16).to_le_bytes(); // mod 2^16
         continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
@@ -245,7 +244,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
-        let value = ((imm_value & 0xFFFF_FFFF) as u32).encode_fixed(4)?; // mod 2^32
+        let value = ((imm_value & 0xFFFF_FFFF) as u32).to_le_bytes(); // mod 2^32
         continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
@@ -259,7 +258,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
-        let value = imm_value.encode_fixed(8)?;
+        let value = imm_value.to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, imm_address, value)
     }
 
@@ -363,10 +362,15 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        match vm_state.memory.read_bytes(imm_address, 2) {
+        match vm_state.memory.read_bytes_fixed::<2>(imm_address) {
             Ok(val) => {
-                let val_decoded = RegValue::decode_fixed(&mut &val[..], 2)?;
-                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_decoded)
+                let val_decoded = u16::from_le_bytes(val);
+                continue_with_reg_write!(
+                    vm_state.pc,
+                    program_state,
+                    ins.rs1()?,
+                    val_decoded as RegValue
+                )
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -383,9 +387,9 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        match vm_state.memory.read_bytes(imm_address, 2) {
+        match vm_state.memory.read_bytes_fixed::<2>(imm_address) {
             Ok(val) => {
-                let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
+                let val_decoded = u16::from_le_bytes(val);
                 let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets2);
                 continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_extended)
             }
@@ -404,10 +408,15 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        match vm_state.memory.read_bytes(imm_address, 4) {
+        match vm_state.memory.read_bytes_fixed::<4>(imm_address) {
             Ok(val) => {
-                let val_decoded = RegValue::decode_fixed(&mut &val[..], 4)?;
-                continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_decoded)
+                let val_decoded = u32::from_le_bytes(val);
+                continue_with_reg_write!(
+                    vm_state.pc,
+                    program_state,
+                    ins.rs1()?,
+                    val_decoded as RegValue
+                )
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
             Err(MemoryError::AccessViolation(addr)) => mem_page_fault!(addr),
@@ -424,9 +433,9 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        match vm_state.memory.read_bytes(imm_address, 4) {
+        match vm_state.memory.read_bytes_fixed::<4>(imm_address) {
             Ok(val) => {
-                let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
+                let val_decoded = u32::from_le_bytes(val);
                 let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets4);
                 continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_extended)
             }
@@ -445,9 +454,9 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
-        match vm_state.memory.read_bytes(imm_address, 8) {
+        match vm_state.memory.read_bytes_fixed::<8>(imm_address) {
             Ok(val) => {
-                let val_decoded = RegValue::decode_fixed(&mut &val[..], 8)?;
+                let val_decoded = u64::from_le_bytes(val);
                 continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, val_decoded)
             }
             Err(MemoryError::Forbidden(_)) => mem_panic!(),
@@ -466,7 +475,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u8(vm_state.read_rs1(ins)? & 0xFF);
-        continue_with_mem_write!(vm_state.pc, program_state, imm_address, vec![rs1_val])
+        continue_with_mem_write!(vm_state.pc, program_state, imm_address, [rs1_val])
     }
 
     /// Store register value to memory as 16-bit unsigned integer
@@ -483,7 +492,7 @@ impl InstructionSet {
             vm_state.pc,
             program_state,
             imm_address,
-            rs1_val.encode_fixed(2)?
+            rs1_val.to_le_bytes()
         )
     }
 
@@ -501,7 +510,7 @@ impl InstructionSet {
             vm_state.pc,
             program_state,
             imm_address,
-            rs1_val.encode_fixed(4)?
+            rs1_val.to_le_bytes()
         )
     }
 
@@ -519,7 +528,7 @@ impl InstructionSet {
             vm_state.pc,
             program_state,
             imm_address,
-            rs1_val.encode_fixed(8)?
+            rs1_val.to_le_bytes()
         )
     }
 
@@ -536,7 +545,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        let value = vec![reg_to_u8(ins.imm2()? & 0xFF)];
+        let value = [reg_to_u8(ins.imm2()? & 0xFF)];
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -549,7 +558,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u16(ins.imm2()? & 0xFFFF).encode_fixed(2)?;
+        let value = reg_to_u16(ins.imm2()? & 0xFFFF).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -562,7 +571,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u32(ins.imm2()? & 0xFFFF_FFFF).encode_fixed(4)?;
+        let value = reg_to_u32(ins.imm2()? & 0xFFFF_FFFF).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -575,7 +584,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u64(ins.imm2()?).encode_fixed(8)?;
+        let value = reg_to_u64(ins.imm2()?).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -925,9 +934,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
-        let mut rs1_val_encoded = rs1_val.encode_fixed(8)?;
-        rs1_val_encoded.reverse();
-        let rev_val = u64::decode_fixed(&mut rs1_val_encoded.as_slice(), 8)?;
+        let rev_val = rs1_val.swap_bytes();
         continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, rev_val)
     }
 
@@ -944,7 +951,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = vec![reg_to_u8(vm_state.read_rs1(ins)? & 0xFF)];
+        let value = [reg_to_u8(vm_state.read_rs1(ins)? & 0xFF)];
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -957,7 +964,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF).encode_fixed(2)?;
+        let value = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -970,7 +977,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF).encode_fixed(4)?;
+        let value = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -983,7 +990,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        let value = reg_to_u64(vm_state.read_rs1(ins)?).encode_fixed(8)?;
+        let value = reg_to_u64(vm_state.read_rs1(ins)?).to_le_bytes();
         continue_with_mem_write!(vm_state.pc, program_state, address, value)
     }
 
@@ -1036,9 +1043,9 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        match vm_state.memory.read_bytes(address, 2) {
+        match vm_state.memory.read_bytes_fixed::<2>(address) {
             Ok(val) => {
-                let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
+                let val_decoded = u16::from_le_bytes(val);
                 continue_with_reg_write!(
                     vm_state.pc,
                     program_state,
@@ -1061,9 +1068,9 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        match vm_state.memory.read_bytes(address, 2) {
+        match vm_state.memory.read_bytes_fixed::<2>(address) {
             Ok(val) => {
-                let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
+                let val_decoded = u16::from_le_bytes(val);
                 let signed_val = VMUtils::u16_to_i16(val_decoded);
                 let unsigned_val = VMUtils::i64_to_u64(signed_val as i64);
                 continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, unsigned_val)
@@ -1083,9 +1090,9 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        match vm_state.memory.read_bytes(address, 4) {
+        match vm_state.memory.read_bytes_fixed::<4>(address) {
             Ok(val) => {
-                let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
+                let val_decoded = u32::from_le_bytes(val);
                 continue_with_reg_write!(
                     vm_state.pc,
                     program_state,
@@ -1108,9 +1115,9 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        match vm_state.memory.read_bytes(address, 4) {
+        match vm_state.memory.read_bytes_fixed::<4>(address) {
             Ok(val) => {
-                let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
+                let val_decoded = u32::from_le_bytes(val);
                 let signed_val = VMUtils::u32_to_i32(val_decoded);
                 let unsigned_val = VMUtils::i64_to_u64(signed_val as i64);
                 continue_with_reg_write!(vm_state.pc, program_state, ins.rs1()?, unsigned_val)
@@ -1130,9 +1137,9 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
-        match vm_state.memory.read_bytes(address, 8) {
+        match vm_state.memory.read_bytes_fixed::<8>(address) {
             Ok(val) => {
-                let val_decoded = u64::decode_fixed(&mut &val[..], 8)?;
+                let val_decoded = u64::from_le_bytes(val);
                 continue_with_reg_write!(
                     vm_state.pc,
                     program_state,

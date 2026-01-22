@@ -1014,12 +1014,12 @@ mod lookup_tests {
                     gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                     r7_write: Some(self.preimages_data_len as RegValue),
                     r8_write: None,
-                    memory_write: Some(MemWrite {
-                        buf_offset: self.mem_write_offset as MemAddress,
-                        write_data: self.preimages_data[self.preimages_read_offset
+                    memory_write: Some(MemWrite::new(
+                        self.mem_write_offset as MemAddress,
+                        self.preimages_data[self.preimages_read_offset
                             ..self.preimages_read_offset + self.preimages_read_size]
                             .to_vec(),
-                    }),
+                    )),
                 },
             }
         }
@@ -1305,12 +1305,12 @@ mod read_tests {
                     gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                     r7_write: Some(self.storage_data_len as RegValue),
                     r8_write: None,
-                    memory_write: Some(MemWrite {
-                        buf_offset: self.mem_write_offset as MemAddress,
-                        write_data: self.storage_data[self.storage_read_offset
+                    memory_write: Some(MemWrite::new(
+                        self.mem_write_offset as MemAddress,
+                        self.storage_data[self.storage_read_offset
                             ..self.storage_read_offset + self.storage_read_size]
                             .to_vec(),
-                    }),
+                    )),
                 },
             }
         }
