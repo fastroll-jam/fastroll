@@ -61,12 +61,12 @@ impl InstructionSet {
         target: MemAddress,
         condition: bool,
     ) -> Result<(ExitReason, RegValue), VMCoreError> {
-        match (
-            condition,
-            program_state
-                .basic_block_start_indices
-                .contains(&(target as usize)),
-        ) {
+        let is_basic_block_start = program_state
+            .basic_block_start_indices
+            .get(target as usize)
+            .map(|bit| *bit)
+            .unwrap_or(false);
+        match (condition, is_basic_block_start) {
             (false, _) => Ok((
                 ExitReason::Continue,
                 Interpreter::next_pc(vm_state.pc, program_state),
@@ -110,7 +110,9 @@ impl InstructionSet {
 
         if program_state
             .basic_block_start_indices
-            .contains(&(target as usize))
+            .get(target as usize)
+            .map(|bit| *bit)
+            .unwrap_or(false)
         {
             Ok((ExitReason::Continue, target as RegValue))
         } else {
