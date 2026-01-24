@@ -1,11 +1,11 @@
 use crate::program::instruction::{opcode::Opcode, Instruction};
 use bitvec::prelude::*;
 use fr_pvm_types::common::MemAddress;
-use std::collections::HashSet;
 
 pub(crate) const NOT_INSTRUCTION_INDEX: u32 = u32::MAX;
 
 pub type OpcodeBitmask = BitVec<u8, Lsb0>;
+pub type BasicBlockBitMask = BitVec<u8, Lsb0>;
 
 pub type InstructionIndex = u32;
 
@@ -21,7 +21,7 @@ pub struct ProgramState {
     /// `k`: Opcode bitmask.
     pub opcode_bitmask: OpcodeBitmask,
     /// Opcode indices that are beginning of basic-blocks.
-    pub basic_block_start_indices: HashSet<usize>,
+    pub basic_block_start_indices: BasicBlockBitMask,
     /// Decoded instructions indexed by instruction order.
     pub decoded_instructions: Vec<Instruction>,
     /// Lookup from program counter (byte index) to decoded instruction index.

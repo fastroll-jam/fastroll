@@ -40,6 +40,8 @@ impl ProgramLoader {
         )?;
         program_state.decoded_instructions = decoded_instructions;
         program_state.instruction_lookup = instruction_lookup;
+        program_state.basic_block_start_indices =
+            bitvec![u8, Lsb0; 0; program_state.instructions.len() + 1];
         Self::set_basic_block_start_indices(program_state)?;
         tracing::info!("Program loaded.");
         if tracing::enabled!(Level::TRACE) {
@@ -88,7 +90,7 @@ impl ProgramLoader {
     /// Collects opcode indices that indicate beginning of basic blocks and sets the
     /// `basic_block_start_indices` of the `ProgramState`.
     fn set_basic_block_start_indices(program: &mut ProgramState) -> Result<(), VMCoreError> {
-        program.basic_block_start_indices.insert(0);
+        program.basic_block_start_indices.set(0, true);
         let instructions_len = program.instructions.len();
         for n in 1..instructions_len {
             if program
@@ -101,7 +103,9 @@ impl ProgramLoader {
                     if inst.op.is_termination_opcode() {
                         let skip = program.skip_distance(n).unwrap_or(MAX_SKIP_DISTANCE);
                         let next_op_index = n + 1 + skip;
-                        program.basic_block_start_indices.insert(next_op_index);
+                        if next_op_index < program.basic_block_start_indices.len() {
+                            program.basic_block_start_indices.set(next_op_index, true);
+                        }
                     }
                 }
             }
