@@ -51,9 +51,37 @@ pub struct StateCommitArtifact {
     dirty_cache_entries: Vec<(StateKey, CacheEntry)>,
 }
 
+/// Compact representation of staged state changes without mutating storage.
+/// Used by fuzzing to reconstruct a staged block's posterior state.
+#[derive(Clone, Debug)]
+pub enum StateDelta {
+    Remove,
+    Write(Vec<u8>),
+}
+
 impl StateCommitArtifact {
     pub fn state_root(&self) -> &MerkleRoot {
         &self.db_write_set_with_root.new_merkle_root
+    }
+
+    /// Returns the state delta entries represented by this staged commit.
+    /// This is primarily used by fuzzing utilities to reconstruct a staged state
+    /// without applying the commit to storage.
+    pub fn state_delta_entries(&self) -> Result<Vec<(StateKey, StateDelta)>, StateManagerError> {
+        let mut state_deltas = Vec::with_capacity(self.dirty_cache_entries.len());
+        for (key, entry) in &self.dirty_cache_entries {
+            let delta = match entry.status {
+                CacheEntryStatus::Dirty(StateMut::Remove) => StateDelta::Remove,
+                CacheEntryStatus::Dirty(StateMut::Add)
+                | CacheEntryStatus::Dirty(StateMut::Update)
+                | CacheEntryStatus::Clean => {
+                    let encoded = entry.value.as_ref().encode()?;
+                    StateDelta::Write(encoded)
+                }
+            };
+            state_deltas.push((key.clone(), delta));
+        }
+        Ok(state_deltas)
     }
 }
 

@@ -119,6 +119,8 @@ impl From<AsnRawState> for RawState {
 
 // --- Test Harness
 
+/// Prints a human-readable diff of expected vs actual raw state entries.
+/// Timeslot mismatch is handled specially to avoid noisy output.
 pub fn print_state_diff(expected_post_state: &RawState, actual_state: &HashMap<StateKey, Vec<u8>>) {
     let timeslot_state_key = get_simple_state_key(StateKeyConstant::Timeslot);
     let expected_timeslot = expected_post_state
