@@ -9,12 +9,18 @@ use crate::{
 };
 use fr_block::types::block::{Block, BlockHeader, BlockHeaderError};
 use fr_common::{
-    utils::serde::{FileReader, FileReaderError},
+    utils::{
+        serde::{FileReader, FileReaderError},
+        tracing::setup_timed_tracing,
+    },
     versions::{CLIENT_VERSION, SPEC_VERSION},
     ByteEncodable,
 };
-use fr_test_utils::importer_harness::{AsnGenesisBlockTestCase, AsnTestCase};
+use fr_test_utils::importer_harness::{
+    print_state_diff, AsnGenesisBlockTestCase, AsnTestCase, RawState,
+};
 use std::{
+    collections::HashMap,
     fs,
     io::Error as IoError,
     path::{Path, PathBuf},
@@ -320,9 +326,26 @@ where
         on_import(case_path, import_start.elapsed());
         match response {
             FuzzMessageKind::StateRoot(root) => {
+                // Print state diff on state root mismatch
                 if root.0 != expected_root {
                     let header_hash = block.header.hash()?;
-                    let _ = client.get_state(GetState(header_hash)).await?;
+                    match client.get_state(GetState(header_hash)).await {
+                        Ok(actual_state) => {
+                            let expected_post_state: RawState = case.post_state.clone().into();
+                            let mut actual_state_map = HashMap::new();
+                            for kv in &actual_state.0 {
+                                actual_state_map
+                                    .insert(kv.key.clone(), kv.value.clone().into_vec());
+                            }
+                            print_state_diff(&expected_post_state, &actual_state_map);
+                        }
+                        Err(err) => {
+                            tracing::warn!(
+                                "Failed to fetch state for diff ({}): {err:?}",
+                                case_path.display()
+                            );
+                        }
+                    }
                     return Err(FuzzerError::StateRootMismatch {
                         path: case_path.display().to_string(),
                         expected: expected_root.to_hex(),
@@ -332,6 +355,9 @@ where
             }
             FuzzMessageKind::Error(err) => {
                 if case.pre_state.state_root != case.post_state.state_root {
+                    tracing::error!(
+                        "Target rejected block while test vector expects transitioned post state"
+                    );
                     return Err(FuzzerError::FuzzImportError {
                         path: case_path.display().to_string(),
                         error: String::from_utf8_lossy(&err).into_owned(),
@@ -356,6 +382,7 @@ where
 }
 
 pub async fn run_fuzz_trace_dir(trace_dir: &str) -> Result<(), FuzzerError> {
+    setup_timed_tracing();
     run_fuzz_trace_dir_internal(trace_dir, |_path, _elapsed| {}).await
 }
 

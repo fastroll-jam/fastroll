@@ -21,7 +21,9 @@ use fr_node::{
 };
 use fr_state::{
     error::StateManagerError,
-    manager::{LastStagingSetTransitionContext, RingContext, StateCommitArtifact, StateManager},
+    manager::{
+        LastStagingSetTransitionContext, RingContext, StateCommitArtifact, StateDelta, StateManager,
+    },
 };
 use fr_storage::node_storage::{NodeStorage, NodeStorageError};
 use std::{
@@ -235,6 +237,92 @@ impl FuzzTargetRunner {
         }
     }
 
+    /// Applies staged state deltas to the base key set to reflect a staged block.
+    fn apply_state_deltas_to_state_keys(
+        &self,
+        state_keys: &BTreeSet<TrieKey>,
+        state_deltas: &HashMap<TrieKey, StateDelta>,
+    ) -> BTreeSet<TrieKey> {
+        let mut keys = state_keys.clone();
+        for (key, delta) in state_deltas {
+            match delta {
+                StateDelta::Remove => {
+                    keys.remove(key);
+                }
+                StateDelta::Write(_) => {
+                    keys.insert(key.clone());
+                }
+            }
+        }
+        keys
+    }
+
+    /// Collects raw state values for the provided keys, applying optional staged deltas.
+    async fn collect_state_from_keys(
+        &self,
+        state_keys: &BTreeSet<TrieKey>,
+        state_deltas: Option<&HashMap<TrieKey, StateDelta>>,
+    ) -> Result<State, FuzzTargetError> {
+        let state_manager = self.node_storage().state_manager();
+        let mut post_state = Vec::new();
+        for state_key in state_keys.iter() {
+            if let Some(deltas) = state_deltas {
+                if let Some(delta) = deltas.get(state_key) {
+                    match delta {
+                        StateDelta::Remove => continue,
+                        StateDelta::Write(val) => {
+                            post_state.push(KeyValue {
+                                key: state_key.clone(),
+                                value: ByteSequence::from_vec(val.clone()),
+                            });
+                            continue;
+                        }
+                    }
+                }
+            }
+            if let Some(val) = state_manager.get_raw_state_entry(state_key).await? {
+                post_state.push(KeyValue {
+                    key: state_key.clone(),
+                    value: ByteSequence::from_vec(val),
+                });
+            }
+        }
+        Ok(State(post_state))
+    }
+
+    /// Builds the posterior state for a given header hash.
+    /// For staged forks, this applies the staged delta on the last finalized state.
+    async fn build_state_for_hash(
+        &self,
+        requested_header_hash: &HeaderHash,
+    ) -> Result<State, FuzzTargetError> {
+        if self.latest_state_keys.header_hash == *requested_header_hash {
+            return self
+                .collect_state_from_keys(&self.latest_state_keys.state_keys, None)
+                .await;
+        }
+
+        if let Some(staged_block) = self.fork_state.staged_blocks.get(requested_header_hash) {
+            let delta_entries = match &staged_block.state_commit_artifact {
+                Some(artifact) => artifact.state_delta_entries()?,
+                None => Vec::new(),
+            };
+            let deltas: HashMap<TrieKey, StateDelta> = delta_entries.into_iter().collect();
+            let state_keys =
+                self.apply_state_deltas_to_state_keys(&self.latest_state_keys.state_keys, &deltas);
+            return self
+                .collect_state_from_keys(&state_keys, Some(&deltas))
+                .await;
+        }
+
+        tracing::error!(
+            "Unknown header hash requested ({requested_header_hash}); returning latest state ({})",
+            self.latest_state_keys.header_hash
+        );
+        self.collect_state_from_keys(&self.latest_state_keys.state_keys, None)
+            .await
+    }
+
     fn determine_block_commit_mode(&self, block: &Block) -> BlockCommitMode {
         if !self.fuzz_features.with_forking || block.is_genesis() {
             return BlockCommitMode::Immediate;
@@ -286,6 +374,8 @@ impl FuzzTargetRunner {
         self.node_storage()
             .header_db()
             .set_best_header(staged_block.header);
+        self.latest_state_keys
+            .update_header_hash(header_hash.clone());
         self.fork_state.set_last_finalized(header_hash);
         Ok(())
     }
@@ -457,8 +547,6 @@ impl FuzzTargetRunner {
                 let storage = self.node_storage();
                 let block = import_block.0;
                 let header_hash = block.header.hash()?;
-                self.latest_state_keys
-                    .update_header_hash(header_hash.clone());
 
                 // Resolve forks if the new block is extending one of the staged blocks
                 self.finalize_if_parent_staged(block.header.parent_hash())
@@ -486,6 +574,8 @@ impl FuzzTargetRunner {
                         match block_commit_mode {
                             BlockCommitMode::Immediate => {
                                 self.apply_account_state_changes(&account_state_changes);
+                                self.latest_state_keys
+                                    .update_header_hash(header_hash.clone());
                                 self.fork_state.set_last_finalized(header_hash.clone());
                             }
                             BlockCommitMode::StageOnly => {
@@ -540,24 +630,9 @@ impl FuzzTargetRunner {
             FuzzMessageKind::GetState(get_state) => {
                 tracing::info!("[RECV][GetState] Received message");
                 let requested_header_hash = get_state.0;
-                if self.latest_state_keys.header_hash != requested_header_hash {
-                    tracing::error!("Latest header hash mismatch: requested ({requested_header_hash}) observed ({})", self.latest_state_keys.header_hash);
-                    // Send `State` message anyway
-                }
-
-                let state_manager = self.node_storage().state_manager();
-                let mut post_state = Vec::new();
-                // State keys are ordered (BTreeSet)
-                for state_key in self.latest_state_keys.state_keys.iter() {
-                    if let Some(val) = state_manager.get_raw_state_entry(state_key).await? {
-                        post_state.push(KeyValue {
-                            key: state_key.clone(),
-                            value: ByteSequence::from_vec(val),
-                        });
-                    }
-                }
-                StreamUtils::send_message(stream, FuzzMessageKind::State(State(post_state)))
-                    .await?;
+                // GetState must return the posterior state for the requested header hash.
+                let state = self.build_state_for_hash(&requested_header_hash).await?;
+                StreamUtils::send_message(stream, FuzzMessageKind::State(state)).await?;
                 tracing::info!("Session terminated by GetState request");
                 Ok(())
             }
