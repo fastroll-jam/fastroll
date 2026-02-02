@@ -64,7 +64,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
 
         let service_id_reg = vm.read_reg(7);
         let service_id = if service_id_reg == u64::MAX
-            || state_provider.account_exists(refine_service_id).await?
+            && state_provider.account_exists(refine_service_id).await?
         {
             refine_service_id
         } else {
