@@ -327,6 +327,25 @@ async fn add_provided_preimages(
         let preimages_key = hash::<Blake2b256>(&octets)?;
         let lookups_key: LookupsKey = (preimages_key.clone(), octets.len() as u32);
 
+        // Ignore preimages for missing or removed accounts, or if the lookup request was dropped.
+        if !partial_state_union
+            .accounts_sandbox
+            .account_exists_active(state_manager.clone(), service_id)
+            .await?
+        {
+            continue;
+        }
+        let Some(lookups_entry) = partial_state_union
+            .accounts_sandbox
+            .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
+            .await?
+        else {
+            continue;
+        };
+        if lookups_entry.timeslots_length() != 0 {
+            continue;
+        }
+
         // Insert an entry to the preimages storage
         partial_state_union
             .accounts_sandbox
