@@ -208,7 +208,12 @@ async fn transition_service_account(
         _ => (),
     }
 
+    let metadata_removed = matches!(sandbox.metadata.status(), SandboxEntryStatus::Removed);
+
     for (k, v) in sandbox.storage.iter() {
+        if metadata_removed && *v.status() != SandboxEntryStatus::Removed {
+            continue;
+        }
         match v.status() {
             SandboxEntryStatus::Added => {
                 state_manager
@@ -265,6 +270,9 @@ async fn transition_service_account(
     }
 
     for (k, v) in sandbox.preimages.iter() {
+        if metadata_removed && *v.status() != SandboxEntryStatus::Removed {
+            continue;
+        }
         match v.status() {
             SandboxEntryStatus::Added => {
                 state_manager
@@ -320,6 +328,9 @@ async fn transition_service_account(
     }
 
     for (k, v) in sandbox.lookups.iter() {
+        if metadata_removed && *v.status() != SandboxEntryStatus::Removed {
+            continue;
+        }
         match v.status() {
             SandboxEntryStatus::Added => {
                 state_manager
