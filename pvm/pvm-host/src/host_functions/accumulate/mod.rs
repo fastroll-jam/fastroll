@@ -78,15 +78,18 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         }
 
         // Read always-accumulate services from the memory
+        let Some(always_accumulate_len) = always_accumulates_count.checked_mul(12) else {
+            host_call_panic!()
+        };
         if !vm
             .memory
-            .is_address_range_readable(always_accumulate_offset, 12 * always_accumulates_count)
+            .is_address_range_readable(always_accumulate_offset, always_accumulate_len)
         {
             host_call_panic!()
         }
         let Ok(always_accumulate_services_data) = vm
             .memory
-            .read_bytes(always_accumulate_offset, 12 * always_accumulates_count)
+            .read_bytes(always_accumulate_offset, always_accumulate_len)
         else {
             host_call_panic!()
         };
