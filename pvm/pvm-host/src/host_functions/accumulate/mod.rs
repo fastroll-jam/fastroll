@@ -555,7 +555,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Sender Balance (Err: CASH)
 
         let amount = vm.read_reg(8);
-        if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
+        let Some(remaining_balance) = accumulator_balance.checked_sub(amount) else {
+            continue_cash!()
+        };
+        if remaining_balance < accumulator_threshold_balance {
             continue_cash!()
         }
 
