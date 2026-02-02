@@ -1198,7 +1198,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let service_id = if service_id_reg == u64::MAX {
             service_id
         } else {
-            service_id_reg as ServiceId
+            let Ok(service_id) = vm.read_reg_as_service_id(7) else {
+                continue_who!()
+            };
+            service_id
         };
 
         // Service account not found

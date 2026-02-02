@@ -4234,6 +4234,84 @@ mod provide_tests {
     }
 
     #[tokio::test]
+    async fn test_provide_service_id_out_of_range_returns_who() -> Result<(), Box<dyn Error>> {
+        let fixture = ProvideTestFixture::default();
+        let out_of_range_service = (1u64 << 32) + fixture.provide_service as u64;
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(7, out_of_range_service)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_provide(
+            fixture.provide_service,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, ProvideTestFixture::host_call_result_who());
+
+        // Check partial state after host-call (should remain unchanged)
+        let x = context.get_mut_accumulate_x().unwrap();
+        assert!(!x.provided_preimages.contains(&(
+            fixture.provide_service,
+            Octets::from_vec(fixture.preimage_data.clone())
+        )));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_provide_invalid_service_id_returns_who() -> Result<(), Box<dyn Error>> {
+        let fixture = ProvideTestFixture::default();
+        let invalid_service_id = u64::from(u32::MAX) + 1;
+        let spoofed_service_id = 0;
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(7, invalid_service_id)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(
+            MockStateManager::builder()
+                .with_empty_account(fixture.accumulate_host)
+                .with_empty_account(spoofed_service_id)
+                .with_lookups_entry(
+                    spoofed_service_id,
+                    (fixture.preimage_hash.clone(), fixture.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![]).unwrap(),
+                    },
+                ),
+        );
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_provide(
+            fixture.accumulate_host,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, ProvideTestFixture::host_call_result_who());
+
+        // Check partial state after host-call (should remain unchanged)
+        let x = context.get_mut_accumulate_x().unwrap();
+        assert!(!x.provided_preimages.contains(&(
+            spoofed_service_id,
+            Octets::from_vec(fixture.preimage_data.clone())
+        )));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_provide_preimage_not_solicited() -> Result<(), Box<dyn Error>> {
         let fixture = ProvideTestFixture::default();
         let vm = fixture

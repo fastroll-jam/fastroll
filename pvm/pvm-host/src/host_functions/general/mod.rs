@@ -263,10 +263,13 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         // --- Check Preimage (Err: NONE)
 
         let service_id_reg = vm.read_reg(7);
-        let service_id = if service_id_reg == u64::MAX || service_id_reg == service_id as u64 {
+        let service_id = if service_id_reg == u64::MAX {
             service_id
         } else {
-            service_id_reg as ServiceId
+            let Ok(service_id_reg) = vm.read_reg_as_service_id(7) else {
+                continue_none!()
+            };
+            service_id_reg
         };
         let Ok(Some(entry)) = accounts_sandbox
             .get_account_preimages_entry(state_provider, service_id, &hash)
@@ -340,7 +343,10 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         let service_id = if service_id_reg == u64::MAX {
             service_id
         } else {
-            service_id_reg as ServiceId
+            let Ok(service_id_reg) = vm.read_reg_as_service_id(7) else {
+                continue_none!()
+            };
+            service_id_reg
         };
         let Ok(Some(entry)) = accounts_sandbox
             .get_account_storage_entry(state_provider, service_id, &storage_key)
@@ -533,7 +539,10 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         let service_id = if service_id_reg == u64::MAX {
             service_id
         } else {
-            service_id_reg as ServiceId
+            let Ok(service_id_reg) = vm.read_reg_as_service_id(7) else {
+                continue_none!()
+            };
+            service_id_reg
         };
         let Ok(Some(metadata)) = accounts_sandbox
             .get_account_metadata(state_provider, service_id)

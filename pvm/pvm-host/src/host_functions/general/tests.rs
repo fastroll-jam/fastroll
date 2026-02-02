@@ -1104,6 +1104,34 @@ mod lookup_tests {
     }
 
     #[tokio::test]
+    async fn test_lookup_service_id_out_of_range_returns_none() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = LookupTestFixture::default();
+        let out_of_range_service_id = (1u64 << 32) + fixture.other_service_id as u64;
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(7, out_of_range_service_id)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .with_mem_writable_range(fixture.mem_writable_range.clone())?
+            .build();
+
+        let state_provider =
+            Arc::new(fixture.prepare_state_provider(Some(fixture.other_service_id)));
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+        let res = GeneralHostFunction::<MockStateManager>::host_lookup(
+            fixture.accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, LookupTestFixture::host_call_result_none());
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_lookup_account_not_found() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = LookupTestFixture::default();
@@ -1399,6 +1427,38 @@ mod read_tests {
         )
         .await?;
         assert_eq!(res, fixture.host_call_result_successful());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_service_id_out_of_range_returns_none() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = ReadTestFixture::default();
+        let out_of_range_service_id = (1u64 << 32) + fixture.other_service_id as u64;
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(7, out_of_range_service_id)
+            .with_mem_data(
+                fixture.storage_key_mem_offset,
+                fixture.storage_key.as_slice(),
+            )?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .with_mem_writable_range(fixture.mem_writable_range.clone())?
+            .build();
+
+        let state_provider =
+            Arc::new(fixture.prepare_state_provider(Some(fixture.other_service_id)));
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+        let res = GeneralHostFunction::<MockStateManager>::host_read(
+            fixture.accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, ReadTestFixture::host_call_result_none());
         Ok(())
     }
 
@@ -2058,6 +2118,30 @@ mod info_tests {
         )
         .await?;
         assert_eq!(res, fixture.host_call_result_successful());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_info_service_id_out_of_range_returns_none() -> Result<(), Box<dyn Error>> {
+        let fixture = InfoTestFixture::default();
+        let out_of_range_service_id = (1u64 << 32) + fixture.info_service_id as u64;
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(7, out_of_range_service_id)
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let res = GeneralHostFunction::<MockStateManager>::host_info(
+            fixture.accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, InfoTestFixture::host_call_result_none());
         Ok(())
     }
 
