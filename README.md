@@ -185,7 +185,6 @@ Top-level directories and their roles:
 - `scripts/`: Utility scripts (e.g., flamegraph generation).
 - `state/`: Global state types, stores, state cache, manager, and merkle interfaces.
     - `state-merkle-v2/`: Current merkle trie and store implementation.
-    - `state-merkle/`: Deprecated merkle trie (kept for reference).
 - `storage/`: Node storage layer wiring different store types: state, merkle, header, extrinsics, etc.
 - `test-utils/`: Test harnesses and helpers.
     - `asn-types/`: Type conversion between Rust and ASN types for test vectors (JSON support)
