@@ -40,20 +40,27 @@ pub struct OuterAccumulationResult {
 #[inline]
 fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> usize {
     let mut max_processable = 0;
-    let mut gas_counter = 0;
+    let mut gas_counter: UnsignedGas = 0;
 
     for report in reports {
-        let report_gas_usage: UnsignedGas = report
-            .digests
-            .iter()
-            .map(|wd| wd.accumulate_gas_limit)
-            .sum();
+        let mut report_gas_limit: UnsignedGas = 0;
+        for digest in report.digests.iter() {
+            let Some(digests_gas_limit_sum) =
+                report_gas_limit.checked_add(digest.accumulate_gas_limit)
+            else {
+                return max_processable;
+            };
+            report_gas_limit = digests_gas_limit_sum;
+        }
 
-        if gas_counter + report_gas_usage > gas_limit {
+        let Some(next_gas_counter) = gas_counter.checked_add(report_gas_limit) else {
+            break;
+        };
+        if next_gas_counter > gas_limit {
             break;
         }
 
-        gas_counter += report_gas_usage;
+        gas_counter = next_gas_counter;
         max_processable += 1
     }
 
@@ -130,7 +137,10 @@ pub async fn accumulate_outer(
 
         deferred_transfers = new_deferred_transfers;
         report_idx += processable_reports_prediction;
-        let gas_used = service_gas_pairs.iter().map(|pair| pair.gas).sum();
+        let gas_used = service_gas_pairs
+            .iter()
+            .try_fold(0u64, |acc, pair| acc.checked_add(pair.gas))
+            .ok_or(PVMInvokeError::GasOverflow)?;
         remaining_gas_limit = remaining_gas_limit.saturating_sub(gas_used);
         service_gas_pairs_flattened.extend(service_gas_pairs);
         service_output_pairs_flattened.extend(output_pairs.0);
@@ -612,22 +622,24 @@ async fn accumulate_single_service(
         .cloned()
         .unwrap_or(0);
 
-    let reports_gas_aggregated: UnsignedGas = reports
+    let reports_gas_aggregated = reports
         .iter()
         .flat_map(|wr| wr.digests.iter())
         .filter(|wd| wd.service_id == service_id)
-        .map(|wd| wd.accumulate_gas_limit)
-        .sum();
+        .try_fold(0u64, |acc, wd| acc.checked_add(wd.accumulate_gas_limit))
+        .ok_or(PVMInvokeError::GasOverflow)?;
+    gas_limit = gas_limit
+        .checked_add(reports_gas_aggregated)
+        .ok_or(PVMInvokeError::GasOverflow)?;
 
-    gas_limit += reports_gas_aggregated;
-
-    let deferred_transfers_gas_aggregated: UnsignedGas = prev_deferred_transfers
+    let deferred_transfers_gas_aggregated = prev_deferred_transfers
         .iter()
         .filter(|&transfer| transfer.to == service_id)
-        .map(|transfer| transfer.gas_limit)
-        .sum();
-
-    gas_limit += deferred_transfers_gas_aggregated;
+        .try_fold(0u64, |acc, transfer| acc.checked_add(transfer.gas_limit))
+        .ok_or(PVMInvokeError::GasOverflow)?;
+    gas_limit = gas_limit
+        .checked_add(deferred_transfers_gas_aggregated)
+        .ok_or(PVMInvokeError::GasOverflow)?;
 
     AccumulateInvocation::<StateManager>::accumulate(
         state_manager,
