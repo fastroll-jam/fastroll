@@ -278,7 +278,8 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
 
     /// Returns `true` if the given service ID is already known, either in the accounts sandbox
     /// or in the global state. Even if the sandbox entry is marked for removed, returns `true`.
-    pub async fn account_exists_anywhere(
+    #[cfg(test)]
+    pub(crate) async fn account_exists_anywhere(
         &self,
         state_provider: Arc<S>,
         service_id: ServiceId,
@@ -287,6 +288,28 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
             Ok(true)
         } else {
             Ok(false)
+        }
+    }
+
+    /// Returns `true` if the account exists in the effective partial state:
+    /// - `Removed` entries are treated as non-existent.
+    /// - `Added`/`Updated`/`Clean` entries are treated as existing.
+    pub async fn account_exists_effective(
+        &self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+    ) -> Result<bool, PartialStateError> {
+        if let Some(account_sandbox) = self.get(&service_id) {
+            if matches!(
+                account_sandbox.metadata.status(),
+                SandboxEntryStatus::Removed
+            ) {
+                Ok(false)
+            } else {
+                Ok(true)
+            }
+        } else {
+            Ok(state_provider.account_exists(service_id).await?)
         }
     }
 
@@ -1303,7 +1326,7 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
         loop {
             if !self
                 .accounts_sandbox
-                .account_exists_anywhere(state_provider.clone(), check_id)
+                .account_exists_effective(state_provider.clone(), check_id)
                 .await?
             {
                 return Ok(check_id);
