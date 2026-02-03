@@ -78,15 +78,18 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         }
 
         // Read always-accumulate services from the memory
+        let Some(always_accumulate_len) = always_accumulates_count.checked_mul(12) else {
+            host_call_panic!()
+        };
         if !vm
             .memory
-            .is_address_range_readable(always_accumulate_offset, 12 * always_accumulates_count)
+            .is_address_range_readable(always_accumulate_offset, always_accumulate_len)
         {
             host_call_panic!()
         }
         let Ok(always_accumulate_services_data) = vm
             .memory
-            .read_bytes(always_accumulate_offset, 12 * always_accumulates_count)
+            .read_bytes(always_accumulate_offset, always_accumulate_len)
         else {
             host_call_panic!()
         };
@@ -552,7 +555,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Sender Balance (Err: CASH)
 
         let amount = vm.read_reg(8);
-        if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
+        let Some(remaining_balance) = accumulator_balance.checked_sub(amount) else {
+            continue_cash!()
+        };
+        if remaining_balance < accumulator_threshold_balance {
             continue_cash!()
         }
 
@@ -1198,7 +1204,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let service_id = if service_id_reg == u64::MAX {
             service_id
         } else {
-            service_id_reg as ServiceId
+            let Ok(service_id) = vm.read_reg_as_service_id(7) else {
+                continue_who!()
+            };
+            service_id
         };
 
         // Service account not found

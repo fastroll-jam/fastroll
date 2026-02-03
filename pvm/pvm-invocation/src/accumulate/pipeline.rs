@@ -40,20 +40,27 @@ pub struct OuterAccumulationResult {
 #[inline]
 fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> usize {
     let mut max_processable = 0;
-    let mut gas_counter = 0;
+    let mut gas_counter: UnsignedGas = 0;
 
     for report in reports {
-        let report_gas_usage: UnsignedGas = report
-            .digests
-            .iter()
-            .map(|wd| wd.accumulate_gas_limit)
-            .sum();
+        let mut report_gas_limit: UnsignedGas = 0;
+        for digest in report.digests.iter() {
+            let Some(digests_gas_limit_sum) =
+                report_gas_limit.checked_add(digest.accumulate_gas_limit)
+            else {
+                return max_processable;
+            };
+            report_gas_limit = digests_gas_limit_sum;
+        }
 
-        if gas_counter + report_gas_usage > gas_limit {
+        let Some(next_gas_counter) = gas_counter.checked_add(report_gas_limit) else {
+            break;
+        };
+        if next_gas_counter > gas_limit {
             break;
         }
 
-        gas_counter += report_gas_usage;
+        gas_counter = next_gas_counter;
         max_processable += 1
     }
 
@@ -111,13 +118,14 @@ pub async fn accumulate_outer(
             Vec::new()
         };
 
+        let prev_deferred_transfers = deferred_transfers;
         let ParallelAccumulationResult {
             service_gas_pairs,
             new_deferred_transfers,
             service_output_pairs: output_pairs,
         } = accumulate_parallel(
             state_manager.clone(),
-            Arc::new(deferred_transfers),
+            Arc::new(prev_deferred_transfers.clone()),
             Arc::new(reports_to_process),
             Arc::new(always_accumulate_services),
             &mut partial_state_union,
@@ -130,8 +138,22 @@ pub async fn accumulate_outer(
 
         deferred_transfers = new_deferred_transfers;
         report_idx += processable_reports_prediction;
-        let gas_used = service_gas_pairs.iter().map(|pair| pair.gas).sum();
-        remaining_gas_limit = remaining_gas_limit.saturating_sub(gas_used);
+        let gas_used = service_gas_pairs
+            .iter()
+            .try_fold(0u64, |acc, pair| acc.checked_add(pair.gas))
+            .ok_or(PVMInvokeError::GasOverflow)?;
+        let deferred_transfer_gas =
+            prev_deferred_transfers
+                .iter()
+                .try_fold(0u64, |acc, transfer| {
+                    acc.checked_add(transfer.gas_limit)
+                        .ok_or(PVMInvokeError::GasOverflow)
+                })?;
+        remaining_gas_limit = remaining_gas_limit
+            .checked_add(deferred_transfer_gas)
+            .ok_or(PVMInvokeError::GasOverflow)?
+            .checked_sub(gas_used)
+            .ok_or(PVMInvokeError::GasOverflow)?;
         service_gas_pairs_flattened.extend(service_gas_pairs);
         service_output_pairs_flattened.extend(output_pairs.0);
     }
@@ -326,6 +348,25 @@ async fn add_provided_preimages(
         // Construct storage keys
         let preimages_key = hash::<Blake2b256>(&octets)?;
         let lookups_key: LookupsKey = (preimages_key.clone(), octets.len() as u32);
+
+        // Ignore preimages for missing or removed accounts, or if the lookup request was dropped.
+        if !partial_state_union
+            .accounts_sandbox
+            .account_exists_active(state_manager.clone(), service_id)
+            .await?
+        {
+            continue;
+        }
+        let Some(lookups_entry) = partial_state_union
+            .accounts_sandbox
+            .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
+            .await?
+        else {
+            continue;
+        };
+        if lookups_entry.timeslots_length() != 0 {
+            continue;
+        }
 
         // Insert an entry to the preimages storage
         partial_state_union
@@ -593,22 +634,24 @@ async fn accumulate_single_service(
         .cloned()
         .unwrap_or(0);
 
-    let reports_gas_aggregated: UnsignedGas = reports
+    let reports_gas_aggregated = reports
         .iter()
         .flat_map(|wr| wr.digests.iter())
         .filter(|wd| wd.service_id == service_id)
-        .map(|wd| wd.accumulate_gas_limit)
-        .sum();
+        .try_fold(0u64, |acc, wd| acc.checked_add(wd.accumulate_gas_limit))
+        .ok_or(PVMInvokeError::GasOverflow)?;
+    gas_limit = gas_limit
+        .checked_add(reports_gas_aggregated)
+        .ok_or(PVMInvokeError::GasOverflow)?;
 
-    gas_limit += reports_gas_aggregated;
-
-    let deferred_transfers_gas_aggregated: UnsignedGas = prev_deferred_transfers
+    let deferred_transfers_gas_aggregated = prev_deferred_transfers
         .iter()
         .filter(|&transfer| transfer.to == service_id)
-        .map(|transfer| transfer.gas_limit)
-        .sum();
-
-    gas_limit += deferred_transfers_gas_aggregated;
+        .try_fold(0u64, |acc, transfer| acc.checked_add(transfer.gas_limit))
+        .ok_or(PVMInvokeError::GasOverflow)?;
+    gas_limit = gas_limit
+        .checked_add(deferred_transfers_gas_aggregated)
+        .ok_or(PVMInvokeError::GasOverflow)?;
 
     AccumulateInvocation::<StateManager>::accumulate(
         state_manager,

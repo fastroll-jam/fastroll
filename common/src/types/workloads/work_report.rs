@@ -491,7 +491,10 @@ impl WorkReport {
     }
 
     pub fn total_accumulation_gas_allotted(&self) -> UnsignedGas {
-        self.digests.iter().map(|wd| wd.accumulate_gas_limit).sum()
+        self.digests
+            .iter()
+            .try_fold(0u64, |acc, wd| acc.checked_add(wd.accumulate_gas_limit))
+            .unwrap_or(UnsignedGas::MAX)
     }
 
     pub fn extract_exports_manifest(&self) -> ReportedWorkPackage {

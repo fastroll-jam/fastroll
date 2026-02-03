@@ -159,7 +159,17 @@ impl Memory {
         if length == 0 {
             return true;
         }
-        let end = start as usize + length - 1;
+        let start_usize = start as usize;
+        let end = match start_usize
+            .checked_add(length)
+            .and_then(|end| end.checked_sub(1))
+        {
+            Some(end) => end,
+            None => return false,
+        };
+        if end >= self.data.len() {
+            return false;
+        }
         let (start_page, _) = self.get_page_and_offset(start);
         let (end_page, _) = self.get_page_and_offset(end as MemAddress);
         self.is_page_range_readable(start_page..end_page + 1)
@@ -205,7 +215,17 @@ impl Memory {
         if length == 0 {
             return true;
         }
-        let end = start as usize + length - 1;
+        let start_usize = start as usize;
+        let end = match start_usize
+            .checked_add(length)
+            .and_then(|end| end.checked_sub(1))
+        {
+            Some(end) => end,
+            None => return false,
+        };
+        if end >= self.data.len() {
+            return false;
+        }
         let (start_page, _) = self.get_page_and_offset(start);
         let (end_page, _) = self.get_page_and_offset(end as MemAddress);
         self.is_page_range_writable(start_page..end_page + 1)
