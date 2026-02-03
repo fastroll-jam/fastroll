@@ -320,12 +320,18 @@ async fn merge_partial_state_change(
                             .accounts_sandbox
                             .insert(service_id, sandbox.clone());
                     }
-                    Some(_) => {
-                        // If NEW service ids collide, block should be considered invalid.
-                        if created_service_ids.contains(&service_id) {
+                    Some(existing) => {
+                        if matches!(existing.metadata.status(), SandboxEntryStatus::Removed) {
+                            // Allow re-creating a previously removed account.
+                            partial_state_union
+                                .accounts_sandbox
+                                .insert(service_id, sandbox.clone());
+                        } else if created_service_ids.contains(&service_id) {
+                            // If NEW service ids collide, block should be considered invalid.
                             return Err(PVMInvokeError::DuplicateNewServiceId(service_id));
+                        } else {
+                            // Inherited Added entry from a prior round; skip to avoid overwriting.
                         }
-                        // Added entry from prior rounds; skip to avoid overwriting.
                     }
                 }
             }
