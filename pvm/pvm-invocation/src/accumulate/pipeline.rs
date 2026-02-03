@@ -118,13 +118,14 @@ pub async fn accumulate_outer(
             Vec::new()
         };
 
+        let prev_deferred_transfers = deferred_transfers;
         let ParallelAccumulationResult {
             service_gas_pairs,
             new_deferred_transfers,
             service_output_pairs: output_pairs,
         } = accumulate_parallel(
             state_manager.clone(),
-            Arc::new(deferred_transfers),
+            Arc::new(prev_deferred_transfers.clone()),
             Arc::new(reports_to_process),
             Arc::new(always_accumulate_services),
             &mut partial_state_union,
@@ -141,7 +142,18 @@ pub async fn accumulate_outer(
             .iter()
             .try_fold(0u64, |acc, pair| acc.checked_add(pair.gas))
             .ok_or(PVMInvokeError::GasOverflow)?;
-        remaining_gas_limit = remaining_gas_limit.saturating_sub(gas_used);
+        let deferred_transfer_gas =
+            prev_deferred_transfers
+                .iter()
+                .try_fold(0u64, |acc, transfer| {
+                    acc.checked_add(transfer.gas_limit)
+                        .ok_or(PVMInvokeError::GasOverflow)
+                })?;
+        remaining_gas_limit = remaining_gas_limit
+            .checked_add(deferred_transfer_gas)
+            .ok_or(PVMInvokeError::GasOverflow)?
+            .checked_sub(gas_used)
+            .ok_or(PVMInvokeError::GasOverflow)?;
         service_gas_pairs_flattened.extend(service_gas_pairs);
         service_output_pairs_flattened.extend(output_pairs.0);
     }
