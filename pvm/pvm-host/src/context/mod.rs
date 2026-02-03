@@ -188,6 +188,8 @@ pub struct AccumulateHostContext<S: HostStateProvider> {
     pub yielded_accumulate_hash: Option<AccumulationOutputHash>,
     /// **`p`**: Provided preimage data
     pub provided_preimages: HashSet<(ServiceId, Octets)>,
+    /// Service ids created during this accumulation
+    pub created_service_ids: HashSet<ServiceId>,
     /// Accumulate entry-point function invocation args (read-only)
     pub invoke_args: AccumulateInvokeArgs,
     /// Current entropy value (`η0′`)
@@ -203,6 +205,7 @@ impl<S: HostStateProvider> Clone for AccumulateHostContext<S> {
             deferred_transfers: self.deferred_transfers.clone(),
             yielded_accumulate_hash: self.yielded_accumulate_hash.clone(),
             provided_preimages: self.provided_preimages.clone(),
+            created_service_ids: self.created_service_ids.clone(),
             invoke_args: self.invoke_args.clone(),
             curr_entropy: self.curr_entropy.clone(),
         }
@@ -232,6 +235,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             deferred_transfers: Vec::new(),
             yielded_accumulate_hash: None,
             provided_preimages: HashSet::new(),
+            created_service_ids: HashSet::new(),
             invoke_args,
             curr_entropy,
         })

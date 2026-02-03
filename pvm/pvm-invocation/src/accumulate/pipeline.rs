@@ -188,6 +188,7 @@ async fn merge_partial_state_change(
     prev_assigns: &AssignServices,
     prev_designate: ServiceId,
     prev_registrar: ServiceId,
+    created_service_ids: &HashSet<ServiceId>,
 ) -> Result<(), PVMInvokeError> {
     // Accumulating service sandbox
     let accumulate_host_sandbox = partial_state_union
@@ -306,33 +307,42 @@ async fn merge_partial_state_change(
     // Integrate new accounts and ejected accounts.
     // Note: no account other than the accumulate host is ever touched except for the
     // `NEW` & `EJECT` hostcalls.
-    accumulate_result_partial_state
+    for (&service_id, sandbox) in accumulate_result_partial_state
         .accounts_sandbox
         .iter()
         .filter(|(&service_id, _)| service_id != accumulate_host)
-        .for_each(|(&service_id, sandbox)| {
-            match sandbox.metadata.status() {
-                SandboxEntryStatus::Added => {
-                    // Additional guard to avoid entries from the `partial_state_union` with `Added`
-                    // status being copied into the later accumulations and overwriting any updates.
-                    #[allow(clippy::map_entry)]
-                    if !partial_state_union
-                        .accounts_sandbox
-                        .contains_key(&service_id)
-                    {
+    {
+        match sandbox.metadata.status() {
+            SandboxEntryStatus::Added => {
+                match partial_state_union.accounts_sandbox.get(&service_id) {
+                    None => {
                         partial_state_union
                             .accounts_sandbox
                             .insert(service_id, sandbox.clone());
                     }
+                    Some(existing) => {
+                        if matches!(existing.metadata.status(), SandboxEntryStatus::Removed) {
+                            // Allow re-creating a previously removed account.
+                            partial_state_union
+                                .accounts_sandbox
+                                .insert(service_id, sandbox.clone());
+                        } else if created_service_ids.contains(&service_id) {
+                            // If NEW service ids collide, block should be considered invalid.
+                            return Err(PVMInvokeError::DuplicateNewServiceId(service_id));
+                        } else {
+                            // Inherited Added entry from a prior round; skip to avoid overwriting.
+                        }
+                    }
                 }
-                SandboxEntryStatus::Removed => {
-                    partial_state_union
-                        .accounts_sandbox
-                        .insert(service_id, sandbox.clone());
-                }
-                _ => {}
             }
-        });
+            SandboxEntryStatus::Removed => {
+                partial_state_union
+                    .accounts_sandbox
+                    .insert(service_id, sandbox.clone());
+            }
+            _ => {}
+        }
+    }
 
     Ok(())
 }
@@ -487,6 +497,7 @@ async fn accumulate_parallel(
                 &prev_assigns,
                 prev_designate,
                 prev_registrar,
+                &accumulate_result.created_service_ids,
             )
             .await?;
 

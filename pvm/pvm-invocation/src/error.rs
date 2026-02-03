@@ -23,6 +23,8 @@ pub enum PVMInvokeError {
     WorkReportBlobTooLarge,
     #[error("Account sandbox for accumulate host (s={0}) is missing")]
     MissingAccumulateHostSandbox(ServiceId),
+    #[error("Duplicate new service id (s={0})")]
+    DuplicateNewServiceId(ServiceId),
     #[error("Number of work digests exceeds maximum")]
     WorkDigestsOverflow,
     #[error("Gas usage or gas limit overflowed")]
