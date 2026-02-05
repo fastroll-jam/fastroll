@@ -449,7 +449,6 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             x.rotate_new_account_id(state_provider).await?;
             new_service_id
         };
-        x.created_service_ids.insert(new_service_id);
 
         tracing::debug!(
             "NEW service_id={new_service_id} parent={}",
