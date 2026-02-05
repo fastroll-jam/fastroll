@@ -48,8 +48,6 @@ pub struct AccumulateResult<S: HostStateProvider> {
     pub gas_used: UnsignedGas,
     /// **`p`**: Provided preimage entries during accumulation
     pub provided_preimages: HashSet<(ServiceId, Octets)>,
-    /// Service ids created during accumulation
-    pub created_service_ids: HashSet<ServiceId>,
     pub accumulate_host: ServiceId,
 }
 
@@ -61,7 +59,6 @@ impl<S: HostStateProvider> Default for AccumulateResult<S> {
             yielded_accumulate_hash: None,
             gas_used: UnsignedGas::default(),
             provided_preimages: HashSet::new(),
-            created_service_ids: HashSet::new(),
             accumulate_host: ServiceId::default(),
         }
     }
@@ -239,7 +236,6 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
                     gas_used: result.gas_used,
                     accumulate_host: x.accumulate_host,
                     provided_preimages: x.provided_preimages,
-                    created_service_ids: x.created_service_ids,
                 }))
             }
             PVMInvocationOutput::OutputUnavailable => Ok(Some(AccumulateResult {
@@ -249,7 +245,6 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
                 gas_used: result.gas_used,
                 accumulate_host: x.accumulate_host,
                 provided_preimages: x.provided_preimages,
-                created_service_ids: x.created_service_ids,
             })),
             PVMInvocationOutput::OutOfGas(_) | PVMInvocationOutput::Panic(_) => {
                 Ok(Some(AccumulateResult {
@@ -259,7 +254,6 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
                     gas_used: result.gas_used, // Note: taking gas usage from the `x` context
                     accumulate_host: x.accumulate_host,
                     provided_preimages: y.provided_preimages,
-                    created_service_ids: y.created_service_ids,
                 }))
             }
         }

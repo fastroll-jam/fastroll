@@ -23,14 +23,14 @@ pub enum PVMInvokeError {
     WorkReportBlobTooLarge,
     #[error("Account sandbox for accumulate host (s={0}) is missing")]
     MissingAccumulateHostSandbox(ServiceId),
-    #[error("Duplicate new service id (s={0})")]
-    DuplicateNewServiceId(ServiceId),
     #[error("Number of work digests exceeds maximum")]
     WorkDigestsOverflow,
     #[error("Gas usage or gas limit overflowed")]
     GasOverflow,
     #[error("Zero padded justification data size exceeds SEGMENT_SIZE")]
     PagedProofJustificationBlobTooLarge,
+    #[error("Attempted to add or remove service (s={0}) that was removed or added in the same parallel accumulation round")]
+    DuplicateServiceIdWithinAccumulateRound(ServiceId),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]

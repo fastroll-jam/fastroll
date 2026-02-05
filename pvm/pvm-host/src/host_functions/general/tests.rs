@@ -297,7 +297,6 @@ mod fetch_tests {
                 deferred_transfers: vec![],
                 yielded_accumulate_hash: None,
                 provided_preimages: HashSet::new(),
-                created_service_ids: HashSet::new(),
                 invoke_args: AccumulateInvokeArgs {
                     inputs: self.accumulate_inputs.clone(),
                     ..Default::default()

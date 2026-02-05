@@ -188,7 +188,10 @@ async fn merge_partial_state_change(
     prev_assigns: &AssignServices,
     prev_designate: ServiceId,
     prev_registrar: ServiceId,
-    created_service_ids: &HashSet<ServiceId>,
+    base_present_service_ids: &HashSet<ServiceId>,
+    base_removed_service_ids: &HashSet<ServiceId>,
+    new_service_ids_this_round: &mut HashSet<ServiceId>,
+    removed_service_ids_this_round: &mut HashSet<ServiceId>,
 ) -> Result<(), PVMInvokeError> {
     // Accumulating service sandbox
     let accumulate_host_sandbox = partial_state_union
@@ -297,7 +300,7 @@ async fn merge_partial_state_change(
     // Accumulate host state change
     *accumulate_host_sandbox = accumulate_result_partial_state
         .accounts_sandbox
-        .get_account_sandbox(state_manager, accumulate_host)
+        .get_account_sandbox(state_manager.clone(), accumulate_host)
         .await?
         .cloned()
         .ok_or(PVMInvokeError::MissingAccumulateHostSandbox(
@@ -312,33 +315,52 @@ async fn merge_partial_state_change(
         .iter()
         .filter(|(&service_id, _)| service_id != accumulate_host)
     {
+        // Check whether the service ID existed in the base state at the start of the current
+        // parallel accumulation round.
+        let base_exists = if base_removed_service_ids.contains(&service_id) {
+            false
+        } else if base_present_service_ids.contains(&service_id) {
+            true
+        } else {
+            state_manager.account_exists(service_id).await?
+        };
+
         match sandbox.metadata.status() {
             SandboxEntryStatus::Added => {
-                match partial_state_union.accounts_sandbox.get(&service_id) {
-                    None => {
-                        partial_state_union
-                            .accounts_sandbox
-                            .insert(service_id, sandbox.clone());
-                    }
-                    Some(existing) => {
-                        if matches!(existing.metadata.status(), SandboxEntryStatus::Removed) {
-                            // Allow re-creating a previously removed account.
-                            partial_state_union
-                                .accounts_sandbox
-                                .insert(service_id, sandbox.clone());
-                        } else if created_service_ids.contains(&service_id) {
-                            // If NEW service ids collide, block should be considered invalid.
-                            return Err(PVMInvokeError::DuplicateNewServiceId(service_id));
-                        } else {
-                            // Inherited Added entry from a prior round; skip to avoid overwriting.
-                        }
-                    }
+                // Not a new ID for this round
+                if base_exists {
+                    continue;
                 }
-            }
-            SandboxEntryStatus::Removed => {
+                // Reject block if the same service ID is created or removed within the same round
+                if new_service_ids_this_round.contains(&service_id)
+                    || removed_service_ids_this_round.contains(&service_id)
+                {
+                    return Err(PVMInvokeError::DuplicateServiceIdWithinAccumulateRound(
+                        service_id,
+                    ));
+                }
                 partial_state_union
                     .accounts_sandbox
                     .insert(service_id, sandbox.clone());
+                new_service_ids_this_round.insert(service_id);
+            }
+            SandboxEntryStatus::Removed => {
+                // Ignore removals of accounts that didn't exist at round start
+                if !base_exists {
+                    continue;
+                }
+                // Reject block if the same service ID is created or removed within the same round
+                if new_service_ids_this_round.contains(&service_id)
+                    || removed_service_ids_this_round.contains(&service_id)
+                {
+                    return Err(PVMInvokeError::DuplicateServiceIdWithinAccumulateRound(
+                        service_id,
+                    ));
+                }
+                partial_state_union
+                    .accounts_sandbox
+                    .insert(service_id, sandbox.clone());
+                removed_service_ids_this_round.insert(service_id);
             }
             _ => {}
         }
@@ -419,6 +441,29 @@ async fn accumulate_parallel(
     let prev_designate = partial_state_union.designate_service.last_confirmed;
     let prev_registrar = partial_state_union.registrar_service.last_confirmed;
 
+    // It is not allowed to reuse service IDs (Create/Remove) that were modified
+    // by other accumulate hosts in the current parallel accumulation round.
+    // Modifications from previous rounds do not cause such conflicts.
+    // We track the set of IDs that are present/removed from the base state.
+    // Also, we track service IDs that are modified in the current round to enforce this rule.
+    let base_present_service_ids: HashSet<ServiceId> = partial_state_union
+        .accounts_sandbox
+        .iter()
+        .filter_map(|(&service_id, sandbox)| {
+            (!matches!(sandbox.metadata.status(), SandboxEntryStatus::Removed))
+                .then_some(service_id)
+        })
+        .collect();
+    let base_removed_service_ids: HashSet<ServiceId> = partial_state_union
+        .accounts_sandbox
+        .iter()
+        .filter_map(|(&service_id, sandbox)| {
+            matches!(sandbox.metadata.status(), SandboxEntryStatus::Removed).then_some(service_id)
+        })
+        .collect();
+    let mut new_service_ids_this_round = HashSet::new();
+    let mut removed_service_ids_this_round = HashSet::new();
+
     // Accumulating service groups: 1) With Digests 2) Transfer Receivers 3) Always-accumulates 4) Privileged Services
     let services_with_digests: BTreeSet<ServiceId> = reports
         .iter()
@@ -497,7 +542,10 @@ async fn accumulate_parallel(
                 &prev_assigns,
                 prev_designate,
                 prev_registrar,
-                &accumulate_result.created_service_ids,
+                &base_present_service_ids,
+                &base_removed_service_ids,
+                &mut new_service_ids_this_round,
+                &mut removed_service_ids_this_round,
             )
             .await?;
 
