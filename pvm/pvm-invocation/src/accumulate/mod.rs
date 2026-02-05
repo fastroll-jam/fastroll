@@ -20,9 +20,7 @@ use fr_pvm_types::{
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
     invoke_results::AccumulationOutputHash,
 };
-use fr_state::{
-    cache::StateMut, error::StateManagerError, manager::StateManager, provider::HostStateProvider,
-};
+use fr_state::{manager::StateManager, provider::HostStateProvider};
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 use tracing::instrument;
 
@@ -78,22 +76,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         partial_state
             .add_account_balance(state_manager.clone(), accumulate_host, recv_amount)
             .await?;
-
-        // Mutate the state cache to apply the received amount
-        let account_exists_in_state = state_manager.account_exists(accumulate_host).await?;
-        if account_exists_in_state {
-            tracing::debug!("Deferred transfer: s={accumulate_host} received {recv_amount}");
-            state_manager
-                .with_mut_account_metadata(
-                    StateMut::Update,
-                    accumulate_host,
-                    |metadata| -> Result<(), StateManagerError> {
-                        metadata.add_balance(recv_amount);
-                        Ok(())
-                    },
-                )
-                .await?;
-        }
+        tracing::debug!("Deferred transfer: s={accumulate_host} received {recv_amount}");
         Ok(())
     }
 
