@@ -46,6 +46,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: FETCH");
+        check_out_of_gas!(vm.gas_counter);
 
         // --- Fetch Data (Err: NONE)
 
