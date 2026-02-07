@@ -316,7 +316,11 @@ impl JamEncode for FuzzProtocolMessage {
 impl FuzzProtocolMessage {
     pub fn from_kind(kind: FuzzMessageKind) -> Result<Self, JamCodecError> {
         let encoded = kind.encode()?;
-        let msg_length = encoded.len() as u32;
+        let msg_length = u32::try_from(encoded.len()).map_err(|_| {
+            JamCodecError::EncodingError(
+                "Fuzz protocol message length exceeds u32::MAX".to_string(),
+            )
+        })?;
         Ok(Self { msg_length, kind })
     }
 }

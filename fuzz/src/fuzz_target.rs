@@ -26,9 +26,12 @@ use fr_state::{
     },
 };
 use fr_storage::node_storage::{NodeStorage, NodeStorageError};
+use futures::FutureExt;
 use std::{
+    any::Any,
     collections::{BTreeSet, HashMap},
     io::Error as IoError,
+    panic::AssertUnwindSafe,
     string::FromUtf8Error,
     sync::Arc,
 };
@@ -36,7 +39,7 @@ use tempfile::{tempdir, TempDir};
 use thiserror::Error;
 use tokio::{
     net::{UnixListener, UnixStream},
-    time::error::Elapsed,
+    time::{error::Elapsed, sleep, Duration},
 };
 
 #[derive(Debug, Error)]
@@ -69,6 +72,8 @@ pub enum FuzzTargetError {
     InvalidMessageKind(String),
     #[error("Invalid socket path: {0}")]
     InvalidSocketPath(String),
+    #[error("Fuzz protocol message exceeds maximum allowed size: observed={observed} max={max}")]
+    MessageTooLarge { observed: usize, max: usize },
 }
 
 /// Collection of the state keys of the latest chain state.
@@ -402,6 +407,16 @@ impl FuzzTargetRunner {
         Ok(())
     }
 
+    fn panic_payload_message(payload: &(dyn Any + Send)) -> String {
+        if let Some(msg) = payload.downcast_ref::<&'static str>() {
+            (*msg).to_string()
+        } else if let Some(msg) = payload.downcast_ref::<String>() {
+            msg.clone()
+        } else {
+            "non-string panic payload".to_string()
+        }
+    }
+
     pub async fn run_as_fuzz_target(&mut self, socket_path: String) -> Result<(), FuzzTargetError> {
         // Validate socket path input
         validate_socket_path(&socket_path)?;
@@ -415,20 +430,50 @@ impl FuzzTargetRunner {
         let mut is_first_session = true;
 
         // Continuously accept new connections after closing the previous session.
-        while let Ok((stream, _addr)) = listener.accept().await {
+        loop {
+            let (stream, _addr) = match listener.accept().await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    tracing::error!("Failed to accept fuzzer connection: {e}");
+                    sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            };
             tracing::info!("Accepted a connection from the fuzzer");
 
             if is_first_session {
                 is_first_session = false;
             } else {
                 // Reset storage & state for the new session
-                *self = FuzzTargetRunner::new(self.target_peer_info.clone())?;
+                if let Err(e) = self.reset_state_context() {
+                    tracing::error!("Failed to reset fuzz target session state: {e}");
+                    continue;
+                }
             }
 
-            self.handle_fuzzer_session(stream).await?;
-            tracing::info!("Fuzzer session ended");
+            // Session-level panic isolation: panics should only terminate the current session.
+            let session_result = AssertUnwindSafe(self.handle_fuzzer_session(stream))
+                .catch_unwind()
+                .await;
+            match session_result {
+                // Successful session termination
+                Ok(Ok(())) => tracing::info!("Fuzzer session ended"),
+                // Runtime errors
+                Ok(Err(e)) => {
+                    tracing::warn!("Fuzzer session terminated due to runtime error: {e}");
+                }
+                // Runtime panics (unwinding)
+                Err(payload) => {
+                    tracing::error!(
+                        "Fuzzer session panicked; closing session and continuing: {}",
+                        Self::panic_payload_message(&payload)
+                    );
+                    if let Err(e) = self.reset_state_context() {
+                        tracing::error!("Failed to recover fuzz target state after panic: {e}");
+                    }
+                }
+            }
         }
-        Ok(())
     }
 
     async fn handle_fuzzer_session(
@@ -457,11 +502,11 @@ impl FuzzTargetRunner {
                     }
                 }
                 Err(e) => {
-                    if Self::is_session_disconnect_error(&e) {
+                    return if Self::is_session_disconnect_error(&e) {
                         tracing::info!("Fuzzer session disconnected gracefully");
-                        return Ok(());
+                        Ok(())
                     } else {
-                        return Err(e);
+                        Err(e)
                     }
                 }
             }
@@ -658,7 +703,7 @@ impl FuzzTargetRunner {
                 // GetState must return the posterior state for the requested header hash.
                 let state = self.build_state_for_hash(&requested_header_hash).await?;
                 StreamUtils::send_message(stream, FuzzMessageKind::State(state)).await?;
-                tracing::info!("Session terminated by GetState request");
+                tracing::info!("[SEND][GetState] Returned full state");
                 Ok(())
             }
             e => Err(FuzzTargetError::InvalidMessageKind(format!("{e:?}"))),
