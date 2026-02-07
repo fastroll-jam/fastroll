@@ -436,26 +436,51 @@ impl FuzzTargetRunner {
         mut stream: UnixStream,
     ) -> Result<(), FuzzTargetError> {
         // First message must be the PeerInfo handshake
-        self.handle_handshake(&mut stream).await?;
+        if let Err(e) = self.handle_handshake(&mut stream).await {
+            if Self::is_session_disconnect_error(&e) {
+                tracing::info!("Fuzzer disconnected (handshake)");
+                return Ok(());
+            }
+            return Err(e);
+        }
 
         // Handle incoming messages
         loop {
             match StreamUtils::read_message(&mut stream).await {
-                Ok(message_kind) => self.process_message(&mut stream, message_kind).await?,
-                Err(e) => {
-                    if let FuzzTargetError::IoError(io_error) = e {
-                        // Normal disconnection (EOF)
-                        if io_error.kind() == std::io::ErrorKind::UnexpectedEof {
-                            tracing::info!("Fuzzer session disconnected gracefully");
+                Ok(message_kind) => {
+                    if let Err(e) = self.process_message(&mut stream, message_kind).await {
+                        if Self::is_session_disconnect_error(&e) {
+                            tracing::info!("Fuzzer session disconnected (read_message)");
                             return Ok(());
                         }
+                        return Err(e);
+                    }
+                }
+                Err(e) => {
+                    if Self::is_session_disconnect_error(&e) {
+                        tracing::info!("Fuzzer session disconnected gracefully");
+                        return Ok(());
                     } else {
-                        // Other errors
                         return Err(e);
                     }
                 }
             }
         }
+    }
+
+    fn is_session_disconnect_error(error: &FuzzTargetError) -> bool {
+        if let FuzzTargetError::IoError(io_error) = error {
+            return matches!(
+                io_error.kind(),
+                std::io::ErrorKind::UnexpectedEof
+                    | std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::ConnectionAborted
+                    | std::io::ErrorKind::NotConnected
+                    | std::io::ErrorKind::WriteZero
+            );
+        }
+        false
     }
 
     async fn handle_handshake(&mut self, stream: &mut UnixStream) -> Result<(), FuzzTargetError> {

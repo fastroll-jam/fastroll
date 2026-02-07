@@ -658,4 +658,70 @@ mod fuzz_target_tests {
         cleanup_socket(&socket_path);
         Ok(())
     }
+
+    #[cfg(feature = "tiny")]
+    #[tokio::test]
+    async fn test_fuzz_disconnect_during_session() -> Result<(), FuzzTargetError> {
+        setup_tracing();
+        let _temp_dir_sock = tempdir().unwrap();
+        let socket_path = _temp_dir_sock
+            .path()
+            .join("fuzz_socket")
+            .to_str()
+            .unwrap()
+            .to_string();
+
+        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Session #1: send GetState and disconnect before reading response.
+        {
+            let mut client = UnixStream::connect(socket_path.clone()).await?;
+            let _ = MockFuzzer::handshake(&mut client).await?;
+
+            let test_case_1 = load_test_case(1);
+            let test_case_2 = load_test_case(2);
+            let test_case_3 = load_test_case(3);
+
+            let _ = MockFuzzer::initialize(
+                &mut client,
+                Initialize {
+                    header: test_case_1.block.header.clone().into(),
+                    state: test_case_1.post_state.clone().into(),
+                    ancestry: Ancestry::default(),
+                },
+            )
+            .await?;
+
+            let _ = MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into()))
+                .await?;
+            let _ = MockFuzzer::import_block(
+                &mut client,
+                ImportBlock(test_case_3.block.clone().into()),
+            )
+            .await?;
+
+            let last_header_hash = BlockHeader::from(test_case_3.block.header).hash()?;
+            StreamUtils::send_message(
+                &mut client,
+                FuzzMessageKind::GetState(GetState(last_header_hash)),
+            )
+            .await?;
+
+            // Drop the socket immediately to simulate fuzzer-side early disconnect.
+            drop(client);
+        }
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Session #2: server should still accept new connections.
+        {
+            let mut client = UnixStream::connect(socket_path.clone()).await?;
+            let peer_info = MockFuzzer::handshake(&mut client).await?;
+            assert_eq!(peer_info, create_test_peer_info("TestFastRoll"));
+        }
+
+        cleanup_socket(&socket_path);
+        Ok(())
+    }
 }
