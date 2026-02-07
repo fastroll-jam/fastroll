@@ -171,7 +171,7 @@ async fn handle_ticket_accumulation(
 
 fn extract_epoch_marker_keys(
     validator_set: &ValidatorKeySet,
-) -> FixedVec<EpochMarkerValidatorKey, VALIDATOR_COUNT> {
+) -> Result<FixedVec<EpochMarkerValidatorKey, VALIDATOR_COUNT>, TransitionError> {
     let mut result = Vec::with_capacity(VALIDATOR_COUNT);
     for key in validator_set.iter() {
         result.push(EpochMarkerValidatorKey {
@@ -180,7 +180,7 @@ fn extract_epoch_marker_keys(
         });
     }
 
-    FixedVec::try_from(result).expect("size checked")
+    Ok(FixedVec::try_from(result)?)
 }
 
 #[instrument(level = "debug", skip_all, name = "header_markers")]
@@ -199,7 +199,7 @@ pub async fn mark_safrole_header_markers(
         Some(EpochMarker {
             entropy: prior_entropy.current().clone(),
             tickets_entropy: prior_entropy.first_history().clone(),
-            validators: extract_epoch_marker_keys(&curr_pending_set),
+            validators: extract_epoch_marker_keys(&curr_pending_set)?,
         })
     } else {
         None

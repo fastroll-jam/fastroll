@@ -106,7 +106,7 @@ impl RingVrfVerifier {
     pub fn new(validator_set: &ValidatorKeySet) -> Result<Self, CryptoError> {
         let ring = validator_set_to_bandersnatch_ring(validator_set)?;
         Ok(Self {
-            core: RingVrfVerifierCore::new(ring),
+            core: RingVrfVerifierCore::new(ring)?,
         })
     }
 

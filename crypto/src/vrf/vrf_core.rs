@@ -24,9 +24,9 @@ pub(crate) struct IetfVrfSignature {
 // Additional impl
 impl IetfVrfSignature {
     pub(crate) fn output_hash(&self) -> [u8; 32] {
-        self.output.hash()[..32]
-            .try_into()
-            .expect("Should not fail; 32-byte array")
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&self.output.hash()[..32]);
+        out
     }
 }
 
@@ -40,22 +40,27 @@ pub(crate) struct RingVrfSignature {
 // Additional impl
 impl RingVrfSignature {
     pub(crate) fn output_hash(&self) -> [u8; 32] {
-        self.output.hash()[..32]
-            .try_into()
-            .expect("Should not fail; 32-byte array")
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&self.output.hash()[..32]);
+        out
     }
 }
 
-fn ring_proof_params() -> &'static RingProofParams {
+fn ring_proof_params() -> Result<&'static RingProofParams, CryptoError> {
     use std::sync::OnceLock;
-    static PARAMS: OnceLock<RingProofParams> = OnceLock::new();
-    PARAMS.get_or_init(|| {
+    static PARAMS: OnceLock<Result<RingProofParams, String>> = OnceLock::new();
+    let params = PARAMS.get_or_init(|| {
         use bandersnatch::PcsParams;
         let buf = include_bytes!("../../data/zcash-srs-2-11-uncompressed.bin");
         let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&mut &buf[..])
-            .expect("Failed to deserialize PCS params");
+            .map_err(|e| format!("Failed to deserialize PCS params: {e}"))?;
         RingProofParams::from_pcs_params(RING_SIZE, pcs_params)
-            .expect("Failed to construct ring proof params from PCS params")
+            .map_err(|e| format!("Failed to construct ring proof params from PCS params: {e:?}"))
+    });
+
+    params.as_ref().map_err(|message| {
+        tracing::error!("{message}");
+        CryptoError::RingContextResourceError
     })
 }
 
@@ -147,7 +152,7 @@ impl RingVrfProverCore {
         let pts: Vec<_> = self.ring.iter().map(|pk| pk.0).collect();
 
         // Proof construction
-        let params = ring_proof_params();
+        let params = ring_proof_params()?;
         let prover_key = params.prover_key(&pts);
         let prover = params.prover(prover_key, self.prover_idx);
         let proof = self.secret.prove(input, output, aux_data, &prover);
@@ -193,9 +198,8 @@ impl IetfVrfVerifierCore {
         // `Y` hashed value; this is the actual value used as ticket-id/score
         // NOTE: as far as vrf_input_data is the same, this matches the one produced
         // using the ring-vrf (regardless of aux_data).
-        let vrf_output_hash: [u8; 32] = output.hash()[..32]
-            .try_into()
-            .expect("Should not fail; 32-byte array");
+        let mut vrf_output_hash = [0u8; 32];
+        vrf_output_hash.copy_from_slice(&output.hash()[..32]);
         tracing::trace!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }
@@ -212,11 +216,11 @@ pub(crate) struct RingVrfVerifierCore {
 }
 
 impl RingVrfVerifierCore {
-    pub(crate) fn new(ring: Vec<Public>) -> Self {
+    pub(crate) fn new(ring: Vec<Public>) -> Result<Self, CryptoError> {
         let pts: Vec<_> = ring.iter().map(|pk| pk.0).collect();
-        let verifier_key = ring_proof_params().verifier_key(&pts);
+        let verifier_key = ring_proof_params()?.verifier_key(&pts);
         let commitment = verifier_key.commitment(); // The Ring Root
-        Self { ring, commitment }
+        Ok(Self { ring, commitment })
     }
 
     #[instrument(level = "debug", skip_all, name = "compute_ring_root")]
@@ -250,7 +254,7 @@ impl RingVrfVerifierCore {
         let input = vrf_input_point(vrf_input_data)?;
         let output = signature.output; // extracted from the signature
 
-        let params = ring_proof_params();
+        let params = ring_proof_params()?;
 
         let verifier_key = params.verifier_key_from_commitment(self.commitment.clone());
         let verifier = params.verifier(verifier_key);
@@ -261,9 +265,8 @@ impl RingVrfVerifierCore {
         tracing::trace!("Ring signature verified");
 
         // `Y` hashed value; the actual value used as ticket-id/score
-        let vrf_output_hash: [u8; 32] = output.hash()[..32]
-            .try_into()
-            .expect("Should not fail; 32-byte array");
+        let mut vrf_output_hash = [0u8; 32];
+        vrf_output_hash.copy_from_slice(&output.hash()[..32]);
         tracing::trace!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }
