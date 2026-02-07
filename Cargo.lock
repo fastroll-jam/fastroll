@@ -915,6 +915,7 @@ dependencies = [
  "fr-state",
  "fr-storage",
  "fr-test-utils",
+ "futures",
  "tempfile",
  "thiserror 2.0.17",
  "tokio",
