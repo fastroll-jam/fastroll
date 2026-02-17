@@ -1,12 +1,11 @@
 use crate::state_display::display_state_entry;
-use fr_asn_types::common::{AsnBlock, AsnHeader, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 #[cfg(not(feature = "flamegraph"))]
 use fr_common::utils::tracing::setup_timed_tracing;
 #[cfg(feature = "flamegraph")]
 use fr_common::utils::tracing::setup_timed_tracing_with_flamegraph;
-use fr_common::{utils::serde::FileReader, ByteArray, ByteSequence, StateKey, StateRoot};
+use fr_common::{utils::serde::FileReader, ByteSequence, StateKey, StateRoot};
 use fr_config::StorageConfig;
 use fr_node::roles::importer::{BlockCommitMode, BlockImporter};
 use fr_state::{
@@ -16,8 +15,6 @@ use fr_state::{
 };
 use fr_storage::node_storage::NodeStorage;
 use fr_transition::state::services::AccountStateChanges;
-use regex::Regex;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     error::Error,
@@ -26,95 +23,31 @@ use std::{
 };
 use tempfile::tempdir;
 use tracing::{info_span, instrument};
-// --- ASN Types
-
-pub type AsnStateKey = ByteArray<31>;
-pub type AsnStateRoot = AsnOpaqueHash;
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnRawState {
-    pub state_root: AsnStateRoot,
-    pub keyvals: Vec<AsnKeyValue>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnKeyValue {
-    pub key: AsnStateKey,
-    pub value: ByteSequence,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AsnTestCase {
-    pub pre_state: AsnRawState,
-    pub block: AsnBlock,
-    pub post_state: AsnRawState,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AsnGenesisBlockTestCase {
-    pub header: AsnHeader,
-    pub state: AsnRawState,
-}
 
 // --- FastRoll Types
-#[derive(Clone)]
+#[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct RawState {
     pub state_root: StateRoot,
     pub keyvals: Vec<KeyValue>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct KeyValue {
     pub key: StateKey,
     pub value: ByteSequence,
 }
 
+#[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct TestCase {
     pub pre_state: RawState,
     pub block: Block,
     pub post_state: RawState,
 }
 
+#[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct GenesisBlockTestCase {
     pub header: BlockHeader,
     pub state: RawState,
-}
-
-// --- Type Conversion
-impl From<KeyValue> for AsnKeyValue {
-    fn from(kv: KeyValue) -> Self {
-        Self {
-            key: kv.key,
-            value: kv.value,
-        }
-    }
-}
-
-impl From<AsnKeyValue> for KeyValue {
-    fn from(kv: AsnKeyValue) -> Self {
-        Self {
-            key: kv.key,
-            value: kv.value,
-        }
-    }
-}
-
-impl From<RawState> for AsnRawState {
-    fn from(value: RawState) -> Self {
-        Self {
-            state_root: value.state_root,
-            keyvals: value.keyvals.into_iter().map(AsnKeyValue::from).collect(),
-        }
-    }
-}
-
-impl From<AsnRawState> for RawState {
-    fn from(value: AsnRawState) -> Self {
-        Self {
-            state_root: value.state_root,
-            keyvals: value.keyvals.into_iter().map(KeyValue::from).collect(),
-        }
-    }
 }
 
 // --- Test Harness
@@ -182,27 +115,25 @@ pub fn print_state_diff(expected_post_state: &RawState, actual_state: &HashMap<S
 /// use the fuzz protocol via unix socket.
 pub struct BlockImportHarness;
 impl BlockImportHarness {
-    pub fn load_test_case(file_path: &Path) -> AsnTestCase {
-        FileReader::read_json(file_path).expect("Failed to read test case")
-    }
-
-    fn load_genesis_test_case(file_path: &Path) -> AsnGenesisBlockTestCase {
-        FileReader::read_json(file_path).expect("Failed to read genesis test case")
-    }
-
-    pub fn convert_test_case(test_case: AsnTestCase) -> TestCase {
-        TestCase {
-            pre_state: test_case.pre_state.into(),
-            block: test_case.block.into(),
-            post_state: test_case.post_state.into(),
+    fn resolve_bin_trace_path(file_path: &Path) -> PathBuf {
+        if file_path.extension().and_then(|ext| ext.to_str()) == Some("bin") {
+            file_path.to_path_buf()
+        } else {
+            file_path.with_extension("bin")
         }
     }
 
-    fn convert_genesis_block_test_case(test_case: AsnGenesisBlockTestCase) -> GenesisBlockTestCase {
-        GenesisBlockTestCase {
-            header: test_case.header.into(),
-            state: test_case.state.into(),
-        }
+    pub fn load_test_case(file_path: &Path) -> TestCase {
+        let bin_path = Self::resolve_bin_trace_path(file_path);
+        let bytes = FileReader::read_bytes(&bin_path).expect("Failed to read test case .bin");
+        TestCase::decode(&mut bytes.as_slice()).expect("Failed to decode test case from .bin")
+    }
+
+    pub fn load_genesis_test_case(file_path: &Path) -> GenesisBlockTestCase {
+        let bin_path = Self::resolve_bin_trace_path(file_path);
+        let bytes = FileReader::read_bytes(&bin_path).expect("Failed to read genesis .bin");
+        GenesisBlockTestCase::decode(&mut bytes.as_slice())
+            .expect("Failed to decode genesis test case from .bin")
     }
 
     pub fn init_node_storage(db_path: PathBuf) -> NodeStorage {
@@ -275,7 +206,6 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
 
         // load test case
         let test_case = BlockImportHarness::load_test_case(&PathBuf::from(file_path));
-        let test_case = BlockImportHarness::convert_test_case(test_case);
 
         // init node storage
         let temp_db_path = _temp_dir.path().join("importer_db");
@@ -331,28 +261,23 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
 }
 
 pub fn get_parent_block_header(file_path: &str) -> BlockHeader {
-    let file_str = file_path.to_string();
-    if file_path.ends_with("00000001.json") {
-        let reg = Regex::new(r"\d{8}\.json$").unwrap();
-        let genesis_block_file_path = reg.replace(&file_str, "genesis.json").to_string();
-        let genesis_block_test_case = BlockImportHarness::convert_genesis_block_test_case(
-            BlockImportHarness::load_genesis_test_case(&PathBuf::from(genesis_block_file_path)),
-        );
+    let current_path = BlockImportHarness::resolve_bin_trace_path(&PathBuf::from(file_path));
+    let stem = current_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .expect("Invalid trace filename");
+
+    if stem == "00000001" {
+        let genesis_block_file_path = current_path.with_file_name("genesis.bin");
+        let genesis_block_test_case =
+            BlockImportHarness::load_genesis_test_case(&genesis_block_file_path);
         genesis_block_test_case.header
     } else {
-        let reg = Regex::new(r"(\d{8})\.json$").unwrap();
-        // Get parent block test case file path
-        let parent_block_file_path = reg
-            .replace(&file_str, |caps: &regex::Captures| {
-                let num_str = &caps[1];
-                let num: u64 = num_str.parse().unwrap_or(0);
-                let decremented = num.saturating_sub(1);
-                format!("{:0width$}.json", decremented, width = num_str.len())
-            })
-            .to_string();
-        let parent_block_test_case = BlockImportHarness::convert_test_case(
-            BlockImportHarness::load_test_case(&PathBuf::from(parent_block_file_path)),
-        );
+        let current_num: u64 = stem.parse().expect("Invalid numeric trace filename");
+        let parent_num = current_num.saturating_sub(1);
+        let parent_file = format!("{parent_num:0width$}.bin", width = stem.len());
+        let parent_block_file_path = current_path.with_file_name(parent_file);
+        let parent_block_test_case = BlockImportHarness::load_test_case(&parent_block_file_path);
         parent_block_test_case.block.header
     }
 }

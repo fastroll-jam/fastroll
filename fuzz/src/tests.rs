@@ -10,11 +10,12 @@ mod fuzz_target_tests {
         utils::StreamUtils,
     };
     use fr_block::types::block::BlockHeader;
+    use fr_codec::prelude::*;
     use fr_common::{
         utils::{serde::FileReader, tracing::setup_tracing},
         ByteEncodable,
     };
-    use fr_test_utils::importer_harness::AsnTestCase as BlockImportCase;
+    use fr_test_utils::importer_harness::TestCase as BlockImportCase;
     use std::{path::PathBuf, str::FromStr, time::Duration};
     use tempfile::tempdir;
     use tokio::{net::UnixStream, task::JoinHandle, time::timeout};
@@ -39,9 +40,11 @@ mod fuzz_target_tests {
     }
 
     fn load_test_case(block_number: usize) -> BlockImportCase {
-        let path = format!("src/data/0000000{block_number}.json");
+        let path =
+            format!("../integration/jamtestvectors-polkajam/traces/fallback/{block_number:08}.bin");
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
-        FileReader::read_json(&full_path).expect("Failed to read from JSON")
+        let bytes = FileReader::read_bytes(&full_path).expect("Failed to read from .bin");
+        BlockImportCase::decode(&mut bytes.as_slice()).expect("Failed to decode test case")
     }
 
     #[allow(dead_code)]
@@ -50,9 +53,11 @@ mod fuzz_target_tests {
         filenames
             .iter()
             .map(|&filename| {
-                let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join(format!("./data/{filename}.json"));
-                FileReader::read_json(&full_path).expect("Failed to read from JSON")
+                let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+                    "../integration/jamtestvectors-polkajam/traces/fallback/{filename}.bin"
+                ));
+                let bytes = FileReader::read_bytes(&full_path).expect("Failed to read from .bin");
+                BlockImportCase::decode(&mut bytes.as_slice()).expect("Failed to decode test case")
             })
             .collect()
     }
@@ -246,7 +251,7 @@ mod fuzz_target_tests {
         let root = MockFuzzer::initialize(
             &mut client,
             Initialize {
-                header: test_case.block.header.into(),
+                header: test_case.block.header,
                 state: test_state.clone().into(),
                 ancestry: Ancestry::default(),
             },
@@ -282,7 +287,7 @@ mod fuzz_target_tests {
         let root_1 = MockFuzzer::initialize(
             &mut client,
             Initialize {
-                header: test_case_1.block.header.clone().into(),
+                header: test_case_1.block.header.clone(),
                 state: test_case_1.post_state.clone().into(),
                 ancestry: Ancestry::default(),
             },
@@ -293,7 +298,7 @@ mod fuzz_target_tests {
         let root_2 = MockFuzzer::initialize(
             &mut client,
             Initialize {
-                header: test_case_2.block.header.clone().into(),
+                header: test_case_2.block.header.clone(),
                 state: test_case_2.post_state.clone().into(),
                 ancestry: Ancestry::default(),
             },
@@ -336,7 +341,7 @@ mod fuzz_target_tests {
         let _root = MockFuzzer::initialize(
             &mut client,
             Initialize {
-                header: test_case_1.block.header.clone().into(),
+                header: test_case_1.block.header.clone(),
                 state: test_case_1.post_state.clone().into(),
                 ancestry: Ancestry::default(),
             },
@@ -345,7 +350,7 @@ mod fuzz_target_tests {
 
         // --- ImportBlock (Block #2)
         let import_res =
-            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block)).await?;
         match import_res {
             FuzzMessageKind::StateRoot(root) => {
                 assert_eq!(root.0, test_case_2.post_state.state_root);
@@ -384,13 +389,13 @@ mod fuzz_target_tests {
         // Load test case
         let test_case_1 = load_test_case(1); // Block #1
         let mut test_case_2 = load_test_case(2); // Block #2
-        test_case_2.block.header.slot = 0; // Fault injection
+        test_case_2.block.header.set_timeslot(0); // Fault injection
 
         // --- Initialize (post-state of Block #1 == pre-state of Block #2)
         let _root = MockFuzzer::initialize(
             &mut client,
             Initialize {
-                header: test_case_1.block.header.clone().into(),
+                header: test_case_1.block.header.clone(),
                 state: test_case_1.post_state.clone().into(),
                 ancestry: Ancestry::default(),
             },
@@ -399,7 +404,7 @@ mod fuzz_target_tests {
 
         // --- ImportBlock (Block #2; invalid)
         let import_res =
-            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block)).await?;
         // Invalid block; should return `Error` message
         match import_res {
             FuzzMessageKind::Error(e) => {
@@ -445,7 +450,7 @@ mod fuzz_target_tests {
         let _root = MockFuzzer::initialize(
             &mut client,
             Initialize {
-                header: test_case_1.block.header.clone().into(),
+                header: test_case_1.block.header.clone(),
                 state: test_case_1.post_state.clone().into(),
                 ancestry: Ancestry::default(),
             },
@@ -454,7 +459,7 @@ mod fuzz_target_tests {
 
         // --- ImportBlock (Block #2)
         let import_2_res =
-            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block)).await?;
         match import_2_res {
             FuzzMessageKind::StateRoot(root) => {
                 assert_eq!(root.0, test_case_2.post_state.state_root);
@@ -464,7 +469,7 @@ mod fuzz_target_tests {
 
         // --- ImportBlock (Block #3)
         let import_3_res =
-            MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.into())).await?;
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block)).await?;
         match import_3_res {
             FuzzMessageKind::StateRoot(root) => {
                 assert_eq!(root.0, test_case_3.post_state.state_root);
@@ -509,7 +514,7 @@ mod fuzz_target_tests {
         let _root = MockFuzzer::initialize(
             &mut client,
             Initialize {
-                header: test_case_1.block.header.clone().into(),
+                header: test_case_1.block.header.clone(),
                 state: test_case_1.post_state.clone().into(),
                 ancestry: Ancestry::default(),
             },
@@ -518,15 +523,14 @@ mod fuzz_target_tests {
 
         // --- ImportBlock (Block #2)
         let _import_2_res =
-            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block)).await?;
 
         // --- ImportBlock (Block #3)
         let _import_3_res =
-            MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.clone().into()))
-                .await?;
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.clone())).await?;
 
         // --- GetState
-        let last_header_hash = BlockHeader::from(test_case_3.block.header).hash()?;
+        let last_header_hash = test_case_3.block.header.hash()?;
         let state = MockFuzzer::get_state(&mut client, GetState(last_header_hash)).await?;
         // Display the state report
         tracing::info!("-------------------- GetState Report --------------------");
@@ -574,7 +578,7 @@ mod fuzz_target_tests {
             let _root = MockFuzzer::initialize(
                 &mut client_1,
                 Initialize {
-                    header: test_case_1.block.header.clone().into(),
+                    header: test_case_1.block.header.clone(),
                     state: test_case_1.post_state.clone().into(),
                     ancestry: Ancestry::default(),
                 },
@@ -583,18 +587,15 @@ mod fuzz_target_tests {
 
             // --- ImportBlock (Block #2)
             let _import_2_res =
-                MockFuzzer::import_block(&mut client_1, ImportBlock(test_case_2.block.into()))
-                    .await?;
+                MockFuzzer::import_block(&mut client_1, ImportBlock(test_case_2.block)).await?;
 
             // --- ImportBlock (Block #3)
-            let _import_3_res = MockFuzzer::import_block(
-                &mut client_1,
-                ImportBlock(test_case_3.block.clone().into()),
-            )
-            .await?;
+            let _import_3_res =
+                MockFuzzer::import_block(&mut client_1, ImportBlock(test_case_3.block.clone()))
+                    .await?;
 
             // --- GetState
-            let last_header_hash = BlockHeader::from(test_case_3.block.header).hash()?;
+            let last_header_hash = test_case_3.block.header.hash()?;
             let _state = MockFuzzer::get_state(&mut client_1, GetState(last_header_hash)).await?;
         } // Session #1 drops
 
@@ -619,7 +620,7 @@ mod fuzz_target_tests {
             let root = MockFuzzer::initialize(
                 &mut client_2,
                 Initialize {
-                    header: test_case_1.block.header.clone().into(),
+                    header: test_case_1.block.header.clone(),
                     state: test_case_1.post_state.clone().into(),
                     ancestry: Ancestry::default(),
                 },
@@ -629,8 +630,7 @@ mod fuzz_target_tests {
 
             // --- ImportBlock (Block #2)
             let import_2_res =
-                MockFuzzer::import_block(&mut client_2, ImportBlock(test_case_2.block.into()))
-                    .await?;
+                MockFuzzer::import_block(&mut client_2, ImportBlock(test_case_2.block)).await?;
             match import_2_res {
                 FuzzMessageKind::StateRoot(root) => {
                     assert_eq!(root.0, test_case_2.post_state.state_root);
@@ -642,8 +642,7 @@ mod fuzz_target_tests {
 
             // --- ImportBlock (Block #3)
             let import_3_res =
-                MockFuzzer::import_block(&mut client_2, ImportBlock(test_case_3.block.into()))
-                    .await?;
+                MockFuzzer::import_block(&mut client_2, ImportBlock(test_case_3.block)).await?;
             match import_3_res {
                 FuzzMessageKind::StateRoot(root) => {
                     assert_eq!(root.0, test_case_3.post_state.state_root);
@@ -686,22 +685,18 @@ mod fuzz_target_tests {
             let _ = MockFuzzer::initialize(
                 &mut client,
                 Initialize {
-                    header: test_case_1.block.header.clone().into(),
+                    header: test_case_1.block.header.clone(),
                     state: test_case_1.post_state.clone().into(),
                     ancestry: Ancestry::default(),
                 },
             )
             .await?;
 
-            let _ = MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into()))
+            let _ = MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block)).await?;
+            let _ = MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.clone()))
                 .await?;
-            let _ = MockFuzzer::import_block(
-                &mut client,
-                ImportBlock(test_case_3.block.clone().into()),
-            )
-            .await?;
 
-            let last_header_hash = BlockHeader::from(test_case_3.block.header).hash()?;
+            let last_header_hash = test_case_3.block.header.hash()?;
             StreamUtils::send_message(
                 &mut client,
                 FuzzMessageKind::GetState(GetState(last_header_hash)),

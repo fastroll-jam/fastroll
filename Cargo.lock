@@ -1173,9 +1173,7 @@ dependencies = [
  "fr-storage",
  "fr-transition",
  "hex",
- "regex",
  "serde",
- "serde_json",
  "tempfile",
  "tracing",
 ]
