@@ -7,7 +7,8 @@ use crate::{
     utils::StreamUtils,
     versions::{FUZZ_FEATURES_LOCAL_TEST, FUZZ_PROTO_VERSION},
 };
-use fr_block::types::block::{Block, BlockHeader, BlockHeaderError};
+use fr_block::types::block::{BlockHeader, BlockHeaderError};
+use fr_codec::{prelude::*, JamCodecError};
 use fr_common::{
     utils::{
         serde::{FileReader, FileReaderError},
@@ -17,7 +18,7 @@ use fr_common::{
     ByteEncodable,
 };
 use fr_test_utils::importer_harness::{
-    print_state_diff, AsnGenesisBlockTestCase, AsnTestCase, RawState,
+    print_state_diff, AsnRawState, GenesisBlockTestCase, TestCase,
 };
 use std::{
     collections::HashMap,
@@ -85,6 +86,8 @@ pub enum FuzzerError {
     InvalidSocketPath,
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
 }
 
 struct FuzzClient {
@@ -157,8 +160,8 @@ impl FuzzClient {
 }
 
 struct TraceSuite {
-    genesis: Option<(PathBuf, AsnGenesisBlockTestCase)>,
-    cases: Vec<(PathBuf, AsnTestCase)>,
+    genesis: Option<(PathBuf, GenesisBlockTestCase)>,
+    cases: Vec<(PathBuf, TestCase)>,
 }
 
 #[derive(Clone, Debug)]
@@ -168,20 +171,23 @@ pub struct FuzzImportTiming {
 }
 
 fn load_trace_suite(trace_dir: &Path) -> Result<TraceSuite, FuzzerError> {
-    let mut json_files: Vec<PathBuf> = fs::read_dir(trace_dir)?
+    let mut bin_files: Vec<PathBuf> = fs::read_dir(trace_dir)?
         .filter_map(|entry| entry.ok().map(|e| e.path()))
-        .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("json"))
+        .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("bin"))
         .collect();
-    json_files.sort();
+    bin_files.sort();
 
     let mut genesis = None;
-    let mut cases = Vec::with_capacity(json_files.len());
-    for path in json_files {
-        if path.file_name().and_then(|name| name.to_str()) == Some("genesis.json") {
-            let test_case: AsnGenesisBlockTestCase = FileReader::read_json(&path)?;
+    let mut cases = Vec::with_capacity(bin_files.len());
+    for path in bin_files {
+        if path.file_name().and_then(|name| name.to_str()) == Some("genesis.bin") {
+            let bytes = FileReader::read_bytes(&path)?;
+            let test_case: GenesisBlockTestCase =
+                GenesisBlockTestCase::decode(&mut bytes.as_slice())?;
             genesis = Some((path, test_case));
         } else {
-            let test_case: AsnTestCase = FileReader::read_json(&path)?;
+            let bytes = FileReader::read_bytes(&path)?;
+            let test_case: TestCase = TestCase::decode(&mut bytes.as_slice())?;
             cases.push((path, test_case));
         }
     }
@@ -280,7 +286,7 @@ where
     // Initialize
     let (init_path, init_post_state, init_post_state_root, init_header) =
         if let Some((genesis_path, genesis_case)) = trace_suite.genesis {
-            let genesis_header: BlockHeader = genesis_case.header.into();
+            let genesis_header: BlockHeader = genesis_case.header;
             let genesis_state_root = genesis_case.state.state_root.clone();
             (
                 genesis_path,
@@ -290,7 +296,7 @@ where
             )
         } else {
             let (init_path, init_case) = cases[0].clone();
-            let init_block: Block = init_case.block.clone().into();
+            let init_block = init_case.block.clone();
             let init_post_state_root = init_case.post_state.state_root.clone();
             cases = cases.split_off(1);
             (
@@ -303,7 +309,7 @@ where
 
     let init = Initialize {
         header: init_header,
-        state: init_post_state.into(),
+        state: AsnRawState::from(init_post_state).into(),
         ancestry: Ancestry::default(),
     };
     let init_root = client.initialize(init).await?;
@@ -317,7 +323,7 @@ where
 
     // Fuzz target imports blocks
     for (case_path, case) in cases.iter() {
-        let block: Block = case.block.clone().into();
+        let block = case.block.clone();
         let expected_root = case.post_state.state_root.clone();
         let import_start = Instant::now();
         let response = client.import_block(ImportBlock(block.clone())).await?;
@@ -331,7 +337,7 @@ where
                     let header_hash = block.header.hash()?;
                     match client.get_state(GetState(header_hash)).await {
                         Ok(actual_state) => {
-                            let expected_post_state: RawState = case.post_state.clone().into();
+                            let expected_post_state = case.post_state.clone();
                             let mut actual_state_map = HashMap::new();
                             for kv in &actual_state.0 {
                                 actual_state_map

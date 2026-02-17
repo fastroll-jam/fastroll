@@ -22,9 +22,7 @@ fr-storage = { workspace = true }
 fr-transition = { workspace = true }
 async-trait = { workspace = true }
 hex = { workspace = true }
-regex = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
 
