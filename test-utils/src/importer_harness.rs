@@ -1,12 +1,11 @@
 use crate::state_display::display_state_entry;
-use fr_asn_types::common::{AsnBlock, AsnHeader, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 #[cfg(not(feature = "flamegraph"))]
 use fr_common::utils::tracing::setup_timed_tracing;
 #[cfg(feature = "flamegraph")]
 use fr_common::utils::tracing::setup_timed_tracing_with_flamegraph;
-use fr_common::{utils::serde::FileReader, ByteArray, ByteSequence, StateKey, StateRoot};
+use fr_common::{utils::serde::FileReader, ByteSequence, StateKey, StateRoot};
 use fr_config::StorageConfig;
 use fr_node::roles::importer::{BlockCommitMode, BlockImporter};
 use fr_state::{
@@ -16,7 +15,6 @@ use fr_state::{
 };
 use fr_storage::node_storage::NodeStorage;
 use fr_transition::state::services::AccountStateChanges;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     error::Error,
@@ -25,35 +23,6 @@ use std::{
 };
 use tempfile::tempdir;
 use tracing::{info_span, instrument};
-// --- ASN Types
-
-pub type AsnStateKey = ByteArray<31>;
-pub type AsnStateRoot = AsnOpaqueHash;
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnRawState {
-    pub state_root: AsnStateRoot,
-    pub keyvals: Vec<AsnKeyValue>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnKeyValue {
-    pub key: AsnStateKey,
-    pub value: ByteSequence,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AsnTestCase {
-    pub pre_state: AsnRawState,
-    pub block: AsnBlock,
-    pub post_state: AsnRawState,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AsnGenesisBlockTestCase {
-    pub header: AsnHeader,
-    pub state: AsnRawState,
-}
 
 // --- FastRoll Types
 #[derive(Clone, Debug, JamEncode, JamDecode)]
@@ -79,43 +48,6 @@ pub struct TestCase {
 pub struct GenesisBlockTestCase {
     pub header: BlockHeader,
     pub state: RawState,
-}
-
-// --- Type Conversion
-impl From<KeyValue> for AsnKeyValue {
-    fn from(kv: KeyValue) -> Self {
-        Self {
-            key: kv.key,
-            value: kv.value,
-        }
-    }
-}
-
-impl From<AsnKeyValue> for KeyValue {
-    fn from(kv: AsnKeyValue) -> Self {
-        Self {
-            key: kv.key,
-            value: kv.value,
-        }
-    }
-}
-
-impl From<RawState> for AsnRawState {
-    fn from(value: RawState) -> Self {
-        Self {
-            state_root: value.state_root,
-            keyvals: value.keyvals.into_iter().map(AsnKeyValue::from).collect(),
-        }
-    }
-}
-
-impl From<AsnRawState> for RawState {
-    fn from(value: AsnRawState) -> Self {
-        Self {
-            state_root: value.state_root,
-            keyvals: value.keyvals.into_iter().map(KeyValue::from).collect(),
-        }
-    }
 }
 
 // --- Test Harness
@@ -202,14 +134,6 @@ impl BlockImportHarness {
         let bytes = FileReader::read_bytes(&bin_path).expect("Failed to read genesis .bin");
         GenesisBlockTestCase::decode(&mut bytes.as_slice())
             .expect("Failed to decode genesis test case from .bin")
-    }
-
-    pub fn convert_test_case(test_case: AsnTestCase) -> TestCase {
-        TestCase {
-            pre_state: test_case.pre_state.into(),
-            block: test_case.block.into(),
-            post_state: test_case.post_state.into(),
-        }
     }
 
     pub fn init_node_storage(db_path: PathBuf) -> NodeStorage {

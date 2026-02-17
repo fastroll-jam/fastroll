@@ -17,9 +17,7 @@ use fr_common::{
     versions::{CLIENT_VERSION, SPEC_VERSION},
     ByteEncodable,
 };
-use fr_test_utils::importer_harness::{
-    print_state_diff, AsnRawState, GenesisBlockTestCase, TestCase,
-};
+use fr_test_utils::importer_harness::{print_state_diff, GenesisBlockTestCase, TestCase};
 use std::{
     collections::HashMap,
     fs,
@@ -309,7 +307,7 @@ where
 
     let init = Initialize {
         header: init_header,
-        state: AsnRawState::from(init_post_state).into(),
+        state: init_post_state.into(),
         ancestry: Ancestry::default(),
     };
     let init_root = client.initialize(init).await?;
