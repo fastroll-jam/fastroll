@@ -34,7 +34,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.35"
+version = "0.1.36"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Junha Park <0xjunha@gmail.com>"]
@@ -88,7 +88,6 @@ quote = "1.0.40"
 rand = "0.8.5"
 rayon = "1.11.0"
 reed-solomon-simd = "3.0.1"
-regex = "1.11.2"
 rcgen = { version = "0.13.2", default-features = false, features = ["ring"] }
 rocksdb = { version = "0.24.0", default-features = false, features = ["snappy"] }
 rustls = { version = "0.23.31", default-features = false, features = ["std"] }
