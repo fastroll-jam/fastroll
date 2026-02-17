@@ -43,13 +43,13 @@ fn write_block_import_test_cases(
         let test_file_path = test_file.expect("Failed to get test file").path();
         let test_file_path_str = test_file_path.to_str().unwrap();
         let test_file_name = test_file_path.file_name().unwrap().to_str().unwrap();
-        if test_file_name.ends_with(".bin") {
+        if test_file_name.ends_with(".json") {
             continue;
         }
-        if test_file_name.ends_with("genesis.json") {
+        if test_file_name.ends_with("genesis.bin") {
             continue;
         }
-        let test_name = test_file_name.trim_end_matches(".json");
+        let test_name = test_file_name.trim_end_matches(".bin");
         test_case_contents.push_str(&format!(
             "\
             #[tokio::test]\
