@@ -1,5 +1,17 @@
 use std::{env, fs, fs::ReadDir, path::PathBuf};
 
+const RETIRED_TRACES: &[&str] = &[
+    // TODO: Remove after tickets extrinsic encoding get fixed in test vectors
+    "1766243315_2277",
+    "1766244122_5414",
+    "1766244251_1816",
+    "1767872928_1994",
+];
+
+fn is_retired(trace_name: &str) -> bool {
+    RETIRED_TRACES.contains(&trace_name)
+}
+
 /// Build script to generate test cases from JSON test vectors
 fn main() {
     // PVM test cases
@@ -105,11 +117,13 @@ fn generate_fuzzer_block_import_tests() {
 
     let mut test_case_contents = String::from("use fr_fuzz::fuzzer::run_fuzz_trace_dir;");
 
-    let mut write_fuzzer_case = |test_name: &str, trace_path: &PathBuf| {
+    let mut write_fuzzer_case = |test_name: &str, trace_path: &PathBuf, ignored: bool| {
         let trace_path_str = trace_path.to_str().unwrap();
+        let ignored_attr = if ignored { "#[ignore]" } else { "" };
         test_case_contents.push_str(&format!(
             "\
             #[tokio::test]\
+            {ignored_attr}\
             async fn {test_name}() -> Result<(), Box<dyn std::error::Error>> {{
                 run_fuzz_trace_dir(\"{trace_path_str}\").await?;
                 Ok(())
@@ -130,7 +144,7 @@ fn generate_fuzzer_block_import_tests() {
             None => continue,
         };
         let test_name = format!("block_import_conformance_0_7_2_{}", trace_name);
-        write_fuzzer_case(&test_name, &trace_path);
+        write_fuzzer_case(&test_name, &trace_path, is_retired(trace_name));
     }
 
     let fuzzy_block_groups = ["fuzzy", "fuzzy_light"];
@@ -142,7 +156,7 @@ fn generate_fuzzer_block_import_tests() {
 
         if trace_path.is_dir() {
             let test_name = format!("block_import_{group}_all");
-            write_fuzzer_case(&test_name, &trace_path);
+            write_fuzzer_case(&test_name, &trace_path, false);
         }
     }
 
