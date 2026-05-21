@@ -77,7 +77,7 @@ pub async fn transition_accumulate_history(
             StateMut::Update,
             |history| -> Result<(), StateManagerError> {
                 // Add the latest history entry, shifting by one entry if the list is full.
-                history.add(BTreeSet::from_iter(accumulated.into_iter()));
+                history.add(BTreeSet::from_iter(accumulated));
                 Ok(())
             },
         )

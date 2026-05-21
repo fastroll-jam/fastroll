@@ -1,3 +1,5 @@
+#![allow(clippy::manual_checked_ops)]
+
 use crate::{
     continue_with_mem_write, continue_with_reg_write,
     error::VMCoreError,

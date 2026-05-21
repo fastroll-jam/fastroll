@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_min_or_max)]
+
 pub mod opcode;
 pub mod set;
 pub(crate) mod utils;
