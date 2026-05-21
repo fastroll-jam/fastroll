@@ -1,130 +1,74 @@
-name: Release Build
+name: Release
 
 on:
   push:
     branches:
       - release
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 permissions:
-  contents: write
+  contents: read
+  packages: write
 
 jobs:
-  build-aarch64:
-    name: macOS build (aarch64)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-
-      - name: Install stable toolchain
-        run: rustup toolchain install stable
-
-      - name: Check rust version
-        run: rustc +stable --version
-
-      - name: Install llvm/clang
-        run: |
-          brew install llvm
-          echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
-
-      - name: Create artifacts directory
-        run: mkdir -p artifacts
-
-      - name: Build release binary (tiny config)
-        run: cargo build --profile prod --target aarch64-apple-darwin --features "tiny,fuzz"
-
-      - name: Copy binary to artifacts (tiny config)
-        run: cp target/aarch64-apple-darwin/prod/fastroll artifacts/fastroll-macos-aarch64-tiny
-
-      - name: Build release binary (full config)
-        run: cargo build --profile prod --target aarch64-apple-darwin --features "full,fuzz"
-
-      - name: Copy binary to artifacts (full config)
-        run: cp target/aarch64-apple-darwin/prod/fastroll artifacts/fastroll-macos-aarch64-full
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: aarch64-binaries
-          path: artifacts/*
-          retention-days: 21
-
-  build-linux-x86_64:
-    name: Linux build (x86_64)
+  docker-image:
+    name: Docker image
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: false
 
-      - name: Install stable toolchain
-        run: rustup toolchain install stable
-
-      - name: Check rust version
-        run: rustc +stable --version
-
-      - name: Install libclang-dev
-        run: sudo apt-get install libclang-dev
-
-      - name: Create artifacts directory
-        run: mkdir -p artifacts
-
-      - name: Build release binary (tiny config)
-        run: cargo build --profile prod --target x86_64-unknown-linux-gnu --features "tiny,fuzz"
-
-      - name: Copy binary to artifacts (tiny config)
-        run: cp target/x86_64-unknown-linux-gnu/prod/fastroll artifacts/fastroll-linux-x86_64-tiny
-
-      - name: Build release binary (full config)
-        run: cargo build --profile prod --target x86_64-unknown-linux-gnu --features "full,fuzz"
-
-      - name: Copy binary to artifacts (full config)
-        run: cp target/x86_64-unknown-linux-gnu/prod/fastroll artifacts/fastroll-linux-x86_64-full
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-binaries
-          path: artifacts/*
-          retention-days: 21
-
-  release:
-    name: Github Release
-    needs: [ build-aarch64, build-linux-x86_64 ]
-    runs-on: ubuntu-latest
-    if: success()
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download artifacts (aarch64)
-        uses: actions/download-artifact@v4
-        with:
-          name: aarch64-binaries
-          path: ./release-artifacts
-
-      - name: Download artifacts (linux-x86_64)
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-binaries
-          path: ./release-artifacts
-
-      - name: Version tag
-        id: version
+      - name: Set image metadata
+        id: meta
+        shell: bash
         run: |
-          VERSION="v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}"
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          version="v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}"
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "short_sha=${GITHUB_SHA::7}" >> "${GITHUB_OUTPUT}"
+          echo "Image: ${image}:${version}"
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          tag_name: ${{ steps.version.outputs.VERSION }}
-          name: FastRoll ${{ steps.version.outputs.VERSION }}
-          files: ./release-artifacts/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
+            ${{ steps.meta.outputs.image }}:sha-${{ steps.meta.outputs.short_sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "Published Docker image:"
+            echo "- \`${{ steps.meta.outputs.image }}:latest\`"
+            echo "- \`${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}\`"
+            echo "- \`${{ steps.meta.outputs.image }}:sha-${{ steps.meta.outputs.short_sha }}\`"
+            echo ""
+            echo "Digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
