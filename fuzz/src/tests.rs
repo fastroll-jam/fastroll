@@ -16,7 +16,7 @@ mod fuzz_target_tests {
         ByteEncodable,
     };
     use fr_test_utils::importer_harness::TestCase as BlockImportCase;
-    use std::{path::PathBuf, str::FromStr, time::Duration};
+    use std::{io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
     use tempfile::tempdir;
     use tokio::{net::UnixStream, task::JoinHandle, time::timeout};
 
@@ -265,7 +265,7 @@ mod fuzz_target_tests {
     }
 
     #[tokio::test]
-    async fn test_fuzz_reinitialize_in_same_session() -> Result<(), FuzzTargetError> {
+    async fn test_second_initialize_closes_connection() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let _temp_dir_sock = tempdir().unwrap();
         let socket_path = _temp_dir_sock
@@ -303,8 +303,17 @@ mod fuzz_target_tests {
                 ancestry: Ancestry::default(),
             },
         )
-        .await?;
-        assert_eq!(root_2.0, test_case_2.post_state.state_root);
+        .await;
+        assert!(matches!(
+            root_2,
+            Err(FuzzTargetError::IoError(e))
+                if matches!(
+                    e.kind(),
+                    ErrorKind::UnexpectedEof
+                        | ErrorKind::BrokenPipe
+                        | ErrorKind::ConnectionReset
+                )
+        ));
 
         cleanup_socket(&socket_path);
         Ok(())

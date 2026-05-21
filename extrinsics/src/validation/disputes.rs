@@ -189,15 +189,15 @@ impl DisputesXtValidator {
             VerdictEvaluation::Invalid(positive_votes) => {
                 return Err(XtError::InvalidVotesCount(positive_votes))
             }
-            VerdictEvaluation::IsGood => {
-                if extrinsic.count_faults_with_report_hash(&entry.report_hash) < 1 {
-                    return Err(XtError::NotEnoughFault(entry.report_hash.encode_hex()));
-                }
+            VerdictEvaluation::IsGood
+                if extrinsic.count_faults_with_report_hash(&entry.report_hash) < 1 =>
+            {
+                return Err(XtError::NotEnoughFault(entry.report_hash.encode_hex()));
             }
-            VerdictEvaluation::IsBad => {
-                if extrinsic.count_culprits_with_report_hash(&entry.report_hash) < 2 {
-                    return Err(XtError::NotEnoughCulprit(entry.report_hash.encode_hex()));
-                }
+            VerdictEvaluation::IsBad
+                if extrinsic.count_culprits_with_report_hash(&entry.report_hash) < 2 =>
+            {
+                return Err(XtError::NotEnoughCulprit(entry.report_hash.encode_hex()));
             }
             _ => (),
         }

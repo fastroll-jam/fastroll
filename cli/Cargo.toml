@@ -16,5 +16,6 @@ clap = { workspace = true }
 tokio = { workspace = true }
 
 [features]
-tiny = ["fr-common/tiny", "fr-node/tiny"]
-full = ["fr-common/full", "fr-node/full"]
+tiny = ["fr-common/tiny", "fr-node/tiny", "fr-fuzz/tiny"]
+full = ["fr-common/full", "fr-node/full", "fr-fuzz/full"]
+fuzz = ["fr-node/fuzz"]

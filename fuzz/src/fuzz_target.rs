@@ -490,10 +490,14 @@ impl FuzzTargetRunner {
         }
 
         // Handle incoming messages
+        let mut session_initialized = false;
         loop {
             match StreamUtils::read_message(&mut stream).await {
                 Ok(message_kind) => {
-                    if let Err(e) = self.process_message(&mut stream, message_kind).await {
+                    if let Err(e) = self
+                        .process_message(&mut stream, message_kind, &mut session_initialized)
+                        .await
+                    {
                         if Self::is_session_disconnect_error(&e) {
                             tracing::info!("Fuzzer session disconnected (read_message)");
                             return Ok(());
@@ -561,10 +565,19 @@ impl FuzzTargetRunner {
         &mut self,
         stream: &mut UnixStream,
         message_kind: FuzzMessageKind,
+        session_initialized: &mut bool,
     ) -> Result<(), FuzzTargetError> {
         match message_kind {
             FuzzMessageKind::Initialize(init) => {
                 tracing::info!("[RECV][Initialize] Received message");
+                if *session_initialized {
+                    tracing::warn!(
+                        "Received a second Initialize in the same fuzzing session; closing session"
+                    );
+                    return Err(FuzzTargetError::InvalidMessageKind(
+                        "Initialize received more than once in a session".to_string(),
+                    ));
+                }
                 if self.state_initialized {
                     self.reset_state_context()?;
                 }
@@ -610,6 +623,7 @@ impl FuzzTargetRunner {
                 .await?;
                 tracing::info!("[SEND][Initialize] root={state_root}");
                 self.state_initialized = true;
+                *session_initialized = true;
                 Ok(())
             }
             FuzzMessageKind::ImportBlock(import_block) => {

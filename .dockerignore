@@ -1,0 +1,9 @@
+.git
+.github
+target
+**/.DS_Store
+integration/jam-conformance
+integration/jamtestvectors
+integration/jamtestvectors-polkajam
+integration/jamtestvectors-pvm
+Dockerfile
