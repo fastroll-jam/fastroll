@@ -30,7 +30,6 @@ jobs:
           version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
           echo "image=${image}" >> "${GITHUB_OUTPUT}"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
-          echo "version_tag=v${version}" >> "${GITHUB_OUTPUT}"
           echo "Image: ${image}:${version}"
 
       - name: Set up Docker Buildx
@@ -54,7 +53,6 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.image }}:latest
             ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
-            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version_tag }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -68,7 +66,6 @@ jobs:
             echo "Published Docker image:"
             echo "- \`${{ steps.meta.outputs.image }}:latest\`"
             echo "- \`${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}\`"
-            echo "- \`${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version_tag }}\`"
             echo ""
             echo "Digest: \`${{ steps.build.outputs.digest }}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
