@@ -33,9 +33,9 @@ impl_simple_state_component!(OnChainStatistics, OnChainStatistics);
 impl Display for OnChainStatistics {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "OnChainStatistics {{")?;
-        writeln!(f, "validator_stats: {}", &self.validator_stats)?;
-        writeln!(f, "core_stats: {}", &self.core_stats)?;
-        writeln!(f, "service_stats: {}", &self.service_stats)?;
+        writeln!(f, "validator_stats: {}", self.validator_stats)?;
+        writeln!(f, "core_stats: {}", self.core_stats)?;
+        writeln!(f, "service_stats: {}", self.service_stats)?;
         write!(f, "}}")
     }
 }
@@ -172,8 +172,8 @@ pub struct ValidatorStats {
 impl Display for ValidatorStats {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
-        writeln!(f, "curr: {}", &self.curr)?;
-        writeln!(f, "prev: {}", &self.prev)?;
+        writeln!(f, "curr: {}", self.curr)?;
+        writeln!(f, "prev: {}", self.prev)?;
         write!(f, "}}")
     }
 }
@@ -231,14 +231,14 @@ pub struct CoreStatsEntry {
 impl Display for CoreStatsEntry {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "\t{{")?;
-        writeln!(f, "\t  data_items_size: {}", &self.da_items_size)?;
-        writeln!(f, "\t  assurers: {}", &self.assurers_count)?;
-        writeln!(f, "\t  imports: {}", &self.imports_count)?;
-        writeln!(f, "\t  xt_count: {}", &self.extrinsics_count)?;
-        writeln!(f, "\t  xt_octets: {}", &self.extrinsics_octets)?;
-        writeln!(f, "\t  exports: {}", &self.exports_count)?;
-        writeln!(f, "\t  bundle_length: {}", &self.work_bundle_length)?;
-        writeln!(f, "\t  refine_gas_used: {}", &self.refine_gas_used)?;
+        writeln!(f, "\t  data_items_size: {}", self.da_items_size)?;
+        writeln!(f, "\t  assurers: {}", self.assurers_count)?;
+        writeln!(f, "\t  imports: {}", self.imports_count)?;
+        writeln!(f, "\t  xt_count: {}", self.extrinsics_count)?;
+        writeln!(f, "\t  xt_octets: {}", self.extrinsics_octets)?;
+        writeln!(f, "\t  exports: {}", self.exports_count)?;
+        writeln!(f, "\t  bundle_length: {}", self.work_bundle_length)?;
+        writeln!(f, "\t  refine_gas_used: {}", self.refine_gas_used)?;
         write!(f, "\t}}")
     }
 }
@@ -302,24 +302,20 @@ pub struct ServiceStatsEntry {
 impl Display for ServiceStatsEntry {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
-        writeln!(f, "\t    preimage_xts_count: {}", &self.preimage_xts_count)?;
-        writeln!(f, "\t    preimage_blob_size: {}", &self.preimage_blob_size)?;
-        writeln!(f, "\t    digests: {}", &self.work_digests_count)?;
-        writeln!(f, "\t    refine_gas_used: {}", &self.refine_gas_used)?;
-        writeln!(f, "\t    imports: {}", &self.imports_count)?;
-        writeln!(f, "\t    xt_count: {}", &self.extrinsics_count)?;
-        writeln!(f, "\t    xt_octets: {}", &self.extrinsics_octets)?;
-        writeln!(f, "\t    exports: {}", &self.exports_count)?;
+        writeln!(f, "\t    preimage_xts_count: {}", self.preimage_xts_count)?;
+        writeln!(f, "\t    preimage_blob_size: {}", self.preimage_blob_size)?;
+        writeln!(f, "\t    digests: {}", self.work_digests_count)?;
+        writeln!(f, "\t    refine_gas_used: {}", self.refine_gas_used)?;
+        writeln!(f, "\t    imports: {}", self.imports_count)?;
+        writeln!(f, "\t    xt_count: {}", self.extrinsics_count)?;
+        writeln!(f, "\t    xt_octets: {}", self.extrinsics_octets)?;
+        writeln!(f, "\t    exports: {}", self.exports_count)?;
         writeln!(
             f,
             "\t    accumulate_digests_count: {}",
-            &self.accumulate_digests_count
+            self.accumulate_digests_count
         )?;
-        writeln!(
-            f,
-            "\t    accumulate_gas_used: {}",
-            &self.accumulate_gas_used
-        )?;
+        writeln!(f, "\t    accumulate_gas_used: {}", self.accumulate_gas_used)?;
         write!(f, "\t  }}")
     }
 }

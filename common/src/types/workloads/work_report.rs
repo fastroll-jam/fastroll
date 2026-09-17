@@ -83,7 +83,7 @@ impl Display for SegmentRootLookupTable {
         } else {
             writeln!(f, "SegmentRootLookupTable: {{")?;
             for (k, v) in self.items.iter() {
-                writeln!(f, "  {}: {}", &k, &v)?;
+                writeln!(f, "  {}: {}", k, v)?;
             }
             writeln!(f, "}}")?;
         }

@@ -48,8 +48,8 @@ pub struct EpochMarkerValidatorKey {
 impl Display for EpochMarkerValidatorKey {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         writeln!(f, "ValidatorKey:")?;
-        writeln!(f, "\t\t\t\tbandersnatch: 0x{}", &self.bandersnatch.to_hex())?;
-        write!(f, "\t\t\t\ted25519: 0x{}", &self.ed25519.to_hex())
+        writeln!(f, "\t\t\t\tbandersnatch: 0x{}", self.bandersnatch.to_hex())?;
+        write!(f, "\t\t\t\ted25519: 0x{}", self.ed25519.to_hex())
     }
 }
 
@@ -63,8 +63,8 @@ pub struct EpochMarker {
 impl Display for EpochMarker {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         writeln!(f, "EpochMarker: {{")?;
-        writeln!(f, "\t\tentropy: {}", &self.entropy)?;
-        writeln!(f, "\t\ttickets_entropy: {}", &self.tickets_entropy)?;
+        writeln!(f, "\t\tentropy: {}", self.entropy)?;
+        writeln!(f, "\t\ttickets_entropy: {}", self.tickets_entropy)?;
         writeln!(f, "\t\tvalidators:")?;
         for key in self.validators.iter() {
             writeln!(f, "\t\t\t{key}")?;

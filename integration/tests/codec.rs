@@ -43,13 +43,13 @@ mod codec {
         // Test encoding
         println!(
             ">>> FastRoll type encoded: (length: {} bytes) {:?}",
-            &fr_type_encoded.len(),
+            fr_type_encoded.len(),
             hex::encode(&fr_type_encoded)
         );
 
         println!(
             "\n>>> ASN type encoded: (length: {} bytes) {:?}",
-            &asn_type_encoded.len(),
+            asn_type_encoded.len(),
             hex::encode(&asn_type_encoded)
         );
         assert_eq!(fr_type_encoded, asn_type_encoded);

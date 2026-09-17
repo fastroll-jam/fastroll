@@ -30,7 +30,7 @@ impl Display for AuthPool {
         for (core_idx, pool) in self.0.iter().enumerate() {
             writeln!(f, "  core #{core_idx}: [")?;
             for auth_hash in pool {
-                writeln!(f, "    {}", &auth_hash)?;
+                writeln!(f, "    {}", auth_hash)?;
             }
             writeln!(f, "  ]")?;
         }
@@ -63,7 +63,7 @@ impl Display for AuthQueue {
         for (core_idx, queue) in self.0.iter().enumerate() {
             writeln!(f, "  core #{core_idx}: [")?;
             for auth_hash in queue {
-                writeln!(f, "    {}", &auth_hash)?;
+                writeln!(f, "    {}", auth_hash)?;
             }
             writeln!(f, "  ]")?;
         }

@@ -32,7 +32,7 @@ impl Display for RefinementContext {
         } else {
             writeln!(f, "  prerequisites: [")?;
             for wp_hash in self.prerequisite_work_packages.iter() {
-                writeln!(f, "    {}", &wp_hash)?;
+                writeln!(f, "    {}", wp_hash)?;
             }
             writeln!(f, "  ]}}")?;
         }
