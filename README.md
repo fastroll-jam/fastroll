@@ -33,7 +33,7 @@ The JAM node runner is under active development and currently requires dev accou
 ### Prerequisites
 
 - Rust toolchain (stable, edition 2021)
-- Git submodules for test vectors (see below)
+- Git and approximately 3.5 GiB for the test-vector checkout (see below)
 
 ### Rust features
 
@@ -61,23 +61,41 @@ cargo run --features "tiny,fuzz" -- fuzz --socket "/tmp/jam_target.sock"
 
 ### Test vector submodules
 
-FastRoll relies on external test-vector repos as Git submodules:
+FastRoll pins external test-vector repositories as Git submodules:
 
-- [integration/jamtestvectors](https://github.com/w3f/jamtestvectors): official W3F test vectors
-- [integration/jamtestvectors-polkajam](https://github.com/davxy/jam-test-vectors): test vectors release candidate
+- [integration/jamtestvectors-polkajam](https://github.com/davxy/jam-test-vectors): codec, erasure, shuffle,
+  STF, and block-import vectors. Its pinned revision includes the corresponding W3F vector snapshot.
 - [integration/jamtestvectors-pvm](https://github.com/koute/jamtestvectors/tree/master_pvm_initial/pvm): PVM/RISC-V test
   vectors
-- [integration/jam-conformance](https://github.com/davxy/jam-conformance): fuzzing traces
+- [integration/jam-conformance](https://github.com/davxy/jam-conformance): Ed25519 vectors and fuzzing traces
 
-Initialize them with:
+Set them up with:
 
 ```bash
-git submodule update --init --recursive
+./scripts/setup-test-vectors.sh
 ```
+
+The script checks out FastRoll's pinned revisions and downloads only the required JSON and binary vectors. It skips
+nested submodules. Avoid `git submodule update --remote`; upstream branches may target newer Graypaper versions.
+
+To validate an existing checkout without downloading anything:
+
+```bash
+./scripts/setup-test-vectors.sh --verify
+```
+
+If an interrupted or manual submodule update left disposable local changes or full-history metadata, recreate only the
+known vector submodules:
+
+```bash
+./scripts/setup-test-vectors.sh --force
+```
+
+`--force` discards local changes within those three vector submodules.
 
 ### State Transition Function (STF) tests
 
-- Vectors: `integration/jamtestvectors/stf`
+- Vectors: `integration/jamtestvectors-polkajam/stf`
 - Harness: [test-utils/src/stf_harness.rs](test-utils/src/stf_harness.rs)
 - Test Cases: [integration/tests/stf](integration/tests/stf)
 
@@ -106,7 +124,7 @@ git submodule update --init --recursive
 
 ### Running tests
 
-- Note: Git submodule initialization is required. See **Test vector submodules** section above.
+- Note: Test-vector setup is required. See **Test vector submodules** above.
 
 ```bash
 # Run all tests:

@@ -9,8 +9,8 @@ mod erasure {
     use serde::{Deserialize, Serialize};
     use std::path::{Path, PathBuf};
 
-    const PATH_PREFIX_FULL: &str = "jamtestvectors/erasure/full";
-    const PATH_PREFIX_TINY: &str = "jamtestvectors/erasure/tiny";
+    const PATH_PREFIX_FULL: &str = "jamtestvectors-polkajam/erasure/full";
+    const PATH_PREFIX_TINY: &str = "jamtestvectors-polkajam/erasure/tiny";
 
     // --- Types
     #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

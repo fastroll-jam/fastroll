@@ -1,5 +1,16 @@
 use std::{env, fs, fs::ReadDir, path::PathBuf};
 
+const VECTOR_SETUP_HINT: &str = "run ./scripts/setup-test-vectors.sh from the repository root";
+
+fn read_vector_dir(path: &PathBuf, description: &str) -> ReadDir {
+    fs::read_dir(path).unwrap_or_else(|error| {
+        panic!(
+            "Failed to read {description} at {}: {error}; {VECTOR_SETUP_HINT}",
+            path.display()
+        )
+    })
+}
+
 const RETIRED_TRACES: &[&str] = &[
     // TODO: Remove after tickets extrinsic encoding get fixed in test vectors
     "1766243315_2277",
@@ -27,7 +38,7 @@ fn generate_pvm_tests() {
     let full_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(test_vectors_dir);
     println!("cargo:rerun-if-changed={}", full_path.display());
     let dest_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_pvm_tests.rs");
-    let test_files = fs::read_dir(&full_path).expect("Failed to read test vectors dir");
+    let test_files = read_vector_dir(&full_path, "PVM test vectors");
 
     let mut test_case_contents = String::from("use fr_test_utils::pvm_harness::run_test_case;");
 
@@ -96,9 +107,7 @@ fn generate_block_import_tests() {
 
     for group in block_import_groups {
         let dir_path = full_path.join(group);
-        let test_files = fs::read_dir(&dir_path).unwrap_or_else(|_| {
-            panic!("Failed to read {group} test vectors dir");
-        });
+        let test_files = read_vector_dir(&dir_path, &format!("{group} block-import vectors"));
         write_block_import_test_cases(test_files, group, &mut test_case_contents);
     }
 
@@ -131,7 +140,7 @@ fn generate_fuzzer_block_import_tests() {
         ));
     };
 
-    let trace_dirs = fs::read_dir(&fuzz_traces_full_path).expect("Failed to read fuzz trace dir");
+    let trace_dirs = read_vector_dir(&fuzz_traces_full_path, "conformance fuzz traces");
     let mut trace_paths: Vec<PathBuf> = trace_dirs
         .filter_map(|entry| entry.ok().map(|e| e.path()))
         .filter(|path| path.is_dir())

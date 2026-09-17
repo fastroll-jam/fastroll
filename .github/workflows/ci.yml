@@ -48,10 +48,8 @@ jobs:
           sudo mkswap /swapfile-ci
           sudo swapon /swapfile-ci
 
-      - name: Checkout submodules
-        run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --depth 1
+      - name: Set up test vectors
+        run: ./scripts/setup-test-vectors.sh
 
       - name: Install stable toolchain
         run: rustup toolchain install stable --component clippy
@@ -89,10 +87,8 @@ jobs:
           sudo mkswap /swapfile-ci
           sudo swapon /swapfile-ci
 
-      - name: Checkout submodules
-        run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --depth 1
+      - name: Set up test vectors
+        run: ./scripts/setup-test-vectors.sh
 
       - name: Install stable toolchain
         run: rustup toolchain install stable
@@ -148,10 +144,8 @@ jobs:
           sudo mkswap /swapfile-ci
           sudo swapon /swapfile-ci
 
-      - name: Checkout submodules
-        run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --depth 1
+      - name: Set up test vectors
+        run: ./scripts/setup-test-vectors.sh
 
       - name: Install stable toolchain
         run: rustup toolchain install stable --component llvm-tools-preview

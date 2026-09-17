@@ -5,7 +5,7 @@ mod shuffle {
     use serde::{Deserialize, Serialize};
     use std::path::PathBuf;
 
-    const PATH: &str = "jamtestvectors/shuffle/shuffle_tests.json";
+    const PATH: &str = "jamtestvectors-polkajam/shuffle/shuffle_tests.json";
 
     #[derive(Serialize, Deserialize)]
     struct ShuffleTestData {
