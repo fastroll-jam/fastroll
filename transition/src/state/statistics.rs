@@ -62,7 +62,7 @@ async fn handle_new_epoch_transition(
                 .replace_previous_epoch_stats(prior_current_epoch_stats.clone());
             stats
                 .validator_stats
-                .clear_current_epoch_stats(posterior_active_validator_count);
+                .clear_current_epoch_stats(posterior_active_validator_count)?;
             Ok(())
         })
         .await?;
@@ -77,6 +77,12 @@ async fn handle_validator_stats_accumulation(
     reporter_keys: &HashSet<Ed25519PubKey>,
 ) -> Result<(), TransitionError> {
     let current_active_set = state_manager.get_active_set().await?;
+    // `H_v`: The block author index must be below `|κ'|`, the size of `π_V`.
+    if header_block_author_index as usize >= current_active_set.len() {
+        return Err(TransitionError::ValidatorIndexOutOfBounds(
+            header_block_author_index,
+        ));
+    }
     let validator_keys = (0..current_active_set.len() as ValidatorIndex)
         .map(|validator_index| {
             current_active_set

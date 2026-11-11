@@ -50,9 +50,11 @@ pub fn genesis_simple_state() -> SimpleStates {
     let genesis_past_set =
         ValidatorKeys::try_from(vec![ValidatorKey::default(); genesis_validator_count])
             .expect("Genesis validator set fits in a validator key set");
+    let genesis_epoch_validator_stats = EpochValidatorStats::zeroed(genesis_validator_count)
+        .expect("Genesis validator set fits in validator statistics");
     let genesis_validator_stats = ValidatorStats {
-        curr: EpochValidatorStats::zeroed(genesis_validator_count),
-        prev: EpochValidatorStats::zeroed(genesis_validator_count),
+        curr: genesis_epoch_validator_stats.clone(),
+        prev: genesis_epoch_validator_stats,
     };
     SimpleStates {
         active_set: ActiveSet(genesis_validator_set.clone()),

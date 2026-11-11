@@ -8,7 +8,7 @@ use fr_common::{
     workloads::RefineStats, CoreIndex, ServiceId, UnsignedGas, ValidatorIndex, CORE_COUNT,
     MAX_VALIDATOR_COUNT,
 };
-use fr_limited_vec::{FixedVec, LimitedVec};
+use fr_limited_vec::{FixedVec, LimitedVec, LimitedVecError};
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
@@ -147,10 +147,10 @@ impl EpochValidatorStats {
     }
 
     /// Creates zeroed statistics for a validator set of `validator_count` validators.
-    pub fn zeroed(validator_count: usize) -> Self {
-        let entries =
-            vec![ValidatorStatsEntry::default(); validator_count.min(MAX_VALIDATOR_COUNT)];
-        Self::new(ValidatorStatsEntries::try_from(entries).unwrap_or_default())
+    /// Fails when `validator_count` exceeds `MAX_VALIDATOR_COUNT`.
+    pub fn zeroed(validator_count: usize) -> Result<Self, LimitedVecError> {
+        let entries = vec![ValidatorStatsEntry::default(); validator_count];
+        Ok(Self::new(ValidatorStatsEntries::try_from(entries)?))
     }
 
     pub fn validator_stats(&self, validator_index: ValidatorIndex) -> &ValidatorStatsEntry {
@@ -211,8 +211,12 @@ impl ValidatorStats {
     }
 
     /// Resets `π_V` to zeroed entries for a validator set of `validator_count` validators, e.g. `|κ'|` on a new epoch.
-    pub fn clear_current_epoch_stats(&mut self, validator_count: usize) {
-        self.curr = EpochValidatorStats::zeroed(validator_count)
+    pub fn clear_current_epoch_stats(
+        &mut self,
+        validator_count: usize,
+    ) -> Result<(), LimitedVecError> {
+        self.curr = EpochValidatorStats::zeroed(validator_count)?;
+        Ok(())
     }
 }
 
