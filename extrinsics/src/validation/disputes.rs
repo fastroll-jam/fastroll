@@ -2,7 +2,10 @@ use crate::validation::error::XtError;
 use fr_block::types::extrinsics::disputes::{
     Culprit, DisputesXt, Fault, Verdict, VerdictEvaluation,
 };
-use fr_common::{validators_super_majority, ByteEncodable, Hash32, X_0, X_1, X_G};
+use fr_common::{
+    validators_super_majority, ByteEncodable, Hash32, MAX_OFFENSES_PER_EXTRINSIC,
+    MAX_VERDICTS_PER_EXTRINSIC, X_0, X_1, X_G,
+};
 use fr_crypto::{
     signers::{ed25519::Ed25519Verifier, Verifier},
     types::Ed25519PubKey,
@@ -23,7 +26,8 @@ use std::{collections::HashSet, sync::Arc};
 /// - Offender signatures in `culprits` and `faults` must be ordered by the validator's Ed25519 key.
 ///
 /// ## Length Limit
-/// - No length limit applies.
+/// - `verdicts` may have at most `MAX_VERDICTS_PER_EXTRINSIC` (`M_V`) entries.
+/// - `culprits` and `faults` may each have at most `MAX_OFFENSES_PER_EXTRINSIC` (`M_O`) entries.
 ///
 /// ## Entry Validation
 /// - No duplicate work-report hashes are allowed within the extrinsic or among any previously reported hashes.
@@ -59,6 +63,25 @@ impl DisputesXtValidator {
             && extrinsic.faults.is_empty()
         {
             return Ok(());
+        }
+
+        if extrinsic.verdicts.len() > MAX_VERDICTS_PER_EXTRINSIC {
+            return Err(XtError::VerdictsEntryLimitExceeded(
+                extrinsic.verdicts.len(),
+                MAX_VERDICTS_PER_EXTRINSIC,
+            ));
+        }
+        if extrinsic.culprits.len() > MAX_OFFENSES_PER_EXTRINSIC {
+            return Err(XtError::CulpritsEntryLimitExceeded(
+                extrinsic.culprits.len(),
+                MAX_OFFENSES_PER_EXTRINSIC,
+            ));
+        }
+        if extrinsic.faults.len() > MAX_OFFENSES_PER_EXTRINSIC {
+            return Err(XtError::FaultsEntryLimitExceeded(
+                extrinsic.faults.len(),
+                MAX_OFFENSES_PER_EXTRINSIC,
+            ));
         }
 
         // Check if the entries are sorted
@@ -200,8 +223,8 @@ impl DisputesXtValidator {
             return Err(XtError::InvalidVotesCount(positive_votes));
         }
 
-        // Check the valid votes count and ensure that the minimum number of culprits or faults
-        // corresponding to the verdict is included in the extrinsic.
+        // Check the valid votes count and that a good verdict has at least one fault in the extrinsic.
+        // A bad verdict needs no culprits.
         match entry.evaluate_verdict() {
             VerdictEvaluation::Invalid(positive_votes) => {
                 return Err(XtError::InvalidVotesCount(positive_votes))
@@ -210,11 +233,6 @@ impl DisputesXtValidator {
                 if extrinsic.count_faults_with_report_hash(&entry.report_hash) < 1 =>
             {
                 return Err(XtError::NotEnoughFault(entry.report_hash.encode_hex()));
-            }
-            VerdictEvaluation::IsBad
-                if extrinsic.count_culprits_with_report_hash(&entry.report_hash) < 2 =>
-            {
-                return Err(XtError::NotEnoughCulprit(entry.report_hash.encode_hex()));
             }
             _ => (),
         }

@@ -250,12 +250,10 @@ generate_typed_tests! {
 
     // Success
     // Bad verdict without culprits. Culprits are not required (GP 0.8.0).
-    #[ignore = "GP 0.8.0 not implemented"]
     progress_with_bad_verdict_without_culprits_1: "progress_with_bad_verdict_without_culprits-1.json",
 
     // Success
     // Bad verdict with a single culprit.
-    #[ignore = "GP 0.8.0 not implemented"]
     progress_with_bad_verdict_without_culprits_2: "progress_with_bad_verdict_without_culprits-2.json",
 
     // Fail

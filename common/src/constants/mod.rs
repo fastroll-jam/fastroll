@@ -52,6 +52,12 @@ pub const MAX_WORK_ITEMS_PER_PACKAGE: usize = 16;
 /// `J`: The maximum sum of dependency items in a work-report.
 pub const MAX_REPORT_DEPENDENCIES: usize = 8;
 
+/// `M_V`: The maximum number of verdicts in a single disputes extrinsic.
+pub const MAX_VERDICTS_PER_EXTRINSIC: usize = 16;
+
+/// `M_O`: The maximum number each of culprits or faults in a single disputes extrinsic.
+pub const MAX_OFFENSES_PER_EXTRINSIC: usize = 16;
+
 /// `U`: The period in timeslots after which reported but unavailable work may be replaced.
 pub const PENDING_REPORT_TIMEOUT: usize = 5;
 

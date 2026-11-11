@@ -33,8 +33,8 @@ pub fn map_error_to_custom_code(e: TransitionError) -> DisputesErrorCode {
         TransitionError::XtError(XtError::InvalidJudgmentsAge(_, _)) => {
             DisputesErrorCode::bad_judgement_age
         }
-        TransitionError::XtError(XtError::NotEnoughCulprit(_)) => {
-            DisputesErrorCode::not_enough_culprits
+        TransitionError::XtError(XtError::InvalidValidatorIndex) => {
+            DisputesErrorCode::bad_validator_index
         }
         TransitionError::XtError(XtError::NotEnoughFault(_)) => {
             DisputesErrorCode::not_enough_faults

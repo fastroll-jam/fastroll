@@ -27,6 +27,12 @@ pub enum XtError {
     NoPendingReportForCore(CoreIndex, ValidatorIndex),
 
     // Disputes validation errors
+    #[error("The number of verdict entries ({0}) exceeds the allowed verdicts ({1})")]
+    VerdictsEntryLimitExceeded(usize, usize),
+    #[error("The number of culprit entries ({0}) exceeds the allowed culprits ({1})")]
+    CulpritsEntryLimitExceeded(usize, usize),
+    #[error("The number of fault entries ({0}) exceeds the allowed faults ({1})")]
+    FaultsEntryLimitExceeded(usize, usize),
     #[error("Verdict entry already exists in past dispute sets")]
     VerdictAlreadyExists,
     #[error("Verdicts entries must be sorted correctly")]
@@ -49,8 +55,6 @@ pub enum XtError {
     NotCulprit(String),
     #[error("Validator did not cast a faulty vote. Voter: {0}")]
     NotFault(String),
-    #[error("Verdicts with all negative votes must have at least two culprits for the corresponding work report. Work report hash: {0}")]
-    NotEnoughCulprit(String),
     #[error("Verdicts with all positive votes must have at least one fault for the corresponding work report. Work report hash: {0}")]
     NotEnoughFault(String),
     #[error(

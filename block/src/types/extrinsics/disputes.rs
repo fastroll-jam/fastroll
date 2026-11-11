@@ -62,13 +62,6 @@ impl Display for DisputesXt {
     }
 }
 impl DisputesXt {
-    pub fn count_culprits_with_report_hash(&self, report_hash: &WorkReportHash) -> usize {
-        self.culprits
-            .iter()
-            .filter(|&culprit| &culprit.report_hash == report_hash)
-            .count()
-    }
-
     pub fn count_faults_with_report_hash(&self, report_hash: &WorkReportHash) -> usize {
         self.faults
             .iter()
