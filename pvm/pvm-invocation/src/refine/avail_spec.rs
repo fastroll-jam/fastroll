@@ -3,7 +3,7 @@ use fr_codec::prelude::*;
 use fr_common::{
     utils::zero_pad::zero_pad,
     workloads::{AvailSpecs, WorkPackage},
-    ErasureRoot, ERASURE_CHUNK_SIZE, MAX_VALIDATOR_COUNT, SEGMENT_SIZE,
+    ErasureRoot, MAX_VALIDATOR_COUNT, SEGMENT_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_erasure_coding::{Chunk, ErasureCodec};
@@ -59,11 +59,13 @@ fn compute_erasure_root(
     work_bundle_encoded: Vec<u8>,
     export_segments: Vec<ExportDataSegment>,
 ) -> Result<ErasureRoot, PVMInvokeError> {
-    const SINGLE_CHUNK_OCTETS: usize = 12; // 6 octet pairs as a single chunk unit for export segments erasure coding
+    let erasure_codec = ErasureCodec::new(MAX_VALIDATOR_COUNT);
+    // Octets per chunk of an export segment, e.g. 12 with 1023 validators
+    let single_chunk_octets = SEGMENT_SIZE / erasure_codec.msg_chunks();
 
-    let erasure_codec = ErasureCodec::new_from_chain_spec();
+    // The codec zero-pads the bundle to a multiple of `2 * d(v)` octets.
     let bundle_chunked_hashed = erasure_codec
-        .erasure_encode(&zero_pad::<ERASURE_CHUNK_SIZE>(work_bundle_encoded))?
+        .erasure_encode(&work_bundle_encoded)?
         .into_iter()
         .map(|chunk| hash::<Blake2b256>(&chunk))
         .collect::<Result<Vec<_>, _>>()?;
@@ -86,7 +88,7 @@ fn compute_erasure_root(
     let mut segments_transposed: Vec<Vec<Chunk>> = (0..MAX_VALIDATOR_COUNT)
         .map(|_| {
             (0..segments_with_proofs_len)
-                .map(|_| vec![0u8; SINGLE_CHUNK_OCTETS])
+                .map(|_| vec![0u8; single_chunk_octets])
                 .collect::<Vec<_>>()
         })
         .collect();

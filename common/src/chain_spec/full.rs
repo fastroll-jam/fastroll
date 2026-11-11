@@ -1,4 +1,4 @@
-use crate::{UnsignedGas, MAX_VALIDATOR_COUNT};
+use crate::UnsignedGas;
 
 pub const CHAIN_SPEC: &str = "full";
 
@@ -41,10 +41,3 @@ pub const ERASURE_CHUNK_SIZE: usize = 684;
 
 /// `W_P`: The number of erasure-coded pieces in a segment.
 pub const DATA_SEGMENTS_CHUNKS: usize = 6;
-
-/// The total number of symbols in a codeword (message + recovery symbols) in erasure codec.
-/// For `k:n` reed-solomon rate, this is `n`.
-pub const ERASURE_CODE_TOTAL_CHUNKS: usize = MAX_VALIDATOR_COUNT;
-
-/// The number of original message symbols. For `k:n` reed-solomon rate, this is `k`.
-pub const ERASURE_CODE_MESSAGE_CHUNKS: usize = 342;

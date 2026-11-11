@@ -11,6 +11,8 @@ mod erasure {
 
     const PATH_PREFIX_FULL: &str = "jamtestvectors-polkajam/erasure/full";
     const PATH_PREFIX_TINY: &str = "jamtestvectors-polkajam/erasure/tiny";
+    const FULL_VALIDATOR_COUNT: usize = 1023;
+    const TINY_VALIDATOR_COUNT: usize = 6;
 
     // --- Types
     #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -22,13 +24,13 @@ mod erasure {
     pub fn test_encode_full(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_FULL).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        test_encode_internal(&full_path, ErasureCodec::new_full());
+        test_encode_internal(&full_path, ErasureCodec::new(FULL_VALIDATOR_COUNT));
     }
 
     pub fn test_encode_tiny(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_TINY).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        test_encode_internal(&full_path, ErasureCodec::new_tiny());
+        test_encode_internal(&full_path, ErasureCodec::new(TINY_VALIDATOR_COUNT));
     }
 
     fn test_encode_internal(path: &Path, rs: ErasureCodec) {
@@ -46,13 +48,13 @@ mod erasure {
     pub fn test_recover_full(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_FULL).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        test_recover_internal(&full_path, ErasureCodec::new_full());
+        test_recover_internal(&full_path, ErasureCodec::new(FULL_VALIDATOR_COUNT));
     }
 
     pub fn test_recover_tiny(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_TINY).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        test_recover_internal(&full_path, ErasureCodec::new_tiny());
+        test_recover_internal(&full_path, ErasureCodec::new(TINY_VALIDATOR_COUNT));
     }
 
     fn test_recover_internal(path: &Path, rs: ErasureCodec) {
@@ -118,17 +120,11 @@ mod erasure {
 
     generate_erasure_tests! {
         tiny {
-            #[ignore = "GP 0.8.0 not implemented"]
             erasure_3: "ec-3",
-            #[ignore = "GP 0.8.0 not implemented"]
             erasure_32: "ec-32",
-            #[ignore = "GP 0.8.0 not implemented"]
             erasure_100: "ec-100",
-            #[ignore = "GP 0.8.0 not implemented"]
             erasure_4096: "ec-4096",
-            #[ignore = "GP 0.8.0 not implemented"]
             erasure_4104: "ec-4104",
-            #[ignore = "GP 0.8.0 not implemented"]
             erasure_10000: "ec-10000",
         }
     }

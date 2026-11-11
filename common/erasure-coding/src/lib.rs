@@ -1,4 +1,4 @@
-use fr_common::{ERASURE_CODE_MESSAGE_CHUNKS, ERASURE_CODE_TOTAL_CHUNKS};
+use fr_common::SEGMENT_SIZE;
 use rayon::prelude::*;
 use reed_solomon_simd::{Error as ReedSolomonError, ReedSolomonDecoder, ReedSolomonEncoder};
 use thiserror::Error;
@@ -36,24 +36,11 @@ pub struct ErasureCodec {
 }
 
 impl ErasureCodec {
-    pub fn new_from_chain_spec() -> Self {
+    /// Creates a codec of rate `d(v):v` for a validator set of `validator_count` validators.
+    pub fn new(validator_count: usize) -> Self {
         Self {
-            total_chunks: ERASURE_CODE_TOTAL_CHUNKS,
-            msg_chunks: ERASURE_CODE_MESSAGE_CHUNKS,
-        }
-    }
-
-    pub fn new_tiny() -> Self {
-        Self {
-            total_chunks: 6,
-            msg_chunks: 2,
-        }
-    }
-
-    pub fn new_full() -> Self {
-        Self {
-            total_chunks: 1023,
-            msg_chunks: 342,
+            total_chunks: validator_count,
+            msg_chunks: original_chunk_count(validator_count),
         }
     }
 
@@ -224,5 +211,46 @@ impl ErasureCodec {
         tracing::trace!("Merging end");
 
         Ok(result.into_iter().flatten().collect::<Vec<_>>())
+    }
+}
+
+/// Computes `d(v)`, the number of original chunks in the erasure code for a validator set of `validator_count` validators.
+/// It is the largest `d` below `v/3 + 2` whose `2d` octets divide a segment of `W_G` octets, e.g. `d(6) = 3` and `d(1023) = 342`.
+/// A validator count in `𝕍` is a multiple of 3, so the bound is `d <= v/3 + 1`.
+pub const fn original_chunk_count(validator_count: usize) -> usize {
+    let mut chunk_count = validator_count / 3 + 1;
+    while !SEGMENT_SIZE.is_multiple_of(2 * chunk_count) {
+        chunk_count -= 1;
+    }
+    chunk_count
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error;
+
+    #[test]
+    fn test_original_chunk_count_optimal_rates() -> Result<(), Box<dyn Error>> {
+        // GP 0.8.0 lists the validator counts whose rate is optimal, i.e. `d(v) = v/3 + 1`.
+        const OPTIMAL_VALIDATOR_COUNTS: [usize; 18] = [
+            6, 9, 15, 24, 33, 51, 54, 78, 105, 111, 159, 168, 225, 321, 339, 510, 681, 1023,
+        ];
+        for validator_count in (6..=1023).step_by(3) {
+            let is_optimal = original_chunk_count(validator_count) == validator_count / 3 + 1;
+            assert_eq!(
+                is_optimal,
+                OPTIMAL_VALIDATOR_COUNTS.contains(&validator_count),
+                "validator_count={validator_count}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_original_chunk_count_falls_back_to_a_divisor() -> Result<(), Box<dyn Error>> {
+        // `v/3 + 1 = 5` octet pairs do not divide a segment, so `d(12)` falls back to 4.
+        assert_eq!(original_chunk_count(12), 4);
+        Ok(())
     }
 }
