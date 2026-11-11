@@ -6,6 +6,7 @@ readonly VECTOR_SUBMODULES=(
   "integration/jamtestvectors-polkajam"
   "integration/jamtestvectors-pvm"
   "integration/jam-conformance"
+  "integration/jam-crypto"
 )
 
 force_reset=false
@@ -191,9 +192,9 @@ verify_vectors() {
   require_any_file "integration/jamtestvectors-polkajam/stf" "*.json"
   require_any_file "integration/jamtestvectors-polkajam/traces" "*.bin"
   require_any_file "integration/jamtestvectors-pvm/pvm/programs" "*.json"
-  [[ -f integration/jam-conformance/crypto/ed25519/vectors.json ]] || \
-    die "Ed25519 consensus vectors are missing"
   require_any_file "integration/jam-conformance/fuzz-reports/0.7.2/traces" "*.bin"
+  [[ -f integration/jam-crypto/ed25519/vectors.json ]] || \
+    die "Ed25519 consensus vectors are missing"
 
   echo "Test-vector revisions and sparse files verified."
   du -sh "${VECTOR_SUBMODULES[@]}"
@@ -224,7 +225,10 @@ setup_submodule \
 
 setup_submodule \
   "integration/jam-conformance" \
-  "/crypto/ed25519/vectors.json" \
   "/fuzz-reports/0.7.2/traces/**/*.bin"
+
+setup_submodule \
+  "integration/jam-crypto" \
+  "/ed25519/vectors.json"
 
 verify_vectors

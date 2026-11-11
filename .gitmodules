@@ -10,3 +10,7 @@
 	path = integration/jam-conformance
 	url = https://github.com/jam-conformance/jam-fuzzing.git
 	shallow = true
+[submodule "integration/jam-crypto"]
+	path = integration/jam-crypto
+	url = https://github.com/jam-conformance/jam-crypto.git
+	shallow = true

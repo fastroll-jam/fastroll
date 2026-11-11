@@ -3,7 +3,7 @@
 //! # Attribution Notice
 //!
 //! This test suite and harness is copied from
-//! [jam-conformance](https://github.com/davxy/jam-conformance) repository.
+//! [jam-crypto](https://github.com/jam-conformance/jam-crypto) repository.
 mod ed25519_consensus {
     use fr_common::{ByteArray, ByteEncodable};
     use fr_crypto::{
@@ -12,7 +12,7 @@ mod ed25519_consensus {
     };
     use serde::{Deserialize, Serialize};
 
-    const PATH: &str = "jam-conformance/crypto/ed25519/vectors.json";
+    const PATH: &str = "jam-crypto/ed25519/vectors.json";
 
     #[derive(Serialize, Deserialize)]
     struct TestVector {
