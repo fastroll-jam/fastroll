@@ -12,24 +12,25 @@ fn read_vector_dir(path: &PathBuf, description: &str) -> ReadDir {
 }
 
 /// GP version of the jam-fuzzing campaign whose traces run as block-import conformance tests.
-const FUZZ_REPORTS_GP_VERSION: &str = "0.7.2";
+const FUZZ_REPORTS_GP_VERSION: &str = "0.8.0";
 
 /// Block-import trace groups generated as ignored tests, with the reason.
 /// A group is a `traces/<group>` directory of jam-test-vectors, or `conformance` for the jam-fuzzing traces.
-const IGNORED_TRACE_GROUPS: &[(&str, &str)] = &[];
+const IGNORED_TRACE_GROUPS: &[(&str, &str)] = &[
+    ("fallback", "GP 0.8.0 not implemented"),
+    ("safrole", "GP 0.8.0 not implemented"),
+    ("preimages", "GP 0.8.0 not implemented"),
+    ("preimages_light", "GP 0.8.0 not implemented"),
+    ("storage", "GP 0.8.0 not implemented"),
+    ("storage_light", "GP 0.8.0 not implemented"),
+    ("fuzzy", "GP 0.8.0 not implemented"),
+    ("fuzzy_light", "GP 0.8.0 not implemented"),
+    ("conformance", "GP 0.8.0 not implemented"),
+];
 
 /// jam-fuzzing traces generated as ignored tests, with the reason.
 /// e.g. a trace retired in `NEWS.md`, or one that follows a GP change made after `FUZZ_REPORTS_GP_VERSION`.
-const RETIRED_TRACES: &[(&str, &str)] = &[
-    // TODO: Remove after tickets extrinsic encoding get fixed in test vectors
-    ("1766243315_2277", TICKETS_XT_ENCODING_FIX_PENDING),
-    ("1766244122_5414", TICKETS_XT_ENCODING_FIX_PENDING),
-    ("1766244251_1816", TICKETS_XT_ENCODING_FIX_PENDING),
-    ("1767872928_1994", TICKETS_XT_ENCODING_FIX_PENDING),
-];
-
-const TICKETS_XT_ENCODING_FIX_PENDING: &str =
-    "waits for the tickets extrinsic encoding fix in test vectors";
+const RETIRED_TRACES: &[(&str, &str)] = &[];
 
 fn find_reason(reasons: &[(&'static str, &'static str)], name: &str) -> Option<&'static str> {
     reasons

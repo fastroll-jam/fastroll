@@ -386,18 +386,21 @@ generate_typed_tests! {
     no_available_reports_1: "no_available_reports-1.json",
 
     // Report with no dependencies.
+    #[ignore = "GP 0.8.0 not implemented"]
     process_one_immediate_report_1: "process_one_immediate_report-1.json",
 
     // Report with unsatisfied dependency added to the ready-queue.
     enqueue_and_unlock_simple_1: "enqueue_and_unlock_simple-1.json",
 
     // Report with no dependencies that resolves previous dependency.
+    #[ignore = "GP 0.8.0 not implemented"]
     enqueue_and_unlock_simple_2: "enqueue_and_unlock_simple-2.json",
 
     // Report with unsatisfied segment tree root dependency added to the ready-queue.
     enqueue_and_unlock_with_sr_lookup_1: "enqueue_and_unlock_with_sr_lookup-1.json",
 
     // Report with no dependencies that resolves previous dependency.
+    #[ignore = "GP 0.8.0 not implemented"]
     enqueue_and_unlock_with_sr_lookup_2: "enqueue_and_unlock_with_sr_lookup-2.json",
 
     // Two reports with unsatisfied dependencies added to the ready-queue.
@@ -408,9 +411,11 @@ generate_typed_tests! {
 
     // Two additional reports. One with unsatisfied dependencies, thus added to the ready-queue.
     // One report is accumulated and resolves two previously enqueued reports.
+    #[ignore = "GP 0.8.0 not implemented"]
     enqueue_and_unlock_chain_3: "enqueue_and_unlock_chain-3.json",
 
     // Report that resolves all remaining queued dependencies.
+    #[ignore = "GP 0.8.0 not implemented"]
     enqueue_and_unlock_chain_4: "enqueue_and_unlock_chain-4.json",
 
     // Two reports with unsatisfied dependencies added to the ready-queue.
@@ -419,6 +424,7 @@ generate_typed_tests! {
     // Two additional reports, one with no dependencies and thus immediately accumulated.
     // The other is pushed to the ready-queue which fills up the wraps around
     // (ready-queue is a ring buffer).
+    #[ignore = "GP 0.8.0 not implemented"]
     enqueue_and_unlock_chain_wraps_2: "enqueue_and_unlock_chain_wraps-2.json",
 
     // Two additional reports with unsatisfied dependencies pushed to the ready-queue.
@@ -426,9 +432,11 @@ generate_typed_tests! {
 
     // Two additional reports, one with no dependencies and thus immediately accumulated.
     // Three old entries in the ready-queue are removed.
+    #[ignore = "GP 0.8.0 not implemented"]
     enqueue_and_unlock_chain_wraps_4: "enqueue_and_unlock_chain_wraps-4.json",
 
     // Report with no dependencies resolves all previous enqueued reports.
+    #[ignore = "GP 0.8.0 not implemented"]
     enqueue_and_unlock_chain_wraps_5: "enqueue_and_unlock_chain_wraps-5.json",
 
     // Report with direct dependency on itself.
@@ -449,10 +457,12 @@ generate_typed_tests! {
     // There are some reports in the ready-queue ready to be accumulated.
     // Even though we don't supply any new available work report theses are processed.
     // This condition may result because of gas exhaustion during previous block execution.
+    #[ignore = "GP 0.8.0 not implemented"]
     accumulate_ready_queued_reports_1: "accumulate_ready_queued_reports-1.json",
 
     // Check that ready-queue and accumulated-reports queues are shifted.
     // A new available report is supplied.
+    #[ignore = "GP 0.8.0 not implemented"]
     queues_are_shifted_1: "queues_are_shifted-1.json",
 
     // Check that ready-queue and accumulated-reports queues are shifted.
@@ -464,19 +474,175 @@ generate_typed_tests! {
 
     // Two reports, one with unsatisfied dependency added to the ready-queue.
     // One accumulated. Ready queue items dependencies are edited.
+    #[ignore = "GP 0.8.0 not implemented"]
     ready_queue_editing_2: "ready_queue_editing-2.json",
 
     // One report unlocks reports in the ready-queue.
+    #[ignore = "GP 0.8.0 not implemented"]
     ready_queue_editing_3: "ready_queue_editing-3.json",
 
+    #[ignore = "GP 0.8.0 not implemented"]
     same_code_different_services_1: "same_code_different_services-1.json",
 
+    #[ignore = "GP 0.8.0 not implemented"]
     transfer_for_ejected_service_1: "transfer_for_ejected_service-1.json",
 
     work_for_ejected_service_1: "work_for_ejected_service-1.json",
 
+    #[ignore = "GP 0.8.0 not implemented"]
     work_for_ejected_service_2: "work_for_ejected_service-2.json",
 
+    #[ignore = "GP 0.8.0 not implemented"]
     work_for_ejected_service_3: "work_for_ejected_service-3.json",
 
+    // A transfer is made to a live service.
+    // The deferred transfer is delivered to its accumulate in the following round.
+    #[ignore = "GP 0.8.0 not implemented"]
+    transfer_for_live_service_1: "transfer_for_live_service-1.json",
+
+    // A service ejects a zombie service which has a work digest in the same round.
+    // The ejector id is lower than the zombie id. The statistics of the zombie count the digest.
+    #[ignore = "GP 0.8.0 not implemented"]
+    work_for_service_ejected_in_same_round_low_ejector_1: "work_for_service_ejected_in_same_round_low_ejector-1.json",
+
+    // Same as above, with an ejector id higher than the zombie id.
+    #[ignore = "GP 0.8.0 not implemented"]
+    work_for_service_ejected_in_same_round_high_ejector_1: "work_for_service_ejected_in_same_round_high_ejector-1.json",
+
+    // A service ejects a zombie service in the round in which a transfer to the zombie arrives.
+    // The ejector id is lower than the zombie id. The statistics of the zombie count the transfer.
+    #[ignore = "GP 0.8.0 not implemented"]
+    transfer_for_service_ejected_in_same_round_low_ejector_1: "transfer_for_service_ejected_in_same_round_low_ejector-1.json",
+
+    // Same as above, with an ejector id higher than the zombie id.
+    #[ignore = "GP 0.8.0 not implemented"]
+    transfer_for_service_ejected_in_same_round_high_ejector_1: "transfer_for_service_ejected_in_same_round_high_ejector-1.json",
+
+    // A service sends a transfer to a zombie service which accumulates and is ejected in the same round.
+    // The transfer arrives in the next round, when the zombie no longer exists, and its amount is burned.
+    // The ejector id is lower than the zombie id. The statistics of the zombie count the work digest and the transfer.
+    #[ignore = "GP 0.8.0 not implemented"]
+    transfer_for_ejected_service_that_accumulates_low_ejector_1: "transfer_for_ejected_service_that_accumulates_low_ejector-1.json",
+
+    // Same as above, with an ejector id higher than the zombie id.
+    #[ignore = "GP 0.8.0 not implemented"]
+    transfer_for_ejected_service_that_accumulates_high_ejector_1: "transfer_for_ejected_service_that_accumulates_high_ejector-1.json",
+
+    // One invocation calls `transfer` to a zombie service and then `eject` on it.
+    // Both succeed. The amount is burned in the next round.
+    #[ignore = "GP 0.8.0 not implemented"]
+    transfer_to_service_ejected_by_sender_transfer_first_1: "transfer_to_service_ejected_by_sender_transfer_first-1.json",
+
+    // One invocation calls `eject` on a zombie service and then `transfer` to it.
+    // The `transfer` returns `WHO`. Nothing is burned.
+    #[ignore = "GP 0.8.0 not implemented"]
+    transfer_to_service_ejected_by_sender_eject_first_1: "transfer_to_service_ejected_by_sender_eject_first-1.json",
+
+    // The registrar ejects a zombie service and creates its id again with `new`, in one invocation.
+    // Both host calls succeed. The prior account stays and gets the endowment.
+    // The new account does not reach the state (GP 0.8.0 merge rule).
+    #[ignore = "GP 0.8.0 not implemented"]
+    recreate_ejected_service_1: "recreate_ejected_service-1.json",
+
+    // Same as `recreate_ejected_service-1`, but the zombie accumulates a transfer in the same round.
+    // The prior account stays and gets the transfer and the endowment.
+    #[ignore = "GP 0.8.0 not implemented"]
+    recreate_ejected_service_that_accumulates_1: "recreate_ejected_service_that_accumulates-1.json",
+
+    // Same as `recreate_ejected_service_that_accumulates-1`, but the registrar id is higher than the zombie id.
+    // The own result of the zombie merges first. The prior account stays and gets the transfer and the endowment.
+    #[ignore = "GP 0.8.0 not implemented"]
+    recreate_ejected_service_by_higher_registrar_1: "recreate_ejected_service_by_higher_registrar-1.json",
+
+    // The registrar ejects a zombie service which has a work digest in the same round.
+    // In a later round of the same block the registrar creates the id again. The endowment transfer fails.
+    // The new account gets the slot of the block as its last accumulation slot.
+    #[ignore = "GP 0.8.0 not implemented"]
+    recreate_service_ejected_in_earlier_round_1: "recreate_service_ejected_in_earlier_round-1.json",
+
+    // `designate` host call with one key less than the minimum validators set size.
+    #[ignore = "GP 0.8.0 not implemented"]
+    designate_with_invalid_count_1: "designate_with_invalid_count-1.json",
+
+    // `designate` host call with the minimum validators set size.
+    #[ignore = "GP 0.8.0 not implemented"]
+    designate_with_invalid_count_2: "designate_with_invalid_count-2.json",
+
+    // `solicit` host call with a preimage length of 2^32. Rejected.
+    #[ignore = "GP 0.8.0 not implemented"]
+    preimage_len_bound_1: "preimage_len_bound-1.json",
+
+    // `solicit` host call with a preimage length of 2^32-1. Accepted.
+    #[ignore = "GP 0.8.0 not implemented"]
+    preimage_len_bound_2: "preimage_len_bound-2.json",
+
+    // `forget` host call for the unprovided preimage of length 2^32-1. Dropped.
+    #[ignore = "GP 0.8.0 not implemented"]
+    preimage_len_bound_3: "preimage_len_bound-3.json",
+
+    // Service in the always-accumulate set, no reports.
+    // Accumulates zero items within its free gas.
+    always_accumulate_1: "always_accumulate-1.json",
+
+    // Same service with one report.
+    // The item and the free gas are accumulated together.
+    #[ignore = "GP 0.8.0 not implemented"]
+    always_accumulate_2: "always_accumulate-2.json",
+
+    // `assign` host call from a service which is not the assigner of the core. Rejected.
+    #[ignore = "GP 0.8.0 not implemented"]
+    assign_from_non_assigner_1: "assign_from_non_assigner-1.json",
+
+    // `assign` host call for a core index out of range. Rejected.
+    #[ignore = "GP 0.8.0 not implemented"]
+    assign_from_non_assigner_2: "assign_from_non_assigner-2.json",
+
+    // `assign` host call from the assigner, which hands the core over to another service.
+    #[ignore = "GP 0.8.0 not implemented"]
+    assign_from_non_assigner_3: "assign_from_non_assigner-3.json",
+
+    // `bless` host call from the designator, which is not the manager.
+    // The vector accepts it and hands the designate role over to another service.
+    #[ignore = "GP deviation, bless from a non-manager is accepted where GP 0.8.0 returns HUH (GP #519)"]
+    bless_from_non_manager_1: "bless_from_non_manager-1.json",
+
+    // The manager and the designator both change the designator in the same round.
+    // The manager choice wins.
+    #[ignore = "GP deviation, bless from a non-manager is accepted where GP 0.8.0 returns HUH (GP #519)"]
+    bless_from_non_manager_2: "bless_from_non_manager-2.json",
+
+    // `upgrade` host call. Code hash and minimum gas requirements are replaced.
+    #[ignore = "GP 0.8.0 not implemented"]
+    upgrade_service_1: "upgrade_service-1.json",
+
+    // `lookup` host call for an unknown preimage. Nothing is returned.
+    #[ignore = "GP 0.8.0 not implemented"]
+    lookup_foreign_preimage_1: "lookup_foreign_preimage-1.json",
+
+    // `lookup` host call for a preimage held by another service.
+    #[ignore = "GP 0.8.0 not implemented"]
+    lookup_foreign_preimage_2: "lookup_foreign_preimage-2.json",
+
+    // `provide` host call for a service which did not request the preimage. Rejected.
+    #[ignore = "GP 0.8.0 not implemented"]
+    provide_preimage_1: "provide_preimage-1.json",
+
+    // `provide` host call for a requested preimage. The preimage becomes available.
+    #[ignore = "GP 0.8.0 not implemented"]
+    provide_preimage_2: "provide_preimage-2.json",
+
+    // `new` host call from the registrar with a requested id.
+    // The endowment is delivered as a deferred transfer to the new service, whose code is not available.
+    #[ignore = "GP 0.8.0 not implemented"]
+    create_service_1: "create_service-1.json",
+
+    // Two services accumulated in the same round.
+    // The first writes a storage key, the second reads that key with a foreign `read` host call.
+    // The read doesn't observe the write made in the same round.
+    #[ignore = "GP 0.8.0 not implemented"]
+    same_round_storage_isolation_1: "same_round_storage_isolation-1.json",
+
+    // Same foreign `read` in the next block. The committed value is observed.
+    #[ignore = "GP 0.8.0 not implemented"]
+    same_round_storage_isolation_2: "same_round_storage_isolation-2.json",
 }

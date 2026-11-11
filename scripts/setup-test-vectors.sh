@@ -192,7 +192,7 @@ verify_vectors() {
   require_any_file "integration/jamtestvectors-polkajam/stf" "*.json"
   require_any_file "integration/jamtestvectors-polkajam/traces" "*.bin"
   require_any_file "integration/jamtestvectors-pvm/pvm/programs" "*.json"
-  require_any_file "integration/jam-conformance/fuzz-reports/0.7.2/traces" "*.bin"
+  require_any_file "integration/jam-conformance/fuzz-reports/0.8.0/traces" "*.bin"
   [[ -f integration/jam-crypto/ed25519/vectors.json ]] || \
     die "Ed25519 consensus vectors are missing"
 
@@ -225,7 +225,7 @@ setup_submodule \
 
 setup_submodule \
   "integration/jam-conformance" \
-  "/fuzz-reports/0.7.2/traces/**/*.bin"
+  "/fuzz-reports/0.8.0/traces/**/*.bin"
 
 setup_submodule \
   "integration/jam-crypto" \

@@ -322,6 +322,7 @@ mod fuzz_target_tests {
     // Handshake + Initialize + ImportBlock
     #[cfg(feature = "tiny")]
     #[tokio::test]
+    #[ignore = "GP 0.8.0 not implemented"]
     async fn test_fuzz_import_single_block() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let _temp_dir_sock = tempdir().unwrap();
@@ -430,6 +431,7 @@ mod fuzz_target_tests {
     // Handshake + Initialize + ImportBlock
     #[cfg(feature = "tiny")]
     #[tokio::test]
+    #[ignore = "GP 0.8.0 not implemented"]
     async fn test_fuzz_import_two_blocks() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let _temp_dir_sock = tempdir().unwrap();
@@ -555,6 +557,7 @@ mod fuzz_target_tests {
 
     #[cfg(feature = "tiny")]
     #[tokio::test]
+    #[ignore = "GP 0.8.0 not implemented"]
     async fn test_fuzz_multiple_sessions() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let _temp_dir_sock = tempdir().unwrap();

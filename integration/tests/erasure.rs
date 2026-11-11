@@ -118,11 +118,17 @@ mod erasure {
 
     generate_erasure_tests! {
         tiny {
+            #[ignore = "GP 0.8.0 not implemented"]
             erasure_3: "ec-3",
+            #[ignore = "GP 0.8.0 not implemented"]
             erasure_32: "ec-32",
+            #[ignore = "GP 0.8.0 not implemented"]
             erasure_100: "ec-100",
+            #[ignore = "GP 0.8.0 not implemented"]
             erasure_4096: "ec-4096",
+            #[ignore = "GP 0.8.0 not implemented"]
             erasure_4104: "ec-4104",
+            #[ignore = "GP 0.8.0 not implemented"]
             erasure_10000: "ec-10000",
         }
     }

@@ -163,7 +163,8 @@ generate_typed_tests! {
     // FIXME: Need information of all preimage keys of a service account.
     // Success
     // Provide one solicited blob.
-    // preimage_needed_2: "preimage_needed-2.json",
+    #[ignore = "harness cannot list all preimage keys of a service account"]
+    preimage_needed_2: "preimage_needed-2.json",
 
     // Fail
     // Provide two blobs, but one of them has not been solicited.
@@ -184,7 +185,8 @@ generate_typed_tests! {
     // FIXME: Need information of all preimage keys of a service account.
     // Success
     // Order is correct.
-    // preimages_order_check_3: "preimages_order_check-3.json",
+    #[ignore = "harness cannot list all preimage keys of a service account"]
+    preimages_order_check_3: "preimages_order_check-3.json",
 
     // Fail
     // Duplicate item.

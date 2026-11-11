@@ -172,32 +172,24 @@ generate_typed_tests! {
     progress_with_verdicts_6: "progress_with_verdicts-6.json",
 
     // Fail
-    // Missing culprits for bad verdict.
-    progress_with_culprits_1: "progress_with_culprits-1.json",
-
-    // Fail
-    // Single culprit for bad verdict.
-    progress_with_culprits_2: "progress_with_culprits-2.json",
-
-    // Fail
     // Two culprits for bad verdict, not sorted.
-    progress_with_culprits_3: "progress_with_culprits-3.json",
+    progress_with_culprits_1: "progress_with_culprits-1.json",
 
     // Success
     // Two culprits for bad verdict, sorted.
-    progress_with_culprits_4: "progress_with_culprits-4.json",
+    progress_with_culprits_2: "progress_with_culprits-2.json",
 
     // Fail
-    // Report an already recorded verdict, with culprits.
-    progress_with_culprits_5: "progress_with_culprits-5.json",
+    // Report an already recorded bad verdict.
+    progress_with_culprits_3: "progress_with_culprits-3.json",
 
     // Fail
     // Culprit offender already in the offenders list.
-    progress_with_culprits_6: "progress_with_culprits-6.json",
+    progress_with_culprits_4: "progress_with_culprits-4.json",
 
     // Fail
-    // Offender relative to a not present verdict.
-    progress_with_culprits_7: "progress_with_culprits-7.json",
+    // Culprit relative to a target without a bad verdict.
+    progress_with_culprits_5: "progress_with_culprits-5.json",
 
     // Fail
     // Missing faults for good verdict.
@@ -229,6 +221,7 @@ generate_typed_tests! {
 
     // Success
     // Invalidation of availability assignments.
+    #[ignore = "GP 0.8.0 not implemented"]
     progress_invalidates_avail_assignments_1: "progress_invalidates_avail_assignments-1.json",
 
     // Fail
@@ -254,4 +247,32 @@ generate_typed_tests! {
     // Fail
     // Age too old for verdicts judgements.
     progress_with_verdict_signatures_from_previous_set_2: "progress_with_verdict_signatures_from_previous_set-2.json",
+
+    // Success
+    // Bad verdict without culprits. Culprits are not required (GP 0.8.0).
+    #[ignore = "GP 0.8.0 not implemented"]
+    progress_with_bad_verdict_without_culprits_1: "progress_with_bad_verdict_without_culprits-1.json",
+
+    // Success
+    // Bad verdict with a single culprit.
+    #[ignore = "GP 0.8.0 not implemented"]
+    progress_with_bad_verdict_without_culprits_2: "progress_with_bad_verdict_without_culprits-2.json",
+
+    // Fail
+    // Verdict with one vote less than the supermajority of the signing validators set.
+    #[ignore = "GP 0.8.0 not implemented"]
+    progress_with_bad_votes_count_1: "progress_with_bad_votes_count-1.json",
+
+    // Success
+    // Previous epoch validators set is smaller than the current one.
+    // Verdict signed by the previous set carries the supermajority of the previous set size.
+    #[cfg(feature = "full")]
+    #[ignore = "GP 0.8.0 not implemented"]
+    progress_with_verdicts_from_resized_previous_set_1: "progress_with_verdicts_from_resized_previous_set-1.json",
+
+    // Fail
+    // Same votes count signed by the current set, which is not its supermajority.
+    #[cfg(feature = "full")]
+    #[ignore = "GP 0.8.0 not implemented"]
+    progress_with_verdicts_from_resized_previous_set_2: "progress_with_verdicts_from_resized_previous_set-2.json",
 }

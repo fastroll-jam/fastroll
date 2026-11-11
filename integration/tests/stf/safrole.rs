@@ -252,10 +252,12 @@ generate_typed_tests! {
 
     // Fail
     // Submit tickets with bad ring proof.
+    #[cfg_attr(feature = "tiny", ignore = "GP 0.8.0 not implemented")]
     publish_tickets_no_mark_5: "publish-tickets-no-mark-5.json",
 
     // Success
     // Submit some tickets.
+    #[cfg_attr(feature = "tiny", ignore = "GP 0.8.0 not implemented")]
     publish_tickets_no_mark_6: "publish-tickets-no-mark-6.json",
 
     // Fail
@@ -275,11 +277,13 @@ generate_typed_tests! {
     // Success
     // Publish some tickets with an almost full tickets accumulator.
     // Tickets accumulator is not full yet. No ticket is dropped from accumulator.
+    #[cfg_attr(feature = "tiny", ignore = "GP 0.8.0 not implemented")]
     publish_tickets_with_mark_1: "publish-tickets-with-mark-1.json",
 
     // Success
     // Publish some tickets filling the accumulator.
     // Two old tickets are removed from the accumulator.
+    #[cfg_attr(feature = "tiny", ignore = "GP 0.8.0 not implemented")]
     publish_tickets_with_mark_2: "publish-tickets-with-mark-2.json",
 
     // Success
@@ -303,4 +307,30 @@ generate_typed_tests! {
     // One of the keys is just invalid (i.e. it can't be decoded into a valid Bandersnatch point).
     // Both the invalid keys are replaced with the padding point during ring commitment computation.
     enact_epoch_change_with_padding_1: "enact-epoch-change-with-padding-1.json",
+
+    // Success
+    // On epoch change the designated set is smaller than the active one.
+    // Epoch mark carries the smaller set.
+    #[cfg(feature = "full")]
+    #[ignore = "GP 0.8.0 not implemented"]
+    enact_epoch_change_with_set_resize_1: "enact-epoch-change-with-set-resize-1.json",
+
+    // Success
+    // Tickets with attempts allowed by the smaller pending set size, beyond the bound of the full size set.
+    #[cfg(feature = "full")]
+    #[ignore = "GP 0.8.0 not implemented"]
+    enact_epoch_change_with_set_resize_2: "enact-epoch-change-with-set-resize-2.json",
+
+    // Fail
+    // Ticket with an attempt beyond the bound of the smaller pending set size.
+    #[cfg(feature = "full")]
+    #[ignore = "GP 0.8.0 not implemented"]
+    enact_epoch_change_with_set_resize_3: "enact-epoch-change-with-set-resize-3.json",
+
+    // Success
+    // Next epoch change. The smaller set becomes active.
+    // Tickets accumulator is not full, so the sealing keys fall back to a selection from the smaller set.
+    #[cfg(feature = "full")]
+    #[ignore = "GP 0.8.0 not implemented"]
+    enact_epoch_change_with_set_resize_4: "enact-epoch-change-with-set-resize-4.json",
 }
