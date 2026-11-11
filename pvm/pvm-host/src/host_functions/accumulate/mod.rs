@@ -12,10 +12,14 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     AuthHash, ByteArray, CoreIndex, Hash32, Octets, ServiceId, SignedGas, TimeslotIndex,
-    UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MIN_PUBLIC_SERVICE_ID,
-    PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MAX_VALIDATOR_COUNT,
+    MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, TRANSFER_MEMO_SIZE,
 };
-use fr_crypto::{hash, types::ValidatorKey, Blake2b256};
+use fr_crypto::{
+    hash,
+    types::{ValidatorKey, ValidatorKeySet, ValidatorKeys},
+    Blake2b256,
+};
 use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
@@ -223,7 +227,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         continue_ok!()
     }
 
-    /// Assigns `VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
+    /// Assigns `MAX_VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
     pub fn host_designate(
         vm: &VMState,
         context: &mut InvocationContext<S>,
@@ -240,21 +244,25 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         if !vm
             .memory
-            .is_address_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)
+            .is_address_range_readable(offset, PUBLIC_KEY_SIZE * MAX_VALIDATOR_COUNT)
         {
             host_call_panic!()
         }
 
-        let mut new_staging_set = StagingSet::default();
-        for i in 0..VALIDATOR_COUNT {
+        let mut new_validator_keys = Vec::with_capacity(MAX_VALIDATOR_COUNT);
+        for i in 0..MAX_VALIDATOR_COUNT {
             let Ok(validator_key) = vm.memory.read_bytes(
                 offset + (PUBLIC_KEY_SIZE * i) as MemAddress,
                 PUBLIC_KEY_SIZE,
             ) else {
                 host_call_panic!()
             };
-            new_staging_set[i] = ValidatorKey::decode(&mut validator_key.as_slice())?;
+            new_validator_keys.push(ValidatorKey::decode(&mut validator_key.as_slice())?);
         }
+        let Ok(new_validator_keys) = ValidatorKeys::try_from(new_validator_keys) else {
+            host_call_panic!()
+        };
+        let new_staging_set = StagingSet(ValidatorKeySet(new_validator_keys));
 
         // --- Check Privilege (Err: HUH)
 

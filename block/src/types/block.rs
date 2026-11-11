@@ -2,14 +2,14 @@ use crate::types::extrinsics::{disputes::OffendersHeaderMarker, Extrinsics};
 use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket, BlockHeaderHash, ByteEncodable, EntropyHash, StateRoot, TimeslotIndex,
-    ValidatorIndex, XtHash, EPOCH_LENGTH, VALIDATOR_COUNT,
+    ValidatorIndex, XtHash, EPOCH_LENGTH, MAX_VALIDATOR_COUNT,
 };
 use fr_crypto::{
     error::CryptoError,
     hash::{hash, Blake2b256},
     types::*,
 };
-use fr_limited_vec::FixedVec;
+use fr_limited_vec::{FixedVec, LimitedVec};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
@@ -17,7 +17,7 @@ use thiserror::Error;
 pub type BlockSeal = BandersnatchSig;
 pub type VrfSig = BandersnatchSig;
 pub type WinningTicketsMarker = FixedVec<Ticket, EPOCH_LENGTH>;
-pub type EpochValidators = FixedVec<EpochMarkerValidatorKey, VALIDATOR_COUNT>;
+pub type EpochValidators = LimitedVec<EpochMarkerValidatorKey, MAX_VALIDATOR_COUNT>;
 
 #[derive(Debug, Error)]
 pub enum BlockHeaderError {

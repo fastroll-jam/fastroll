@@ -13,7 +13,7 @@ use fr_codec::prelude::*;
 use fr_common::{
     utils::tracing::setup_tracing, AuthHash, Balance, ByteEncodable, CodeHash, CoreIndex, Hash32,
     Octets, ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
-    MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    MAX_VALIDATOR_COUNT, MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD, TRANSFER_MEMO_SIZE,
 };
 use fr_crypto::{
     hash,
@@ -923,13 +923,13 @@ mod designate_tests {
                 ed25519: Ed25519PubKey::from_hex("0x456").unwrap(),
                 ..Default::default()
             };
-            let validators = vec![validator.clone(); VALIDATOR_COUNT];
+            let validators = vec![validator.clone(); MAX_VALIDATOR_COUNT];
             let new_staging_set = StagingSet(ValidatorKeySet(
                 ValidatorKeys::try_from(validators).unwrap(),
             ));
             let staging_set_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range =
-                staging_set_offset..staging_set_offset + 336 * VALIDATOR_COUNT as MemAddress;
+                staging_set_offset..staging_set_offset + 336 * MAX_VALIDATOR_COUNT as MemAddress;
 
             Self {
                 accumulate_host: 1,
@@ -943,14 +943,16 @@ mod designate_tests {
 
     impl DesignateTestFixture {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            // `designate` reads the validator keys back to back, without a length prefix.
+            let mut validator_keys_data = Vec::new();
+            for validator_key in self.new_staging_set.iter() {
+                validator_key.encode_to(&mut validator_keys_data)?;
+            }
             VMStateBuilder::builder()
                 .with_pc(0)
                 .with_gas_counter(100)
                 .with_reg(7, self.staging_set_offset)
-                .with_mem_data(
-                    self.staging_set_offset,
-                    self.new_staging_set.encode()?.as_slice(),
-                )
+                .with_mem_data(self.staging_set_offset, validator_keys_data.as_slice())
         }
 
         fn prepare_state_provider(&self) -> MockStateManager {

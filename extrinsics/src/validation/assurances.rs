@@ -18,7 +18,7 @@ use std::{collections::HashSet, sync::Arc};
 /// - Extrinsic entries must be ordered by `validator_index`.
 ///
 /// ## Length Limit
-/// - The length must not exceed `VALIDATOR_COUNT`.
+/// - The length is at most `|κ|`, since assurer indices are unique and below `|κ|`.
 ///
 /// ## Entry Validation
 /// - `anchor_parent_hash`

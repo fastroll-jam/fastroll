@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use fr_common::{
     versions::{CLIENT_VERSION, SPEC_VERSION},
-    CHAIN_SPEC, CORE_COUNT, EPOCH_LENGTH, SLOT_DURATION, VALIDATOR_COUNT,
+    CHAIN_SPEC, CORE_COUNT, EPOCH_LENGTH, MAX_VALIDATOR_COUNT, SLOT_DURATION,
 };
 use fr_config::{DEFAULT_FUZZER_SOCKET, DEFAULT_ROCKSDB_PATH};
 use fr_node::keystore::dev_account_profile::DevNodeAccountProfile;
@@ -14,7 +14,7 @@ pub static NETWORK_INFO: LazyLock<String> = LazyLock::new(|| {
     format!(
         "Network Info: \n\t\
         chain-spec: {CHAIN_SPEC} \n\t\
-        validator-count: {VALIDATOR_COUNT} \n\t\
+        max-validator-count: {MAX_VALIDATOR_COUNT} \n\t\
         core-count: {CORE_COUNT} \n\t\
         slot-duration: {SLOT_DURATION} \n\t\
         epoch-length: {EPOCH_LENGTH}"

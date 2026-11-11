@@ -5,10 +5,13 @@ use crate::genesis::serde_types::{
 };
 use fr_block::types::block::Block;
 use fr_common::{ByteEncodable, EntropyHash};
-use fr_crypto::types::ValidatorKeySet;
+use fr_crypto::types::{ValidatorKey, ValidatorKeySet, ValidatorKeys};
 use fr_state::{
     state_utils::SimpleStates,
-    types::{generate_fallback_keys, ActiveSet, SafroleState, SlotSealers, StagingSet},
+    types::{
+        generate_fallback_keys, ActiveSet, EpochValidatorStats, OnChainStatistics, PastSet,
+        SafroleState, SlotSealers, StagingSet, ValidatorStats,
+    },
 };
 
 #[cfg(feature = "tiny")]
@@ -42,9 +45,23 @@ pub fn genesis_simple_state() -> SimpleStates {
     for key in genesis_fallback_keys.iter() {
         tracing::debug!("0x{}", key.to_hex());
     }
+    // `λ` and `π` at genesis hold one zeroed entry per genesis validator.
+    let genesis_validator_count = genesis_validator_set.len();
+    let genesis_past_set =
+        ValidatorKeys::try_from(vec![ValidatorKey::default(); genesis_validator_count])
+            .expect("Genesis validator set fits in a validator key set");
+    let genesis_validator_stats = ValidatorStats {
+        curr: EpochValidatorStats::zeroed(genesis_validator_count),
+        prev: EpochValidatorStats::zeroed(genesis_validator_count),
+    };
     SimpleStates {
         active_set: ActiveSet(genesis_validator_set.clone()),
         staging_set: StagingSet(genesis_validator_set.clone()),
+        past_set: PastSet(ValidatorKeySet(genesis_past_set)),
+        onchain_statistics: OnChainStatistics {
+            validator_stats: genesis_validator_stats,
+            ..Default::default()
+        },
         safrole: SafroleState {
             pending_set: genesis_validator_set,
             slot_sealers: SlotSealers::BandersnatchPubKeys(genesis_fallback_keys),

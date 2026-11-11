@@ -73,8 +73,10 @@ pub enum XtError {
     InvalidCulpritReportHash(String),
     #[error("Report hash of fault entry is not found in the extrinsic verdicts. Validator Ed25519 key: {0}")]
     InvalidFaultReportHash(String),
-    #[error("Positive votes count must be one of the following: 0, `FLOOR_ONE_THIRDS_VALIDATOR_COUNT`, or `VALIDATORS_SUPER_MAJORITY`. Provided: {0}.")]
+    #[error("Positive votes count must be 0, a third of the validator set, or all judgments. Provided: {0}.")]
     InvalidVotesCount(usize),
+    #[error("Judgments count of a verdict must be the supermajority of its validator set. Provided: {0}, Expected: {1}")]
+    InvalidJudgmentsCount(usize, usize),
     #[error("Invalid signature for judgment. Voter validator index: {0}")]
     InvalidJudgmentSignature(ValidatorIndex),
     #[error("Invalid culprit signature. Validator Ed25519 key: {0}")]

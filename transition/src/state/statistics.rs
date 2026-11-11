@@ -2,7 +2,7 @@ use crate::error::TransitionError;
 use fr_block::types::extrinsics::{
     assurances::AssurancesXt, guarantees::GuaranteesXt, preimages::PreimagesXt, Extrinsics,
 };
-use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE, VALIDATOR_COUNT};
+use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE};
 use fr_crypto::types::Ed25519PubKey;
 use fr_pvm_types::stats::AccumulateStats;
 use fr_state::{
@@ -53,13 +53,16 @@ async fn handle_new_epoch_transition(
 ) -> Result<(), TransitionError> {
     let stats = state_manager.get_onchain_statistics().await?;
     let prior_current_epoch_stats = stats.validator_stats.current_epoch_stats();
+    let posterior_active_validator_count = state_manager.get_active_set().await?.len(); // |κ'|
 
     state_manager
         .with_mut_onchain_statistics(StateMut::Update, |stats| -> Result<(), StateManagerError> {
             stats
                 .validator_stats
                 .replace_previous_epoch_stats(prior_current_epoch_stats.clone());
-            stats.validator_stats.clear_current_epoch_stats();
+            stats
+                .validator_stats
+                .clear_current_epoch_stats(posterior_active_validator_count);
             Ok(())
         })
         .await?;
@@ -74,7 +77,7 @@ async fn handle_validator_stats_accumulation(
     reporter_keys: &HashSet<Ed25519PubKey>,
 ) -> Result<(), TransitionError> {
     let current_active_set = state_manager.get_active_set().await?;
-    let validator_keys = (0..VALIDATOR_COUNT as ValidatorIndex)
+    let validator_keys = (0..current_active_set.len() as ValidatorIndex)
         .map(|validator_index| {
             current_active_set
                 .get_validator_ed25519_key(validator_index)

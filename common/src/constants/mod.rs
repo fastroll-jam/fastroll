@@ -1,13 +1,20 @@
 use crate::{
-    Balance, ServiceId, UnsignedGas, DATA_SEGMENTS_CHUNKS, ERASURE_CHUNK_SIZE, VALIDATOR_COUNT,
+    Balance, ServiceId, UnsignedGas, CORE_COUNT, DATA_SEGMENTS_CHUNKS, ERASURE_CHUNK_SIZE,
 };
 
 pub mod constants_encoder;
 
-// --- Derived values from `VALIDATOR_COUNT`.
-pub const FLOOR_ONE_THIRDS_VALIDATOR_COUNT: usize = VALIDATOR_COUNT / 3;
-pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3;
-pub const VALIDATORS_SUPER_MAJORITY: usize = FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1;
+/// `max 𝕍`: The largest validator set size, three validators for each of the `C` cores.
+/// A validator set (e.g. `κ`) holds a multiple of 3 validators from 6 up to this size.
+pub const MAX_VALIDATOR_COUNT: usize = 3 * CORE_COUNT;
+
+/// The supermajority of the largest validator set, which bounds the judgments of a verdict.
+pub const MAX_VALIDATORS_SUPER_MAJORITY: usize = validators_super_majority(MAX_VALIDATOR_COUNT);
+
+/// Returns `⌊2v/3⌋ + 1` for a validator set of `v` validators, the smallest count above two thirds of it.
+pub const fn validators_super_majority(validator_count: usize) -> usize {
+    2 * validator_count / 3 + 1
+}
 
 /// JAM common era UNIX timestamp; 1200 UTC on January 1st, 2025.
 pub const COMMON_ERA_TIMESTAMP: u64 = 1_735_732_800;

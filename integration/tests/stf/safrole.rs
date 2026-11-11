@@ -312,7 +312,6 @@ generate_typed_tests! {
     // On epoch change the designated set is smaller than the active one.
     // Epoch mark carries the smaller set.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     enact_epoch_change_with_set_resize_1: "enact-epoch-change-with-set-resize-1.json",
 
     // Success
@@ -324,13 +323,11 @@ generate_typed_tests! {
     // Fail
     // Ticket with an attempt beyond the bound of the smaller pending set size.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     enact_epoch_change_with_set_resize_3: "enact-epoch-change-with-set-resize-3.json",
 
     // Success
     // Next epoch change. The smaller set becomes active.
     // Tickets accumulator is not full, so the sealing keys fall back to a selection from the smaller set.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     enact_epoch_change_with_set_resize_4: "enact-epoch-change-with-set-resize-4.json",
 }

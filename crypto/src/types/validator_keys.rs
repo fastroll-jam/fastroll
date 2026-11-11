@@ -6,9 +6,9 @@ use crate::{
     types::{BandersnatchPubKey, BlsPubKey, Ed25519PubKey},
 };
 use fr_common::{
-    ByteArray, ByteEncodable, CommonTypeError, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT,
+    ByteArray, ByteEncodable, CommonTypeError, ValidatorIndex, MAX_VALIDATOR_COUNT, PUBLIC_KEY_SIZE,
 };
-use fr_limited_vec::FixedVec;
+use fr_limited_vec::LimitedVec;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Display, Formatter},
@@ -105,9 +105,10 @@ impl ValidatorKey {
     }
 }
 
-pub type ValidatorKeys = FixedVec<ValidatorKey, VALIDATOR_COUNT>;
+pub type ValidatorKeys = LimitedVec<ValidatorKey, MAX_VALIDATOR_COUNT>;
 
-/// Set of `VALIDATOR_COUNT` validator keys.
+/// Validator key set of variable size (e.g. `κ`), encoded with a length prefix.
+/// Its size is a multiple of 3 from 6 up to `MAX_VALIDATOR_COUNT`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ValidatorKeySet(pub ValidatorKeys);
 
@@ -141,10 +142,7 @@ impl ValidatorKeySet {
     }
 
     fn get_validator_key(&self, validator_index: ValidatorIndex) -> Option<&ValidatorKey> {
-        if validator_index as usize >= VALIDATOR_COUNT {
-            return None;
-        }
-        Some(&self[validator_index as usize])
+        self.as_slice().get(validator_index as usize)
     }
 
     pub fn get_validator_index(

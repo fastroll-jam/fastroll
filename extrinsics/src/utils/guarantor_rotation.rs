@@ -1,9 +1,7 @@
 use crate::utils::shuffle::{shuffle_with_hash, ShuffleError};
-use fr_common::{
-    CoreIndex, Hash32, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD, VALIDATOR_COUNT,
-};
+use fr_common::{CoreIndex, Hash32, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD, MAX_VALIDATOR_COUNT};
 use fr_crypto::types::ValidatorKeySet;
-use fr_limited_vec::FixedVec;
+use fr_limited_vec::LimitedVec;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
@@ -21,7 +19,7 @@ pub enum GuarantorAssignmentError {
     ShuffleError(#[from] ShuffleError),
 }
 
-pub type CoreIndices = FixedVec<CoreIndex, VALIDATOR_COUNT>;
+pub type CoreIndices = LimitedVec<CoreIndex, MAX_VALIDATOR_COUNT>;
 
 pub struct GuarantorAssignment {
     /// `c`: Indices of cores allocated to validators, indexed by validator indices.
@@ -32,21 +30,26 @@ pub struct GuarantorAssignment {
 
 impl GuarantorAssignment {
     /// Represents rotation function `R` from the GP.
+    /// Shifts each core index by `shift` modulo the `|c|/3` cores that the validators cover.
     fn rotate_validator_indices(indices: Vec<u16>, shift: u16) -> Vec<u16> {
+        let covered_core_count = (indices.len() / 3) as u16;
+        if covered_core_count == 0 {
+            return indices;
+        }
         indices
             .into_iter()
-            .map(|index| (index + shift) % CORE_COUNT as u16)
+            .map(|index| (index + shift) % covered_core_count)
             .collect()
     }
 
-    /// Represents permute function `P` of the GP.
+    /// Represents permute function `P` of the GP for a validator set of `validator_count` validators.
+    /// Assigns the core `⌊i/3⌋` to validator `i` before the shuffle, so each core gets three validators.
     fn permute_validator_indices(
+        validator_count: usize,
         entropy: &Hash32,
         timeslot: Timeslot,
     ) -> Result<Vec<u16>, GuarantorAssignmentError> {
-        let indices: Vec<u16> = (0..VALIDATOR_COUNT)
-            .map(|i| (CORE_COUNT * i / VALIDATOR_COUNT) as u16)
-            .collect();
+        let indices: Vec<u16> = (0..validator_count).map(|i| (i / 3) as u16).collect();
         let shuffled_indices = shuffle_with_hash(indices, entropy)?;
         let rotation_shift =
             (timeslot.slot() % EPOCH_LENGTH as u32) / GUARANTOR_ROTATION_PERIOD as u32;
@@ -69,6 +72,7 @@ impl GuarantorAssignment {
 
         Ok(Self {
             core_indices: CoreIndices::try_from(Self::permute_validator_indices(
+                active_set.len(),
                 entropy_2,
                 current_timeslot,
             )?)
@@ -106,6 +110,7 @@ impl GuarantorAssignment {
 
         Ok(Self {
             core_indices: CoreIndices::try_from(Self::permute_validator_indices(
+                validator_set.len(),
                 entropy,
                 previous_rotation_timeslot,
             )?)

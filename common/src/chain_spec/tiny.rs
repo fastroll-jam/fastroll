@@ -1,9 +1,6 @@
-use crate::UnsignedGas;
+use crate::{UnsignedGas, MAX_VALIDATOR_COUNT};
 
 pub const CHAIN_SPEC: &str = "tiny";
-
-/// `V`: The total number of validators.
-pub const VALIDATOR_COUNT: usize = 6;
 
 /// `C`: The total number of cores.
 pub const CORE_COUNT: usize = 2;
@@ -50,7 +47,7 @@ pub const DATA_SEGMENTS_CHUNKS: usize = 1_026;
 
 /// The total number of symbols in a codeword (message + recovery symbols) in erasure codec.
 /// For `k:n` reed-solomon rate, this is `n`.
-pub const ERASURE_CODE_TOTAL_CHUNKS: usize = VALIDATOR_COUNT;
+pub const ERASURE_CODE_TOTAL_CHUNKS: usize = MAX_VALIDATOR_COUNT;
 
 /// The number of original message symbols in erasure codec. For `k:n` reed-solomon rate, this is `k`.
 pub const ERASURE_CODE_MESSAGE_CHUNKS: usize = 2;

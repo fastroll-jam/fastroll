@@ -5,9 +5,7 @@ use crate::{
 };
 use fr_block::types::block::{EpochMarker, WinningTicketsMarker};
 use fr_codec::prelude::*;
-use fr_common::{
-    ticket::Ticket, ByteEncodable, EntropyHash, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
-};
+use fr_common::{ticket::Ticket, ByteEncodable, EntropyHash, ValidatorIndex, EPOCH_LENGTH};
 use fr_crypto::{error::CryptoError, hash, types::*, Blake2b256};
 use fr_limited_vec::{FixedVec, LimitedVecError};
 use std::{
@@ -29,6 +27,8 @@ pub enum SlotSealerError {
     LimitedVecError(#[from] LimitedVecError),
     #[error("Validator index is out of bound: {0}")]
     ValidatorIndexOutOfBounds(ValidatorIndex),
+    #[error("Fallback keys need a non-empty validator set")]
+    EmptyValidatorSet,
 }
 
 #[derive(Clone, Default)]
@@ -89,10 +89,7 @@ impl Display for SafroleState {
 
 impl JamDecode for SafroleState {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut pending_set = ValidatorKeySet::default();
-        for validator in pending_set.iter_mut() {
-            *validator = ValidatorKey::decode(input)?;
-        }
+        let pending_set = ValidatorKeySet::decode(input)?;
 
         let mut ring_root = BandersnatchRingRoot::default();
         input.read(&mut *ring_root)?;
@@ -253,7 +250,9 @@ pub fn generate_fallback_keys(
     for (i, key) in fallback_keys.iter_mut().enumerate() {
         let hash_input = [entropy.as_slice(), (i as u32).encode_fixed(4)?.as_slice()].concat();
         let hash = hash::<Blake2b256>(&hash_input)?;
-        let key_index = u32::decode_fixed(&mut &hash[..4], 4)? % (VALIDATOR_COUNT as u32);
+        let key_index = u32::decode_fixed(&mut &hash[..4], 4)?
+            .checked_rem(validator_set.len() as u32)
+            .ok_or(SlotSealerError::EmptyValidatorSet)?;
 
         *key = validator_set
             .get_validator_bandersnatch_key(key_index as ValidatorIndex)

@@ -2,7 +2,7 @@ use crate::validation::error::XtError;
 use fr_block::types::extrinsics::disputes::{
     Culprit, DisputesXt, Fault, Verdict, VerdictEvaluation,
 };
-use fr_common::{ByteEncodable, Hash32, X_0, X_1, X_G};
+use fr_common::{validators_super_majority, ByteEncodable, Hash32, X_0, X_1, X_G};
 use fr_crypto::{
     signers::{ed25519::Ed25519Verifier, Verifier},
     types::Ed25519PubKey,
@@ -32,8 +32,9 @@ use std::{collections::HashSet, sync::Arc};
 ///       hash, signed by the corresponding public keys of the `voter`s,
 ///       which must be part of either the `ActiveSet` or the `PastSet`.
 ///     - `epoch_index` of verdicts must match either the current epoch or the previous epoch.
-///     - Judgments of each verdict entry must have one of the following valid vote counts for the
-///       target work report: zero, `FLOOR_ONE_THIRDS_VALIDATOR_COUNT`, or `VALIDATORS_SUPER_MAJORITY`.
+///     - Each verdict entry must have exactly `⌊2/3|k|⌋ + 1` judgments, where `k` is the `ActiveSet` for
+///       the current epoch and the `PastSet` for the previous epoch.
+///     - Its positive judgments must be zero, `⌊|k|/3⌋`, or all of them.
 /// - `culprits` and `faults`
 ///     - Offender signatures must be valid Ed25519 signatures of the work report hash,
 ///       similar to the validation of `verdicts`.
@@ -178,6 +179,22 @@ impl DisputesXtValidator {
             ));
         }
 
+        // `k`: The validator set that signs the verdict epoch.
+        let validator_set = if entry.epoch_index == prior_timeslot.epoch() {
+            &active_set.0
+        } else {
+            &past_set.0
+        };
+
+        // Check the judgments count
+        let expected_judgments_count = validators_super_majority(validator_set.len());
+        if entry.judgments.len() != expected_judgments_count {
+            return Err(XtError::InvalidJudgmentsCount(
+                entry.judgments.len(),
+                expected_judgments_count,
+            ));
+        }
+
         // Check the valid votes count
         if let VerdictEvaluation::Invalid(positive_votes) = entry.evaluate_verdict() {
             return Err(XtError::InvalidVotesCount(positive_votes));
@@ -222,12 +239,6 @@ impl DisputesXtValidator {
         if !no_duplicate_judgments {
             return Err(XtError::DuplicateJudgment);
         }
-
-        let validator_set = if entry.epoch_index == prior_timeslot.epoch() {
-            &active_set.0
-        } else {
-            &past_set.0
-        };
 
         let positive_message = [X_1, entry.report_hash.as_slice()].concat();
         let negative_message = [X_0, entry.report_hash.as_slice()].concat();

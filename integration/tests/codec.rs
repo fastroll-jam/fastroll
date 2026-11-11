@@ -75,13 +75,11 @@ mod codec {
         assurances_extrinsic: ("assurances_extrinsic", AssurancesXt, AsnAssurancesXt),
         #[ignore = "GP 0.8.0 not implemented"]
         block: ("block", Block, AsnBlock),
-        #[ignore = "GP 0.8.0 not implemented"]
         disputes_extrinsic: ("disputes_extrinsic", DisputesXt, AsnDisputesXt),
         #[ignore = "GP 0.8.0 not implemented"]
         extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
         #[ignore = "GP 0.8.0 not implemented"]
         guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesXt, AsnGuaranteesXt),
-        #[ignore = "GP 0.8.0 not implemented"]
         header_0: ("header_0", BlockHeader, AsnHeader),
         header_1: ("header_1", BlockHeader, AsnHeader),
         preimages_extrinsic: ("preimages_extrinsic", PreimagesXt, AsnPreimagesXt),

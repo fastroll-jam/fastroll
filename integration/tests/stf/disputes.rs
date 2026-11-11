@@ -260,7 +260,6 @@ generate_typed_tests! {
 
     // Fail
     // Verdict with one vote less than the supermajority of the signing validators set.
-    #[ignore = "GP 0.8.0 not implemented"]
     progress_with_bad_votes_count_1: "progress_with_bad_votes_count-1.json",
 
     // Success
@@ -273,6 +272,5 @@ generate_typed_tests! {
     // Fail
     // Same votes count signed by the current set, which is not its supermajority.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     progress_with_verdicts_from_resized_previous_set_2: "progress_with_verdicts_from_resized_previous_set-2.json",
 }

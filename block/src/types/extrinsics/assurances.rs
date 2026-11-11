@@ -2,14 +2,14 @@ use crate::types::extrinsics::{XtEntry, XtType};
 use bitvec::prelude::*;
 use fr_codec::prelude::*;
 use fr_common::{
-    BlockHeaderHash, CoreIndex, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
-    VALIDATOR_COUNT,
+    validators_super_majority, BlockHeaderHash, CoreIndex, ValidatorIndex, CORE_COUNT,
+    MAX_VALIDATOR_COUNT,
 };
 use fr_crypto::types::*;
 use fr_limited_vec::LimitedVec;
 use std::{cmp::Ordering, ops::Deref};
 
-pub type AssurancesXtEntries = LimitedVec<AssurancesXtEntry, VALIDATOR_COUNT>;
+pub type AssurancesXtEntries = LimitedVec<AssurancesXtEntry, MAX_VALIDATOR_COUNT>;
 
 /// The assurances extrinsic submitted by validators assuring the availability of work reports
 /// on assigned cores.
@@ -19,7 +19,7 @@ pub struct AssurancesXt {
 }
 
 impl Deref for AssurancesXt {
-    type Target = LimitedVec<AssurancesXtEntry, VALIDATOR_COUNT>;
+    type Target = AssurancesXtEntries;
 
     fn deref(&self) -> &Self::Target {
         &self.items
@@ -33,12 +33,13 @@ impl AssurancesXt {
     }
 
     /// Aggregates core indices whose availability is assured by more than two-thirds of the
-    /// total validators.
-    pub fn available_core_indices(&self) -> Vec<CoreIndex> {
+    /// active validator set `κ` of `active_validator_count` validators.
+    pub fn available_core_indices(&self, active_validator_count: usize) -> Vec<CoreIndex> {
+        let super_majority = validators_super_majority(active_validator_count);
         self.cores_assurances_counts()
             .into_iter()
             .enumerate()
-            .filter(|(_, assurance_count)| *assurance_count >= VALIDATORS_SUPER_MAJORITY)
+            .filter(|(_, assurance_count)| *assurance_count >= super_majority)
             .map(|(i, _)| i as CoreIndex)
             .collect()
     }

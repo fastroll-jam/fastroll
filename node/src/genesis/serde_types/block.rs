@@ -1,12 +1,11 @@
 use fr_block::types::{
     block::{
         Block, BlockHeader, BlockHeaderData, BlockSeal, EpochMarker, EpochMarkerValidatorKey,
-        VrfSig,
+        EpochValidators, VrfSig,
     },
     extrinsics::Extrinsics,
 };
 use fr_common::{BlockHeaderHash, EntropyHash, StateRoot, TimeslotIndex, ValidatorIndex, XtHash};
-use fr_limited_vec::FixedVec;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -21,7 +20,8 @@ impl From<EpochMarkerSerde> for EpochMarker {
         Self {
             entropy: value.entropy,
             tickets_entropy: value.tickets_entropy,
-            validators: FixedVec::try_from(value.validators).expect("Invalid validators key count"),
+            validators: EpochValidators::try_from(value.validators)
+                .expect("Invalid validators key count"),
         }
     }
 }

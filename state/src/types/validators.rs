@@ -81,7 +81,7 @@ fn fmt_validator_set(
     for (i, validator) in validators.iter().enumerate() {
         writeln!(f, "\t\t\"Validator_{i}\": {{")?;
         write!(f, "{}", validator.clone().to_json_like(6))?;
-        if i < validators.len() - 1 {
+        if i + 1 < validators.len() {
             writeln!(f, "\t\t}},")?;
         } else {
             writeln!(f, "\t\t}}")?;

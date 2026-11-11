@@ -42,6 +42,9 @@ pub fn map_error_to_custom_code(e: TransitionError) -> DisputesErrorCode {
         TransitionError::XtError(XtError::InvalidVotesCount(_)) => {
             DisputesErrorCode::bad_vote_split
         }
+        TransitionError::XtError(XtError::InvalidJudgmentsCount(_, _)) => {
+            DisputesErrorCode::bad_votes_count
+        }
         TransitionError::XtError(XtError::InvalidCulpritReportHash(_)) => {
             DisputesErrorCode::culprits_verdict_not_bad
         }

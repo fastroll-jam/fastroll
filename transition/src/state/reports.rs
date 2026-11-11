@@ -85,7 +85,9 @@ pub async fn transition_reports_clear_availables(
         .await?;
 
     // Get core indices which have been available by introducing the assurances extrinsic.
-    let available_reports_core_indices = assurances_xt.available_core_indices();
+    let prior_active_validator_count = state_manager.get_active_set_clean().await?.len(); // |κ|
+    let available_reports_core_indices =
+        assurances_xt.available_core_indices(prior_active_validator_count);
 
     // Aggregate work reports to be removed for being available.
     let mut available_reports = Vec::with_capacity(available_reports_core_indices.len());

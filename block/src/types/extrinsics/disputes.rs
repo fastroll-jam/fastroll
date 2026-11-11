@@ -1,11 +1,10 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use fr_codec::prelude::*;
 use fr_common::{
-    ByteEncodable, EpochIndex, ValidatorIndex, WorkReportHash, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
-    VALIDATORS_SUPER_MAJORITY,
+    ByteEncodable, EpochIndex, ValidatorIndex, WorkReportHash, MAX_VALIDATORS_SUPER_MAJORITY,
 };
 use fr_crypto::types::*;
-use fr_limited_vec::FixedVec;
+use fr_limited_vec::LimitedVec;
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},
@@ -118,7 +117,7 @@ impl DisputesXt {
     }
 }
 
-pub type Judgments = FixedVec<Judgment, VALIDATORS_SUPER_MAJORITY>;
+pub type Judgments = LimitedVec<Judgment, MAX_VALIDATORS_SUPER_MAJORITY>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Verdict {
@@ -182,17 +181,24 @@ impl JamDecode for Verdict {
 }
 
 impl Verdict {
+    /// Classifies the verdict by its count of positive judgments `t` (`V` of the GP).
+    /// Validation fixes the judgments count `n` at `⌊2/3|k|⌋ + 1` for the key set `k` of the verdict epoch.
+    /// So `t = n` is good, `t = 0` is bad, and `t = ⌊|k|/3⌋`, which equals `⌊(n - 1)/2⌋`, is wonky.
     pub fn evaluate_verdict(&self) -> VerdictEvaluation {
+        let judgments_count = self.judgments.len();
         let valid_judgments_count = self
             .judgments
             .iter()
             .filter(|&judgment| judgment.is_report_valid)
             .count();
-        match valid_judgments_count {
-            VALIDATORS_SUPER_MAJORITY => VerdictEvaluation::IsGood,
-            0 => VerdictEvaluation::IsBad,
-            FLOOR_ONE_THIRDS_VALIDATOR_COUNT => VerdictEvaluation::IsWonky,
-            _ => VerdictEvaluation::Invalid(valid_judgments_count),
+        if valid_judgments_count == judgments_count {
+            VerdictEvaluation::IsGood
+        } else if valid_judgments_count == 0 {
+            VerdictEvaluation::IsBad
+        } else if valid_judgments_count == judgments_count.saturating_sub(1) / 2 {
+            VerdictEvaluation::IsWonky
+        } else {
+            VerdictEvaluation::Invalid(valid_judgments_count)
         }
     }
 }

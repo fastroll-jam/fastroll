@@ -26,7 +26,7 @@ use fr_common::{
     },
     BlockHeaderHash, ByteSequence, EntropyHash, ErasureRoot, Hash32, Octets, SegmentRoot,
     ServiceId, StateRoot, TicketId, WorkPackageHash, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH,
-    MAX_AUTH_POOL_SIZE, VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
+    MAX_AUTH_POOL_SIZE, MAX_VALIDATORS_SUPER_MAJORITY, MAX_VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
@@ -50,9 +50,9 @@ use std::{
 // ----------------------------------------------------
 // -- Constants
 // ----------------------------------------------------
-pub const ASN_VALIDATORS_COUNT: usize = VALIDATOR_COUNT;
+pub const ASN_VALIDATORS_COUNT: usize = MAX_VALIDATOR_COUNT;
 
-pub const ASN_VALIDATORS_SUPER_MAJORITY: usize = VALIDATORS_SUPER_MAJORITY;
+pub const ASN_VALIDATORS_SUPER_MAJORITY: usize = MAX_VALIDATORS_SUPER_MAJORITY;
 
 pub const ASN_EPOCH_LENGTH: usize = EPOCH_LENGTH;
 
@@ -1910,7 +1910,7 @@ pub struct AsnEpochMark {
 
 impl From<AsnEpochMark> for EpochMarker {
     fn from(value: AsnEpochMark) -> Self {
-        let mut validator_keys = Vec::with_capacity(VALIDATOR_COUNT);
+        let mut validator_keys = Vec::with_capacity(ASN_VALIDATORS_COUNT);
         for key in value.validators.into_iter() {
             validator_keys.push(EpochMarkerValidatorKey::from(key));
         }

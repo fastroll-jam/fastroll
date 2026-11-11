@@ -6,9 +6,9 @@ use fr_block::types::extrinsics::preimages::PreimagesXtEntry;
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::RefineStats, CoreIndex, ServiceId, UnsignedGas, ValidatorIndex, CORE_COUNT,
-    VALIDATOR_COUNT,
+    MAX_VALIDATOR_COUNT,
 };
-use fr_limited_vec::FixedVec;
+use fr_limited_vec::{FixedVec, LimitedVec};
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
@@ -105,9 +105,9 @@ impl JamDecode for ValidatorStatsEntry {
     }
 }
 
-pub type ValidatorStatsEntries = FixedVec<ValidatorStatsEntry, VALIDATOR_COUNT>;
+pub type ValidatorStatsEntries = LimitedVec<ValidatorStatsEntry, MAX_VALIDATOR_COUNT>;
 
-/// Holds statistics for all validator activities during a single epoch.
+/// Holds statistics for all validator activities during a single epoch, one entry per validator of the set.
 /// Each entry tracks activities such as block production, ticket introduction, and assurances.
 ///
 /// This structure is used both to accumulate statistics for the current epoch
@@ -144,6 +144,13 @@ impl DerefMut for EpochValidatorStats {
 impl EpochValidatorStats {
     pub fn new(items: ValidatorStatsEntries) -> Self {
         Self { items }
+    }
+
+    /// Creates zeroed statistics for a validator set of `validator_count` validators.
+    pub fn zeroed(validator_count: usize) -> Self {
+        let entries =
+            vec![ValidatorStatsEntry::default(); validator_count.min(MAX_VALIDATOR_COUNT)];
+        Self::new(ValidatorStatsEntries::try_from(entries).unwrap_or_default())
     }
 
     pub fn validator_stats(&self, validator_index: ValidatorIndex) -> &ValidatorStatsEntry {
@@ -203,8 +210,9 @@ impl ValidatorStats {
         self.prev = new_epoch_stats
     }
 
-    pub fn clear_current_epoch_stats(&mut self) {
-        self.curr = EpochValidatorStats::default()
+    /// Resets `π_V` to zeroed entries for a validator set of `validator_count` validators, e.g. `|κ'|` on a new epoch.
+    pub fn clear_current_epoch_stats(&mut self, validator_count: usize) {
+        self.curr = EpochValidatorStats::zeroed(validator_count)
     }
 }
 

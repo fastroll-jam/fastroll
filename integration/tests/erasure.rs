@@ -16,7 +16,7 @@ mod erasure {
     #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
     pub struct TestCase {
         data: ByteSequence,
-        shards: Vec<ByteSequence>, // length of VALIDATOR_COUNT
+        shards: Vec<ByteSequence>, // one shard per validator
     }
 
     pub fn test_encode_full(filename: &str) {

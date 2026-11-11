@@ -1,12 +1,11 @@
 use crate::error::TransitionError;
 use fr_block::types::{
-    block::{EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker},
+    block::{EpochMarker, EpochMarkerValidatorKey, EpochValidators, WinningTicketsMarker},
     extrinsics::tickets::TicketsXt,
 };
-use fr_common::{EntropyHash, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
+use fr_common::{EntropyHash, TICKET_CONTEST_DURATION};
 use fr_crypto::types::ValidatorKeySet;
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
-use fr_limited_vec::FixedVec;
 use fr_state::{
     cache::StateMut,
     error::StateManagerError,
@@ -171,8 +170,8 @@ async fn handle_ticket_accumulation(
 
 fn extract_epoch_marker_keys(
     validator_set: &ValidatorKeySet,
-) -> Result<FixedVec<EpochMarkerValidatorKey, VALIDATOR_COUNT>, TransitionError> {
-    let mut result = Vec::with_capacity(VALIDATOR_COUNT);
+) -> Result<EpochValidators, TransitionError> {
+    let mut result = Vec::with_capacity(validator_set.len());
     for key in validator_set.iter() {
         result.push(EpochMarkerValidatorKey {
             bandersnatch: key.bandersnatch.clone(),
@@ -180,7 +179,7 @@ fn extract_epoch_marker_keys(
         });
     }
 
-    Ok(FixedVec::try_from(result)?)
+    Ok(EpochValidators::try_from(result)?)
 }
 
 #[instrument(level = "debug", skip_all, name = "header_markers")]

@@ -21,6 +21,7 @@ pub enum DisputesErrorCode {
     bad_signature,
     bad_guarantor_key,
     bad_auditor_key,
+    bad_votes_count,
     reserved,
 }
 

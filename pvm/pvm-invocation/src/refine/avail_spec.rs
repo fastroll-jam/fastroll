@@ -3,7 +3,7 @@ use fr_codec::prelude::*;
 use fr_common::{
     utils::zero_pad::zero_pad,
     workloads::{AvailSpecs, WorkPackage},
-    ErasureRoot, ERASURE_CHUNK_SIZE, SEGMENT_SIZE, VALIDATOR_COUNT,
+    ErasureRoot, ERASURE_CHUNK_SIZE, MAX_VALIDATOR_COUNT, SEGMENT_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_erasure_coding::{Chunk, ErasureCodec};
@@ -78,12 +78,12 @@ fn compute_erasure_root(
 
     // Transpose `Vec<Vec<Chunk>>` FROM:
     // `Vec<Vec<Chunk>>` where outer Vec having `segments_with_proofs_len` elements,
-    // and inner Vecs each having `VALIDATOR_COUNT` elements
+    // and inner Vecs each having `MAX_VALIDATOR_COUNT` elements
     //
     // INTO
-    // `Vec<Vec<Chunk>>` where outer Vec has `VALIDATOR_COUNT` elements,
+    // `Vec<Vec<Chunk>>` where outer Vec has `MAX_VALIDATOR_COUNT` elements,
     // and inner Vecs each have `segments_with_proofs_len` elements.
-    let mut segments_transposed: Vec<Vec<Chunk>> = (0..VALIDATOR_COUNT)
+    let mut segments_transposed: Vec<Vec<Chunk>> = (0..MAX_VALIDATOR_COUNT)
         .map(|_| {
             (0..segments_with_proofs_len)
                 .map(|_| vec![0u8; SINGLE_CHUNK_OCTETS])

@@ -416,7 +416,6 @@ generate_typed_tests! {
     // Fail
     // Active validators set shrunk to the minimum size. Guarantors assigned under the full size permutation.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     report_with_shrunken_val_set_1: "report_with_shrunken_val_set-1.json",
 
     // Success
