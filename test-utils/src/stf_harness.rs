@@ -153,19 +153,24 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 /// generate_typed_tests! {
 ///     TestType,
 ///     test_name1: "path/to/case1",
+///     #[cfg(feature = "full")]
 ///     test_name2: "path/to/case2",
+///     #[ignore = "reason"]
+///     test_name3: "path/to/case3",
 /// }
 /// ```
 ///
 /// The first entry represents type of the state transition test.
 /// For the following entries, each entry generates a test function
 /// that calls `run_test_case::<TestType>("path/to/case")`.
+/// Attributes before an entry go to its test function, e.g. `#[cfg(feature = "full")]` for a case that only the full vectors have.
 ///
 /// Ensure `run_test_case` is in scope and returns `Result<(), TransitionError>`.
 #[macro_export]
 macro_rules! generate_typed_tests {
-    ($test_type:ty, $($name:ident: $path:expr,)*) => {
+    ($test_type:ty, $($(#[$attr:meta])* $name:ident: $path:expr,)*) => {
         $(
+            $(#[$attr])*
             #[tokio::test]
             async fn $name() -> Result<(), TransitionError> {
                 run_test_case::<$test_type>($path).await

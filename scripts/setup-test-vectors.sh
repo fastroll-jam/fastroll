@@ -52,11 +52,12 @@ done
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
+# Reads the pin from the index like `git submodule update`, so a staged bump is fetched before it is committed.
 expected_revision() {
   local submodule_path=$1
   local revision
-  revision=$(git ls-tree HEAD -- "$submodule_path" | awk '$1 == "160000" && $2 == "commit" { print $3 }')
-  [[ -n "$revision" ]] || die "submodule is not recorded in HEAD: $submodule_path"
+  revision=$(git ls-files --stage -- "$submodule_path" | awk '$1 == "160000" { print $2 }')
+  [[ -n "$revision" ]] || die "submodule is not recorded in the index: $submodule_path"
   printf '%s\n' "$revision"
 }
 

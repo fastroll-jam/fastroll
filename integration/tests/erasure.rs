@@ -84,25 +84,21 @@ mod erasure {
         assert_eq!(recovered, data_expected_padded);
     }
 
+    /// Generates an encode and a recover test per case of one chain spec (`full` or `tiny`).
+    /// Attributes before a case go to both of its tests.
     macro_rules! generate_erasure_tests {
-        ($($name:ident: $path:expr,)*) => {
+        ($chain_spec:ident { $($(#[$attr:meta])* $name:ident: $path:expr,)* }) => {
             paste::paste! {
                 $(
+                    $(#[$attr])*
                     #[test]
-                    fn [<$name _encode_full>]() {
-                        test_encode_full($path);
+                    fn [<$name _encode_ $chain_spec>]() {
+                        [<test_encode_ $chain_spec>]($path);
                     }
+                    $(#[$attr])*
                     #[test]
-                    fn [<$name _encode_tiny>]() {
-                        test_encode_tiny($path);
-                    }
-                    #[test]
-                    fn [<$name _recover_full>]() {
-                        test_recover_full($path);
-                    }
-                    #[test]
-                    fn [<$name _recover_tiny>]() {
-                        test_recover_tiny($path);
+                    fn [<$name _recover_ $chain_spec>]() {
+                        [<test_recover_ $chain_spec>]($path);
                     }
                 )*
             }
@@ -110,11 +106,24 @@ mod erasure {
     }
 
     generate_erasure_tests! {
-        erasure_3: "ec-3",
-        erasure_32: "ec-32",
-        erasure_100: "ec-100",
-        erasure_4096: "ec-4096",
-        erasure_4104: "ec-4104",
-        erasure_10000: "ec-10000",
+        full {
+            erasure_3: "ec-3",
+            erasure_32: "ec-32",
+            erasure_100: "ec-100",
+            erasure_4096: "ec-4096",
+            erasure_4104: "ec-4104",
+            erasure_10000: "ec-10000",
+        }
+    }
+
+    generate_erasure_tests! {
+        tiny {
+            erasure_3: "ec-3",
+            erasure_32: "ec-32",
+            erasure_100: "ec-100",
+            erasure_4096: "ec-4096",
+            erasure_4104: "ec-4104",
+            erasure_10000: "ec-10000",
+        }
     }
 }

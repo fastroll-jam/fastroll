@@ -60,8 +60,9 @@ mod codec {
     }
 
     macro_rules! generate_codec_tests {
-        ($($name:ident: ($path:expr, $t: ty, $u: ty),)*) => {
+        ($($(#[$attr:meta])* $name:ident: ($path:expr, $t: ty, $u: ty),)*) => {
             $(
+                $(#[$attr])*
                 #[test]
                 fn $name() {
                     test_encode_decode::<$t, $u>($path)

@@ -11,16 +11,38 @@ fn read_vector_dir(path: &PathBuf, description: &str) -> ReadDir {
     })
 }
 
-const RETIRED_TRACES: &[&str] = &[
+/// GP version of the jam-fuzzing campaign whose traces run as block-import conformance tests.
+const FUZZ_REPORTS_GP_VERSION: &str = "0.7.2";
+
+/// Block-import trace groups generated as ignored tests, with the reason.
+/// A group is a `traces/<group>` directory of jam-test-vectors, or `conformance` for the jam-fuzzing traces.
+const IGNORED_TRACE_GROUPS: &[(&str, &str)] = &[];
+
+/// jam-fuzzing traces generated as ignored tests, with the reason.
+/// e.g. a trace retired in `NEWS.md`, or one that follows a GP change made after `FUZZ_REPORTS_GP_VERSION`.
+const RETIRED_TRACES: &[(&str, &str)] = &[
     // TODO: Remove after tickets extrinsic encoding get fixed in test vectors
-    "1766243315_2277",
-    "1766244122_5414",
-    "1766244251_1816",
-    "1767872928_1994",
+    ("1766243315_2277", TICKETS_XT_ENCODING_FIX_PENDING),
+    ("1766244122_5414", TICKETS_XT_ENCODING_FIX_PENDING),
+    ("1766244251_1816", TICKETS_XT_ENCODING_FIX_PENDING),
+    ("1767872928_1994", TICKETS_XT_ENCODING_FIX_PENDING),
 ];
 
-fn is_retired(trace_name: &str) -> bool {
-    RETIRED_TRACES.contains(&trace_name)
+const TICKETS_XT_ENCODING_FIX_PENDING: &str =
+    "waits for the tickets extrinsic encoding fix in test vectors";
+
+fn find_reason(reasons: &[(&'static str, &'static str)], name: &str) -> Option<&'static str> {
+    reasons
+        .iter()
+        .find(|(ignored_name, _)| *ignored_name == name)
+        .map(|(_, reason)| *reason)
+}
+
+/// Returns the `#[ignore]` attribute of a generated test, or an empty string for a test that runs.
+fn ignore_attribute(ignored_reason: Option<&str>) -> String {
+    ignored_reason
+        .map(|reason| format!("#[ignore = \"{reason}\"]"))
+        .unwrap_or_default()
 }
 
 /// Build script to generate test cases from JSON test vectors
@@ -62,6 +84,7 @@ fn write_block_import_test_cases(
     test_group: &str,
     test_case_contents: &mut String,
 ) {
+    let ignored_attr = ignore_attribute(find_reason(IGNORED_TRACE_GROUPS, test_group));
     for test_file in test_files_dir {
         let test_file_path = test_file.expect("Failed to get test file").path();
         let test_file_path_str = test_file_path.to_str().unwrap();
@@ -76,6 +99,7 @@ fn write_block_import_test_cases(
         test_case_contents.push_str(&format!(
             "\
             #[tokio::test]\
+            {ignored_attr}\
             async fn block_import_{test_group}_{test_name}() -> Result<(), Box<dyn std::error::Error>> {{
                 run_test_case(\"{test_file_path_str}\").await?;
                 Ok(())
@@ -116,7 +140,9 @@ fn generate_block_import_tests() {
 
 /// Runs block import tests using fuzzer harness (supports forks)
 fn generate_fuzzer_block_import_tests() {
-    let fuzz_traces_dir = PathBuf::from("jam-conformance/fuzz-reports/0.7.2/traces");
+    let fuzz_traces_dir = PathBuf::from(format!(
+        "jam-conformance/fuzz-reports/{FUZZ_REPORTS_GP_VERSION}/traces"
+    ));
     let fuzz_traces_full_path =
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(fuzz_traces_dir);
     println!("cargo:rerun-if-changed={}", fuzz_traces_full_path.display());
@@ -126,9 +152,8 @@ fn generate_fuzzer_block_import_tests() {
 
     let mut test_case_contents = String::from("use fr_fuzz::fuzzer::run_fuzz_trace_dir;");
 
-    let mut write_fuzzer_case = |test_name: &str, trace_path: &PathBuf, ignored: bool| {
+    let mut write_fuzzer_case = |test_name: &str, trace_path: &PathBuf, ignored_attr: &str| {
         let trace_path_str = trace_path.to_str().unwrap();
-        let ignored_attr = if ignored { "#[ignore]" } else { "" };
         test_case_contents.push_str(&format!(
             "\
             #[tokio::test]\
@@ -152,8 +177,13 @@ fn generate_fuzzer_block_import_tests() {
             Some(name) => name,
             None => continue,
         };
-        let test_name = format!("block_import_conformance_0_7_2_{}", trace_name);
-        write_fuzzer_case(&test_name, &trace_path, is_retired(trace_name));
+        let test_name = format!(
+            "block_import_conformance_{}_{trace_name}",
+            FUZZ_REPORTS_GP_VERSION.replace('.', "_")
+        );
+        let ignored_reason = find_reason(RETIRED_TRACES, trace_name)
+            .or_else(|| find_reason(IGNORED_TRACE_GROUPS, "conformance"));
+        write_fuzzer_case(&test_name, &trace_path, &ignore_attribute(ignored_reason));
     }
 
     let fuzzy_block_groups = ["fuzzy", "fuzzy_light"];
@@ -165,7 +195,8 @@ fn generate_fuzzer_block_import_tests() {
 
         if trace_path.is_dir() {
             let test_name = format!("block_import_{group}_all");
-            write_fuzzer_case(&test_name, &trace_path, false);
+            let ignored_attr = ignore_attribute(find_reason(IGNORED_TRACE_GROUPS, group));
+            write_fuzzer_case(&test_name, &trace_path, &ignored_attr);
         }
     }
 
