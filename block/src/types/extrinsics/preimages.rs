@@ -1,6 +1,7 @@
-use crate::types::extrinsics::{XtEntry, XtType};
+use crate::types::extrinsics::{ExtrinsicsError, XtEntry, XtType};
 use fr_codec::prelude::*;
 use fr_common::{Octets, ServiceId};
+use fr_crypto::hash::{hash, Blake2b256};
 use std::ops::Deref;
 
 /// Represents a sequence of preimage lookups, where each lookup corresponds to
@@ -22,6 +23,17 @@ impl Deref for PreimagesXt {
 impl PreimagesXt {
     pub fn total_preimage_data_len(&self) -> usize {
         self.iter().map(|entry| entry.preimage_data_len()).sum()
+    }
+
+    /// Encodes the entries as `(E_4(s), H(d))` pairs, which the extrinsic hash commits to instead of the data blobs.
+    pub fn encode_with_hashed_preimages(&self) -> Result<Vec<u8>, ExtrinsicsError> {
+        let mut buf = vec![];
+        self.items.len().encode_to(&mut buf)?; // length discriminator
+        for entry in &self.items {
+            entry.service_id.encode_to_fixed(&mut buf, 4)?;
+            hash::<Blake2b256>(&entry.preimage_data)?.encode_to(&mut buf)?;
+        }
+        Ok(buf)
     }
 }
 
