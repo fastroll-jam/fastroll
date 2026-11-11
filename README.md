@@ -26,7 +26,7 @@ specification ([supported version](./common/src/versions.rs)).
 ## Build and Run
 
 Currently, the FastRoll binary focuses exclusively on fuzz-target functionality as specified in
-the [fuzz protocol](https://github.com/davxy/jam-conformance/tree/f2da851a65707576e8ec9ef865564cee215fcba3/fuzz-proto).
+the [fuzz protocol](https://github.com/jam-conformance/jam-fuzzing/tree/f2da851a65707576e8ec9ef865564cee215fcba3/fuzz-proto).
 
 The JAM node runner is under active development and currently requires dev accounts to run.
 
@@ -63,11 +63,11 @@ cargo run --features "tiny,fuzz" -- fuzz --socket "/tmp/jam_target.sock"
 
 FastRoll pins external test-vector repositories as Git submodules:
 
-- [integration/jamtestvectors-polkajam](https://github.com/davxy/jam-test-vectors): codec, erasure, shuffle,
+- [integration/jamtestvectors-polkajam](https://github.com/jam-conformance/jam-test-vectors): codec, erasure, shuffle,
   STF, and block-import vectors. Its pinned revision includes the corresponding W3F vector snapshot.
 - [integration/jamtestvectors-pvm](https://github.com/koute/jamtestvectors/tree/master_pvm_initial/pvm): PVM/RISC-V test
   vectors
-- [integration/jam-conformance](https://github.com/davxy/jam-conformance): Ed25519 vectors and fuzzing traces
+- [integration/jam-conformance](https://github.com/jam-conformance/jam-fuzzing): Ed25519 vectors and fuzzing traces
 
 Set them up with:
 
@@ -169,7 +169,7 @@ TRACE_KIND=storage cargo bench -p fr-node-bench --bench block_importer --feature
 
 Community fuzzing performance reports across implementations are available at:
 
-- [Performance Reports](https://github.com/davxy/jam-conformance/tree/main/fuzz-perf)
+- [Performance Reports](https://github.com/jam-conformance/jam-fuzzing/tree/main/fuzz-perf)
 - [Performance Dashboard](https://paritytech.github.io/jam-conformance-dashboard/)
 
 ## Repository Map

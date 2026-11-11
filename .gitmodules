@@ -1,6 +1,6 @@
 [submodule "integration/jamtestvectors-polkajam"]
 	path = integration/jamtestvectors-polkajam
-	url = https://github.com/davxy/jam-test-vectors.git
+	url = https://github.com/jam-conformance/jam-test-vectors.git
 	shallow = true
 [submodule "integration/jamtestvectors-pvm"]
 	path = integration/jamtestvectors-pvm
@@ -8,5 +8,5 @@
 	shallow = true
 [submodule "integration/jam-conformance"]
 	path = integration/jam-conformance
-	url = https://github.com/davxy/jam-conformance.git
+	url = https://github.com/jam-conformance/jam-fuzzing.git
 	shallow = true
