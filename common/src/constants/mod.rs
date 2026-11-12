@@ -8,6 +8,13 @@ pub mod constants_encoder;
 /// A validator set (e.g. `κ`) holds a multiple of 3 validators from 6 up to this size.
 pub const MAX_VALIDATOR_COUNT: usize = 3 * CORE_COUNT;
 
+/// Returns whether `validator_count` is a validator set size in `𝕍`, a multiple of 3 from 6 to `MAX_VALIDATOR_COUNT`.
+pub const fn is_validator_set_size(validator_count: usize) -> bool {
+    validator_count.is_multiple_of(3)
+        && 6 <= validator_count
+        && validator_count <= MAX_VALIDATOR_COUNT
+}
+
 /// The supermajority of the largest validator set, which bounds the judgments of a verdict.
 pub const MAX_VALIDATORS_SUPER_MAJORITY: usize = validators_super_majority(MAX_VALIDATOR_COUNT);
 

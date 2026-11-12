@@ -36,6 +36,7 @@ pub enum ReportsErrorCode {
     reserved,
     banned_validator,
     bad_anchor_slot,
+    bad_erasure_shards,
 }
 
 /// Wrapper of `AccountMetadata` including service id.

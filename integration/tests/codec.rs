@@ -73,12 +73,9 @@ mod codec {
 
     generate_codec_tests! {
         assurances_extrinsic: ("assurances_extrinsic", AssurancesXt, AsnAssurancesXt),
-        #[ignore = "GP 0.8.0 not implemented"]
         block: ("block", Block, AsnBlock),
         disputes_extrinsic: ("disputes_extrinsic", DisputesXt, AsnDisputesXt),
-        #[ignore = "GP 0.8.0 not implemented"]
         extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
-        #[ignore = "GP 0.8.0 not implemented"]
         guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesXt, AsnGuaranteesXt),
         header_0: ("header_0", BlockHeader, AsnHeader),
         header_1: ("header_1", BlockHeader, AsnHeader),
@@ -87,7 +84,6 @@ mod codec {
         tickets_extrinsic: ("tickets_extrinsic", TicketsXt, AsnTicketsXt),
         work_item: ("work_item", WorkItem, AsnWorkItem),
         work_package: ("work_package", WorkPackage, AsnWorkPackage),
-        #[ignore = "GP 0.8.0 not implemented"]
         work_report: ("work_report", WorkReport, AsnWorkReport),
         work_digest_0: ("work_result_0", WorkDigest, AsnWorkDigest),
         work_digest_1: ("work_result_1", WorkDigest, AsnWorkDigest),

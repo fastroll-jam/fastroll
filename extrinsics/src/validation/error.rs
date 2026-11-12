@@ -99,6 +99,8 @@ pub enum XtError {
     InvalidCoreIndex,
     #[error("Core is not active under the posterior validator set size. Core index: {0}")]
     InactiveCoreIndex(CoreIndex),
+    #[error("Erasure shards count of the work report must equal the posterior validator set size. Core index: {0}, Erasure shards: {1}")]
+    InvalidErasureShards(CoreIndex, u16),
     #[error("Duplicate work package hashes found in guarantees")]
     DuplicateWorkPackageHash,
     #[error("Duplicate guarantor entry found")]

@@ -89,12 +89,14 @@ fn zeroize_export_segments(exports: &mut Vec<ExportDataSegment>) {
 }
 
 /// Computes a work-package into a corresponding work-report, invoking `refine` PVM entry-point (`Ψ_R`).
+/// `erasure_shards` is the size of the assuring validator set, e.g. `|κ'|` of the most recent block.
 ///
 /// Represents `Ξ` of the GP.
 pub async fn compute_work_report(
     state_manager: Arc<StateManager>,
     package: WorkPackage,
     core_idx: CoreIndex,
+    erasure_shards: u16,
 ) -> Result<WorkReport, PVMInvokeError> {
     let is_authorized_args = IsAuthorizedInvokeArgs {
         package: package.clone(),
@@ -179,6 +181,7 @@ pub async fn compute_work_report(
             &package,
             build_auditable_bundle(package.clone()),
             exports.into_iter().flatten().collect(),
+            erasure_shards,
         )?,
         refinement_context: package.context.clone(),
         core_index: core_idx,

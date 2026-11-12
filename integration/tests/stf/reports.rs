@@ -232,7 +232,6 @@ generate_typed_tests! {
 
     // Fail
     // Package erasure shards count doesn't match the active validators set size.
-    #[ignore = "GP 0.8.0 not implemented"]
     bad_erasure_shards_1: "bad_erasure_shards-1.json",
 
     // Fail
@@ -245,7 +244,6 @@ generate_typed_tests! {
 
     // Fail
     // Validator index is too big.
-    #[ignore = "GP 0.8.0 not implemented"]
     bad_validator_index_1: "bad_validator_index-1.json",
 
     // Fail
@@ -255,7 +253,6 @@ generate_typed_tests! {
 
     // Fail
     // Prerequisite is missing.
-    #[ignore = "GP 0.8.0 not implemented"]
     dependency_missing_1: "dependency_missing-1.json",
 
     // Fail
@@ -268,7 +265,6 @@ generate_typed_tests! {
 
     // Fail
     // Report refers to a slot in the future with respect to container block slot.
-    #[ignore = "GP 0.8.0 not implemented"]
     future_report_slot_1: "future_report_slot-1.json",
 
     // Fail
@@ -319,7 +315,6 @@ generate_typed_tests! {
 
     // Fail
     // Report guarantee slot is too old with respect to block slot.
-    #[ignore = "GP 0.8.0 not implemented"]
     report_before_last_rotation_1: "report_before_last_rotation-1.json",
 
     // Success
@@ -365,7 +360,6 @@ generate_typed_tests! {
 
     // Fail
     // Unexpected guarantor for work report core.
-    #[ignore = "GP 0.8.0 not implemented"]
     wrong_assignment_1: "wrong_assignment-1.json",
 
     // Success
@@ -389,7 +383,6 @@ generate_typed_tests! {
 
     // Fail
     // Guarantee signed by a validator in the offenders set.
-    #[ignore = "GP 0.8.0 not implemented"]
     banned_validator_guarantee_1: "banned_validator_guarantee-1.json",
 
     // Success

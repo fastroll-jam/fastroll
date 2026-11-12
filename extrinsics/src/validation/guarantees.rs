@@ -40,6 +40,7 @@ use std::{collections::HashSet, sync::Arc};
 ///   - No duplicate `core_index` values are allowed within the extrinsic. Each core can only have
 ///     one work-report per extrinsic.
 ///   - The `core_index` must be below `|κ'|/3`, the number of active cores.
+///   - The `erasure_shards` of the availability spec must equal `|κ'|`.
 ///   - A new work-report must not be introduced for a core if a previous work-report is still
 ///     pending on that core, unless the pending report has timed out.
 ///   - A new work-report must have its `authorizer_hash` present in the current authorizer pool
@@ -131,12 +132,23 @@ impl GuaranteesXtValidator {
             .collect();
 
         // Only the first `|κ'|/3` cores are active and take work reports
-        let active_core_count = self.state_manager.get_active_set().await?.len() / 3;
+        let posterior_active_validator_count = self.state_manager.get_active_set().await?.len(); // |κ'|
+        let active_core_count = posterior_active_validator_count / 3;
         if let Some(entry) = extrinsic
             .iter()
             .find(|entry| entry.work_report.core_index as usize >= active_core_count)
         {
             return Err(XtError::InactiveCoreIndex(entry.work_report.core_index));
+        }
+
+        // Each report is erasure-coded into one chunk per active validator
+        if let Some(entry) = extrinsic.iter().find(|entry| {
+            entry.work_report.specs.erasure_shards as usize != posterior_active_validator_count
+        }) {
+            return Err(XtError::InvalidErasureShards(
+                entry.work_report.core_index,
+                entry.work_report.specs.erasure_shards,
+            ));
         }
 
         // Validate each entry

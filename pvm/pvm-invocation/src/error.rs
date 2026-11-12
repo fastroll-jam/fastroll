@@ -29,6 +29,8 @@ pub enum PVMInvokeError {
     GasOverflow,
     #[error("Zero padded justification data size exceeds SEGMENT_SIZE")]
     PagedProofJustificationBlobTooLarge,
+    #[error("Erasure shards count is not a validator set size: {0}")]
+    InvalidErasureShards(u16),
     #[error("Attempted to add or remove service (s={0}) that was removed or added in the same parallel accumulation round")]
     DuplicateServiceIdWithinAccumulateRound(ServiceId),
     #[error("JamCodecError: {0}")]

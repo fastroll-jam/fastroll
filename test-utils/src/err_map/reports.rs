@@ -56,6 +56,9 @@ pub fn map_error_to_custom_code(e: TransitionError) -> ReportsErrorCode {
         TransitionError::XtError(XtError::InvalidAnchorTimeslot(_, _)) => {
             ReportsErrorCode::bad_anchor_slot
         }
+        TransitionError::XtError(XtError::InvalidErasureShards(_, _)) => {
+            ReportsErrorCode::bad_erasure_shards
+        }
         TransitionError::XtError(XtError::InvalidAuthorizerHash(_)) => {
             ReportsErrorCode::core_unauthorized
         }

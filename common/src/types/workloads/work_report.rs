@@ -19,6 +19,8 @@ pub struct AvailSpecs {
     pub work_bundle_length: u32,
     /// `u`: Erasure root of the work package
     pub erasure_root: ErasureRoot,
+    /// `v`: Number of erasure-coded chunks, one per assuring validator
+    pub erasure_shards: u16,
     /// `e`: Export segment root of the work package
     pub segment_root: SegmentRoot,
     /// `n`: Number of export segments
@@ -29,11 +31,12 @@ impl Display for AvailSpecs {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "AvailSpecs {{ wp_hash: {}, wp_bundle_len: {}, erasure_root: {}, \
+            "AvailSpecs {{ wp_hash: {}, wp_bundle_len: {}, erasure_root: {}, erasure_shards: {}, \
              segment_root: {}, segment_count: {} }}",
             self.work_package_hash,
             self.work_bundle_length,
             self.erasure_root,
+            self.erasure_shards,
             self.segment_root,
             self.segment_count,
         )
@@ -45,6 +48,7 @@ impl JamEncode for AvailSpecs {
         self.work_package_hash.size_hint()
             + 4
             + self.erasure_root.size_hint()
+            + 2
             + self.segment_root.size_hint()
             + 2
     }
@@ -53,6 +57,7 @@ impl JamEncode for AvailSpecs {
         self.work_package_hash.encode_to(dest)?;
         self.work_bundle_length.encode_to_fixed(dest, 4)?;
         self.erasure_root.encode_to(dest)?;
+        self.erasure_shards.encode_to_fixed(dest, 2)?;
         self.segment_root.encode_to(dest)?;
         self.segment_count.encode_to_fixed(dest, 2)?;
         Ok(())
@@ -65,6 +70,7 @@ impl JamDecode for AvailSpecs {
             work_package_hash: WorkPackageHash::decode(input)?,
             work_bundle_length: u32::decode_fixed(input, 4)?,
             erasure_root: ErasureRoot::decode(input)?,
+            erasure_shards: u16::decode_fixed(input, 2)?,
             segment_root: SegmentRoot::decode(input)?,
             segment_count: u16::decode_fixed(input, 2)?,
         })

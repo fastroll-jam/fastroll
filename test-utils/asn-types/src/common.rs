@@ -715,6 +715,7 @@ pub struct AsnWorkPackageSpec {
     pub hash: AsnOpaqueHash,
     pub length: u32,
     pub erasure_root: AsnOpaqueHash,
+    pub erasure_shards: u16,
     pub exports_root: AsnOpaqueHash,
     pub exports_count: u16,
 }
@@ -725,6 +726,7 @@ impl From<AsnWorkPackageSpec> for AvailSpecs {
             work_package_hash: value.hash,
             work_bundle_length: value.length,
             erasure_root: ErasureRoot::from(value.erasure_root),
+            erasure_shards: value.erasure_shards,
             segment_root: SegmentRoot::from(value.exports_root),
             segment_count: value.exports_count,
         }
@@ -737,6 +739,7 @@ impl From<AvailSpecs> for AsnWorkPackageSpec {
             hash: value.work_package_hash,
             length: value.work_bundle_length,
             erasure_root: value.erasure_root,
+            erasure_shards: value.erasure_shards,
             exports_root: value.segment_root,
             exports_count: value.segment_count,
         }

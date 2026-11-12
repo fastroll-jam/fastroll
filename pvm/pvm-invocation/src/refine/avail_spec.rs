@@ -1,9 +1,10 @@
 use crate::{error::PVMInvokeError, refine::auditable_bundle::AuditableBundle};
 use fr_codec::prelude::*;
 use fr_common::{
+    is_validator_set_size,
     utils::zero_pad::zero_pad,
     workloads::{AvailSpecs, WorkPackage},
-    ErasureRoot, MAX_VALIDATOR_COUNT, SEGMENT_SIZE,
+    ErasureRoot, SEGMENT_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_erasure_coding::{Chunk, ErasureCodec};
@@ -55,11 +56,13 @@ fn generate_paged_proofs(
     Ok(page_proofs)
 }
 
+/// Computes the erasure root `u` over `erasure_shards` chunks, one per assuring validator.
 fn compute_erasure_root(
     work_bundle_encoded: Vec<u8>,
     export_segments: Vec<ExportDataSegment>,
+    erasure_shards: usize,
 ) -> Result<ErasureRoot, PVMInvokeError> {
-    let erasure_codec = ErasureCodec::new(MAX_VALIDATOR_COUNT);
+    let erasure_codec = ErasureCodec::new(erasure_shards);
     // Octets per chunk of an export segment, e.g. 12 with 1023 validators
     let single_chunk_octets = SEGMENT_SIZE / erasure_codec.msg_chunks();
 
@@ -80,12 +83,12 @@ fn compute_erasure_root(
 
     // Transpose `Vec<Vec<Chunk>>` FROM:
     // `Vec<Vec<Chunk>>` where outer Vec having `segments_with_proofs_len` elements,
-    // and inner Vecs each having `MAX_VALIDATOR_COUNT` elements
+    // and inner Vecs each having `erasure_shards` elements
     //
     // INTO
-    // `Vec<Vec<Chunk>>` where outer Vec has `MAX_VALIDATOR_COUNT` elements,
+    // `Vec<Vec<Chunk>>` where outer Vec has `erasure_shards` elements,
     // and inner Vecs each have `segments_with_proofs_len` elements.
-    let mut segments_transposed: Vec<Vec<Chunk>> = (0..MAX_VALIDATOR_COUNT)
+    let mut segments_transposed: Vec<Vec<Chunk>> = (0..erasure_shards)
         .map(|_| {
             (0..segments_with_proofs_len)
                 .map(|_| vec![0u8; single_chunk_octets])
@@ -116,11 +119,16 @@ fn compute_erasure_root(
     Ok(erasure_root)
 }
 
+/// Builds the availability specifier `A` of a work package, erasure-coded into `erasure_shards` chunks.
 pub(crate) fn build_avail_specs(
     package: &WorkPackage,
     auditable_bundle: AuditableBundle,
     export_segments: Vec<ExportDataSegment>,
+    erasure_shards: u16,
 ) -> Result<AvailSpecs, PVMInvokeError> {
+    if !is_validator_set_size(erasure_shards as usize) {
+        return Err(PVMInvokeError::InvalidErasureShards(erasure_shards));
+    }
     let work_package_hash = hash::<Blake2b256>(&package.encode()?)?;
 
     let bundle_encoded = auditable_bundle.encode()?;
@@ -132,12 +140,14 @@ pub(crate) fn build_avail_specs(
         .map(Vec::<u8>::from)
         .collect::<Vec<_>>();
     let segment_root = ConstantDepthMerkleTree::<Blake2b256>::compute_root(&exports_vec)?;
-    let erasure_root = compute_erasure_root(bundle_encoded, export_segments)?;
+    let erasure_root =
+        compute_erasure_root(bundle_encoded, export_segments, erasure_shards as usize)?;
 
     Ok(AvailSpecs {
         work_package_hash,
         work_bundle_length,
         erasure_root,
+        erasure_shards,
         segment_root,
         segment_count,
     })
