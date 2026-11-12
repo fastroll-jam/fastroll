@@ -50,6 +50,9 @@ pub fn map_error_to_custom_code(e: TransitionError) -> ReportsErrorCode {
         TransitionError::XtError(XtError::InvalidAnchorBeefyRoot(_, _)) => {
             ReportsErrorCode::bad_beefy_mmr_root
         }
+        TransitionError::XtError(XtError::InvalidAnchorTimeslot(_, _)) => {
+            ReportsErrorCode::bad_anchor_slot
+        }
         TransitionError::XtError(XtError::InvalidAuthorizerHash(_)) => {
             ReportsErrorCode::core_unauthorized
         }

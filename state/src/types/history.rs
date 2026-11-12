@@ -5,7 +5,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::work_report::ReportedWorkPackage, AccumulateRoot, BeefyRoot, BlockHeaderHash,
-    StateRoot, WorkPackageHash, BLOCK_HISTORY_LENGTH,
+    StateRoot, TimeslotIndex, WorkPackageHash, BLOCK_HISTORY_LENGTH,
 };
 use fr_crypto::Keccak256;
 use fr_limited_vec::LimitedVec;
@@ -96,6 +96,8 @@ pub struct BlockHistoryEntry {
     pub accumulation_result_mmr_root: BeefyRoot,
     /// `s`: Posterior state root of the block.
     pub state_root: StateRoot,
+    /// `t`: Timeslot index of the block.
+    pub timeslot: TimeslotIndex,
     /// **`p`**: The set of all work reports introduced by the guarantees extrinsic of the block,
     /// providing a mapping of work package hashes and their corresponding segment roots.
     pub reported_packages: Vec<ReportedWorkPackage>, // Length up to CORE_COUNT.
@@ -107,6 +109,7 @@ impl Display for BlockHistoryEntry {
         writeln!(f, "\t  header_hash: {}", self.header_hash)?;
         writeln!(f, "\t  mmr_root: {}", self.accumulation_result_mmr_root)?;
         writeln!(f, "\t  state_root: {}", self.state_root)?;
+        writeln!(f, "\t  timeslot: {}", self.timeslot)?;
         if self.reported_packages.is_empty() {
             writeln!(f, "\t  packages: []")?;
         } else {
@@ -125,6 +128,7 @@ impl JamEncode for BlockHistoryEntry {
         self.header_hash.size_hint()
             + self.accumulation_result_mmr_root.size_hint()
             + self.state_root.size_hint()
+            + 4
             + self.reported_packages.size_hint()
     }
 
@@ -132,6 +136,7 @@ impl JamEncode for BlockHistoryEntry {
         self.header_hash.encode_to(dest)?;
         self.accumulation_result_mmr_root.encode_to(dest)?;
         self.state_root.encode_to(dest)?;
+        self.timeslot.encode_to_fixed(dest, 4)?;
         self.reported_packages.encode_to(dest)?;
         Ok(())
     }
@@ -143,6 +148,7 @@ impl JamDecode for BlockHistoryEntry {
             header_hash: BlockHeaderHash::decode(input)?,
             accumulation_result_mmr_root: BeefyRoot::decode(input)?,
             state_root: StateRoot::decode(input)?,
+            timeslot: TimeslotIndex::decode_fixed(input, 4)?,
             reported_packages: Vec::decode(input)?,
         })
     }

@@ -35,6 +35,7 @@ pub enum ReportsErrorCode {
     work_report_too_big,
     reserved,
     banned_validator,
+    bad_anchor_slot,
 }
 
 /// Wrapper of `AccountMetadata` including service id.

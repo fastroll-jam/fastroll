@@ -309,10 +309,12 @@ impl From<PendingReports> for AsnAvailAssignments {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnRefineContext {
     pub anchor: AsnOpaqueHash,
+    pub anchor_slot: AsnTimeSlot,
     pub state_root: AsnOpaqueHash,
     pub beefy_root: AsnOpaqueHash,
     pub lookup_anchor: AsnOpaqueHash,
     pub lookup_anchor_slot: AsnTimeSlot,
+    pub lookup_anchor_state_root: AsnOpaqueHash,
     pub prerequisites: Vec<AsnOpaqueHash>,
 }
 
@@ -320,10 +322,12 @@ impl From<AsnRefineContext> for RefinementContext {
     fn from(value: AsnRefineContext) -> Self {
         Self {
             anchor_header_hash: value.anchor,
+            anchor_timeslot: value.anchor_slot,
             anchor_state_root: value.state_root,
             anchor_beefy_root: value.beefy_root,
             lookup_anchor_header_hash: value.lookup_anchor,
             lookup_anchor_timeslot: value.lookup_anchor_slot,
+            lookup_anchor_state_root: value.lookup_anchor_state_root,
             prerequisite_work_packages: value.prerequisites.into_iter().collect(),
         }
     }
@@ -333,10 +337,12 @@ impl From<RefinementContext> for AsnRefineContext {
     fn from(value: RefinementContext) -> Self {
         Self {
             anchor: value.anchor_header_hash,
+            anchor_slot: value.anchor_timeslot,
             state_root: value.anchor_state_root,
             beefy_root: value.anchor_beefy_root,
             lookup_anchor: value.lookup_anchor_header_hash,
             lookup_anchor_slot: value.lookup_anchor_timeslot,
+            lookup_anchor_state_root: value.lookup_anchor_state_root,
             prerequisites: value.prerequisite_work_packages.into_iter().collect(),
         }
     }
@@ -875,6 +881,7 @@ pub struct AsnBlockInfo {
     header_hash: AsnOpaqueHash,
     beefy_root: AsnOpaqueHash,
     state_root: AsnOpaqueHash,
+    slot: AsnTimeSlot,
     reported: Reports,
 }
 
@@ -884,6 +891,7 @@ impl From<AsnBlockInfo> for BlockHistoryEntry {
             header_hash: BlockHeaderHash::from(value.header_hash),
             accumulation_result_mmr_root: value.beefy_root,
             state_root: StateRoot::from(value.state_root),
+            timeslot: value.slot,
             reported_packages: value
                 .reported
                 .into_iter()
@@ -902,6 +910,7 @@ impl From<BlockHistoryEntry> for AsnBlockInfo {
             header_hash: AsnOpaqueHash::from(value.header_hash),
             beefy_root: value.accumulation_result_mmr_root,
             state_root: AsnOpaqueHash::from(value.state_root),
+            slot: value.timeslot,
             reported: value
                 .reported_packages
                 .into_iter()

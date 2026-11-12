@@ -377,6 +377,7 @@ impl BlockAuthor {
             storage,
             stf_output.accumulate_root,
             new_header_hash,
+            self.new_block.header.timeslot_index(),
             stf_output.reported_packages,
         )
         .await?;

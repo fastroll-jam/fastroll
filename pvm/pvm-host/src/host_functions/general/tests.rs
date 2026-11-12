@@ -126,11 +126,13 @@ mod fetch_tests {
             let package_auth_token = vec![0xCC; 100];
             let package_refine_context = RefinementContext {
                 anchor_header_hash: BlockHeaderHash::from_slice(vec![2; 32].as_slice()).unwrap(),
+                anchor_timeslot: 9,
                 anchor_state_root: StateRoot::from_slice(vec![3; 32].as_slice()).unwrap(),
                 anchor_beefy_root: BeefyRoot::from_slice(vec![4; 32].as_slice()).unwrap(),
                 lookup_anchor_header_hash: BlockHeaderHash::from_slice(vec![5; 32].as_slice())
                     .unwrap(),
                 lookup_anchor_timeslot: 10,
+                lookup_anchor_state_root: StateRoot::from_slice(vec![6; 32].as_slice()).unwrap(),
                 prerequisite_work_packages: BTreeSet::new(),
             };
 

@@ -63,6 +63,7 @@ impl StateTransitionTest for HistoryTest {
             header_hash,
             parent_state_root,
             accumulate_root,
+            header_timeslot: test_input.slot,
             reported_packages,
         })
     }
@@ -85,6 +86,7 @@ impl StateTransitionTest for HistoryTest {
         transition_block_history_append(
             state_manager,
             jam_input.header_hash,
+            jam_input.header_timeslot,
             jam_input.reported_packages,
         )
         .await?;

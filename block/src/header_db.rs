@@ -3,7 +3,7 @@ use crate::types::{
     extrinsics::ExtrinsicsError,
 };
 use fr_codec::prelude::*;
-use fr_common::BlockHeaderHash;
+use fr_common::{BlockHeaderHash, StateRoot};
 
 use crate::ancestors::{AncestorEntry, AncestorSet};
 use fr_crypto::error::CryptoError;
@@ -125,14 +125,30 @@ impl BlockHeaderDB {
         self.ancestors_guard().contains(entry)
     }
 
+    /// Returns the posterior state root of an ancestor, as recorded by the prior state root of its child header.
+    pub fn ancestor_posterior_state_root(
+        &self,
+        header_hash: &BlockHeaderHash,
+    ) -> Option<StateRoot> {
+        self.ancestors_guard()
+            .posterior_state_root(header_hash)
+            .cloned()
+    }
+
     pub async fn insert_header(
         &self,
         header_hash: BlockHeaderHash,
         header: BlockHeader,
     ) -> Result<(), BlockHeaderDBError> {
-        // Insert to AncestorSet
-        let ancestor_entry = (header.timeslot_index(), header_hash.clone());
-        self.ancestors_guard().add(ancestor_entry);
+        // Insert to AncestorSet, recording the parent's posterior state root from this header
+        {
+            let mut ancestors = self.ancestors_guard();
+            ancestors.add((header.timeslot_index(), header_hash.clone()));
+            ancestors.record_posterior_state_root(
+                header.parent_hash().clone(),
+                header.parent_state_root().clone(),
+            );
+        }
 
         // Insert to DB
         self.db.put_entry(&header_hash, header).await?;
@@ -143,12 +159,21 @@ impl BlockHeaderDB {
         &self,
         headers: Vec<(BlockHeaderHash, BlockHeader)>,
     ) -> Result<(), BlockHeaderDBError> {
-        // Insert to AncestorSet
+        // Insert to AncestorSet, recording each parent's posterior state root from its child header
         let ancestor_entries: Vec<AncestorEntry> = headers
             .iter()
             .map(|(hash, header)| (header.timeslot_index(), hash.clone()))
             .collect();
-        self.ancestors_guard().add_multiple(ancestor_entries);
+        {
+            let mut ancestors = self.ancestors_guard();
+            ancestors.add_multiple(ancestor_entries);
+            for (_, header) in &headers {
+                ancestors.record_posterior_state_root(
+                    header.parent_hash().clone(),
+                    header.parent_state_root().clone(),
+                );
+            }
+        }
 
         // Insert to DB
         let mut batch = WriteBatch::default();

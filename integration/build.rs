@@ -17,7 +17,6 @@ const FUZZ_REPORTS_GP_VERSION: &str = "0.8.0";
 /// Block-import trace groups generated as ignored tests, with the reason.
 /// A group is a `traces/<group>` directory of jam-test-vectors, or `conformance` for the jam-fuzzing traces.
 const IGNORED_TRACE_GROUPS: &[(&str, &str)] = &[
-    ("fallback", "GP 0.8.0 not implemented"),
     ("safrole", "GP 0.8.0 not implemented"),
     ("preimages", "GP 0.8.0 not implemented"),
     ("preimages_light", "GP 0.8.0 not implemented"),

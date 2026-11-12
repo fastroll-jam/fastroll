@@ -45,10 +45,10 @@ use std::{collections::HashSet, sync::Arc};
 ///     of the core on which the work is reported.
 ///   - No duplicate work-package hashes are allowed across different work reports within the extrinsic.
 ///   - The anchor block of each work-report must be within the last `H = 8` blocks, and its details
-///     (header hash, state root, and Beefy root) must match those stored in the recent block history (`β_H†`).
+///     (header hash, timeslot, state root, and Beefy root) must match those stored in the recent block history (`β_H†`).
 ///   - The lookup-anchor block for each work-report must be within the last `L = 14,400` timeslots.
-///     Additionally, the lookup-anchor's details (timeslot and header hash) must match those stored
-///     in the ancestor header state.
+///     Additionally, the lookup-anchor's timeslot and header hash must match an ancestor header,
+///     and its posterior state root must match the prior state root of that ancestor's child header.
 ///   - The work-package hash of each work-report must not match any work-package hashes from reports
 ///     already made in the past and thus should not be present anywhere in `ρ`, `ω`, `ξ` or `β_H`.
 ///   - If the work-report depends on a prerequisite work-package, the prerequisite must either be
@@ -264,6 +264,7 @@ impl GuaranteesXtValidator {
             core_index,
             &work_report.refinement_context,
             header_timeslot_index,
+            block_history,
         )
         .await?;
 
@@ -420,6 +421,12 @@ impl GuaranteesXtValidator {
                 anchor_hash.encode_hex(),
             ));
         }
+        if anchor_in_block_history.timeslot != work_report_context.anchor_timeslot {
+            return Err(XtError::InvalidAnchorTimeslot(
+                core_index,
+                anchor_hash.encode_hex(),
+            ));
+        }
         Ok(())
     }
 
@@ -428,6 +435,7 @@ impl GuaranteesXtValidator {
         core_index: CoreIndex,
         work_report_context: &RefinementContext,
         header_timeslot_index: TimeslotIndex,
+        block_history: &BlockHistory,
     ) -> Result<(), XtError> {
         let lookup_anchor_hash = &work_report_context.lookup_anchor_header_hash;
         let lookup_anchor_timeslot = work_report_context.lookup_anchor_timeslot;
@@ -446,23 +454,32 @@ impl GuaranteesXtValidator {
         if self.with_ancestors {
             self.validate_lookup_anchor_block_against_ancestor_set(
                 core_index,
-                lookup_anchor_hash,
-                lookup_anchor_timeslot,
+                work_report_context,
+                block_history,
             )
             .await?;
         }
         Ok(())
     }
 
-    /// Checks the lookup-anchor block can be referenced through the ancestor set (from BlockHeaderDB).
+    /// Checks the lookup-anchor block `h` and its child `h'` against the ancestor set `A` (from BlockHeaderDB).
+    /// `h` must match the lookup-anchor timeslot and header hash, and `h'_r` must equal the lookup-anchor state root.
+    ///
+    /// The posterior state root of `h` comes from `β_H†` for the recent blocks, whose last entry holds `H_r` of the
+    /// current header, and otherwise from the child header recorded in the ancestor set.
+    /// An ancestor known only by its timeslot and header hash, e.g. from the fuzzer ancestry, has no child header,
+    /// so its state root is not checked.
     async fn validate_lookup_anchor_block_against_ancestor_set(
         &self,
         core_index: CoreIndex,
-        lookup_anchor_hash: &Hash32,
-        lookup_anchor_timeslot: TimeslotIndex,
+        work_report_context: &RefinementContext,
+        block_history: &BlockHistory,
     ) -> Result<(), XtError> {
-        let lookup_anchor_ancestor_entry: AncestorEntry =
-            (lookup_anchor_timeslot, lookup_anchor_hash.clone());
+        let lookup_anchor_hash = &work_report_context.lookup_anchor_header_hash;
+        let lookup_anchor_ancestor_entry: AncestorEntry = (
+            work_report_context.lookup_anchor_timeslot,
+            lookup_anchor_hash.clone(),
+        );
         if !self
             .header_db
             .header_exists_in_ancestor_set(&lookup_anchor_ancestor_entry)
@@ -471,6 +488,22 @@ impl GuaranteesXtValidator {
                 core_index,
                 lookup_anchor_hash.encode_hex(),
             ));
+        }
+
+        let lookup_anchor_posterior_state_root = block_history
+            .get_by_header_hash(lookup_anchor_hash)
+            .map(|entry| entry.state_root.clone())
+            .or_else(|| {
+                self.header_db
+                    .ancestor_posterior_state_root(lookup_anchor_hash)
+            });
+        if let Some(posterior_state_root) = lookup_anchor_posterior_state_root {
+            if posterior_state_root != work_report_context.lookup_anchor_state_root {
+                return Err(XtError::InvalidLookupAnchorStateRoot(
+                    core_index,
+                    lookup_anchor_hash.encode_hex(),
+                ));
+            }
         }
         Ok(())
     }

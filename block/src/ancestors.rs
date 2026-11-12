@@ -1,7 +1,7 @@
-use fr_common::{BlockHeaderHash, TimeslotIndex, MAX_LOOKUP_ANCHOR_AGE};
+use fr_common::{BlockHeaderHash, StateRoot, TimeslotIndex, MAX_LOOKUP_ANCHOR_AGE};
 use std::{
     cmp::Reverse,
-    collections::{BinaryHeap, HashSet},
+    collections::{BinaryHeap, HashMap, HashSet},
 };
 
 pub type AncestorEntry = (TimeslotIndex, BlockHeaderHash);
@@ -16,6 +16,9 @@ pub struct AncestorSet {
     heap: BinaryHeap<Reverse<AncestorEntry>>,
     /// A helper set for easier entry check
     set: HashSet<AncestorEntry>,
+    /// Posterior state roots of ancestors, keyed by header hash.
+    /// Each comes from the prior state root `h'_r` of a child header `h'`, which the lookup anchor check of guarantees needs.
+    posterior_state_roots: HashMap<BlockHeaderHash, StateRoot>,
 }
 
 impl Default for AncestorSet {
@@ -24,6 +27,7 @@ impl Default for AncestorSet {
             capacity: MAX_LOOKUP_ANCHOR_AGE,
             heap: BinaryHeap::with_capacity(MAX_LOOKUP_ANCHOR_AGE),
             set: HashSet::with_capacity(MAX_LOOKUP_ANCHOR_AGE),
+            posterior_state_roots: HashMap::with_capacity(MAX_LOOKUP_ANCHOR_AGE),
         }
     }
 }
@@ -39,6 +43,7 @@ impl AncestorSet {
             capacity,
             heap: BinaryHeap::with_capacity(capacity),
             set: HashSet::with_capacity(capacity),
+            posterior_state_roots: HashMap::with_capacity(capacity),
         }
     }
 
@@ -72,6 +77,7 @@ impl AncestorSet {
             // Remove the oldest `AncestorEntry` (with the smallest timeslot value)
             if entry > min_entry.0 {
                 if let Some(popped) = self.heap.pop() {
+                    self.posterior_state_roots.remove(&popped.0 .1);
                     self.set.remove(&popped.0);
                 }
                 self.set.insert(entry.clone());
@@ -90,8 +96,24 @@ impl AncestorSet {
         let existed = self.set.remove(entry);
         if existed {
             self.heap.retain(|e| e.0 .1 != entry.1);
+            self.posterior_state_roots.remove(&entry.1);
         }
         existed
+    }
+
+    /// Records the posterior state root of the ancestor `parent_hash`, taken from the prior state root of its child header.
+    pub fn record_posterior_state_root(
+        &mut self,
+        parent_hash: BlockHeaderHash,
+        posterior_state_root: StateRoot,
+    ) {
+        self.posterior_state_roots
+            .insert(parent_hash, posterior_state_root);
+    }
+
+    /// Returns the posterior state root of the ancestor `header_hash`, if a child header recorded it.
+    pub fn posterior_state_root(&self, header_hash: &BlockHeaderHash) -> Option<&StateRoot> {
+        self.posterior_state_roots.get(header_hash)
     }
 }
 
@@ -146,6 +168,28 @@ mod tests {
         assert!(set.contains(&entry4));
         // entry1 should be evicted
         assert!(!set.contains(&entry1));
+    }
+
+    #[test]
+    fn test_ancestor_set_evicts_posterior_state_root() {
+        let mut set = AncestorSet::with_capacity(TEST_CAPACITY);
+        let entry1 = create_test_entry(10, 1);
+        let entry2 = create_test_entry(20, 2);
+        set.add(entry1.clone());
+        set.add(entry2.clone());
+        set.add(create_test_entry(30, 3));
+
+        // The child of entry1 records the posterior state root of entry1.
+        let mut state_root = StateRoot::default();
+        state_root[0] = 0xAA;
+        set.record_posterior_state_root(entry1.1.clone(), state_root.clone());
+        assert_eq!(set.posterior_state_root(&entry1.1), Some(&state_root));
+        assert_eq!(set.posterior_state_root(&entry2.1), None);
+
+        // Evicting entry1 drops its posterior state root.
+        set.add(create_test_entry(40, 4));
+        assert!(!set.contains(&entry1));
+        assert_eq!(set.posterior_state_root(&entry1.1), None);
     }
 
     #[test]

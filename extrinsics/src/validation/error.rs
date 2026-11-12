@@ -127,12 +127,16 @@ pub enum XtError {
     MMRCalculationFailed,
     #[error("Invalid anchor block BEEFY MMR root. Core index: {0}, Anchor block header hash: {1}")]
     InvalidAnchorBeefyRoot(CoreIndex, String),
+    #[error("Invalid anchor block timeslot. Core index: {0}, Anchor block header hash: {1}")]
+    InvalidAnchorTimeslot(CoreIndex, String),
     #[error(
         "Lookup anchor block timed out. Core index: {0}, Lookup anchor block header hash: {1}"
     )]
     LookupAnchorBlockTimeout(CoreIndex, String),
     #[error("Lookup anchor block is not found from the ancestor header set. Core index: {0}, Lookup anchor block header hash: {1}")]
     LookupAnchorBlockNotFoundFromAncestorSet(CoreIndex, String),
+    #[error("Invalid lookup anchor block state root. Core index: {0}, Lookup anchor block header hash: {1}")]
+    InvalidLookupAnchorStateRoot(CoreIndex, String),
     #[error("Invalid number of guarantors ({0}), must be 2 or 3. Core index: {1}")]
     InvalidGuarantorCount(usize, CoreIndex),
     #[error("Credentials in guarantee must be sorted by the validator index. Core index: {0}")]

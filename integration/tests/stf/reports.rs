@@ -220,7 +220,6 @@ generate_typed_tests! {
 
     // Fail
     // Context anchor slot doesn't match the slot of the anchor block in recent history.
-    #[ignore = "GP 0.8.0 not implemented"]
     bad_anchor_slot_1: "bad_anchor_slot-1.json",
 
     // Fail

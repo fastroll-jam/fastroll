@@ -1,6 +1,7 @@
 use crate::error::TransitionError;
 use fr_common::{
     workloads::work_report::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, StateRoot,
+    TimeslotIndex,
 };
 use fr_pvm_types::invoke_results::AccumulationOutputPairs;
 use fr_state::{
@@ -87,13 +88,14 @@ pub async fn transition_block_history_beefy_belt(
 /// # Transitions
 ///
 /// This handles the second state transition for `history` component of `BlockHistory`, yielding `β_H′`.
-/// It constructs a new block history entry using the provided block header, work package hashes
+/// It constructs a new block history entry using the header hash and timeslot `H_t` of the block, work package hashes
 /// from guarantee extrinsics, and the posterior accumulation result history MMR root (Super-peak of `β_B′`).
 /// The new entry is then appended to the history, with the max length limit of `H`.
 /// If the `history` becomes full, the oldest entry is removed.
 pub async fn transition_block_history_append(
     state_manager: Arc<StateManager>,
     header_hash: BlockHeaderHash,
+    header_timeslot: TimeslotIndex,
     mut reported_packages: Vec<ReportedWorkPackage>,
 ) -> Result<(), TransitionError> {
     let block_history = state_manager.get_block_history().await?;
@@ -110,6 +112,7 @@ pub async fn transition_block_history_append(
                     header_hash,
                     accumulation_result_mmr_root,
                     state_root: StateRoot::default(),
+                    timeslot: header_timeslot,
                     reported_packages,
                 });
                 Ok(())

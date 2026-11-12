@@ -3,7 +3,9 @@ use fr_block::types::{
     block::{Block, BlockHeaderError},
     extrinsics::disputes::OffendersHeaderMarker,
 };
-use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, ServiceId};
+use fr_common::{
+    workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, ServiceId, TimeslotIndex,
+};
 use fr_crypto::{error::CryptoError, traits::VrfSignature};
 use fr_pvm_invocation::accumulate::utils::collect_accumulatable_reports;
 use fr_state::{
@@ -402,11 +404,17 @@ impl BlockExecutor {
         storage: &NodeStorage,
         accumulate_root: AccumulateRoot,
         header_hash: BlockHeaderHash,
+        header_timeslot: TimeslotIndex,
         reported_packages: Vec<ReportedWorkPackage>,
     ) -> Result<(), BlockExecutionError> {
         transition_block_history_beefy_belt(storage.state_manager(), accumulate_root).await?;
-        transition_block_history_append(storage.state_manager(), header_hash, reported_packages)
-            .await?;
+        transition_block_history_append(
+            storage.state_manager(),
+            header_hash,
+            header_timeslot,
+            reported_packages,
+        )
+        .await?;
         Ok(())
     }
 }

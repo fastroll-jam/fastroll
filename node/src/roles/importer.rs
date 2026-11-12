@@ -518,6 +518,7 @@ impl BlockImporter {
                 storage,
                 output.accumulate_root,
                 block.header.hash()?,
+                block.header.timeslot_index(),
                 output.reported_packages,
             )
             .await?;
@@ -543,6 +544,7 @@ impl BlockImporter {
                 storage,
                 output.accumulate_root,
                 block.header.hash()?,
+                block.header.timeslot_index(),
                 output.reported_packages,
             )
             .await?;

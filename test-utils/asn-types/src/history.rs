@@ -1,5 +1,7 @@
 use crate::common::*;
-use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, StateRoot};
+use fr_common::{
+    workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, StateRoot, TimeslotIndex,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -15,6 +17,7 @@ pub struct Input {
     pub header_hash: AsnOpaqueHash,
     pub parent_state_root: AsnOpaqueHash,
     pub accumulate_root: AsnOpaqueHash,
+    pub slot: AsnTimeSlot,
     pub work_packages: Reports,
 }
 
@@ -22,6 +25,7 @@ pub struct JamInput {
     pub header_hash: BlockHeaderHash,
     pub parent_state_root: StateRoot,
     pub accumulate_root: AccumulateRoot,
+    pub header_timeslot: TimeslotIndex,
     pub reported_packages: Vec<ReportedWorkPackage>,
 }
 

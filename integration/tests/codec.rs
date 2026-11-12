@@ -83,11 +83,9 @@ mod codec {
         header_0: ("header_0", BlockHeader, AsnHeader),
         header_1: ("header_1", BlockHeader, AsnHeader),
         preimages_extrinsic: ("preimages_extrinsic", PreimagesXt, AsnPreimagesXt),
-        #[ignore = "GP 0.8.0 not implemented"]
         refine_context: ("refine_context", RefinementContext, AsnRefineContext),
         tickets_extrinsic: ("tickets_extrinsic", TicketsXt, AsnTicketsXt),
         work_item: ("work_item", WorkItem, AsnWorkItem),
-        #[ignore = "GP 0.8.0 not implemented"]
         work_package: ("work_package", WorkPackage, AsnWorkPackage),
         #[ignore = "GP 0.8.0 not implemented"]
         work_report: ("work_report", WorkReport, AsnWorkReport),
