@@ -389,7 +389,7 @@ impl GuaranteesXtValidator {
         let mut package_hashes_from_pending_reports = HashSet::new();
         for pending_report in pending_reports_clean.0.iter().filter_map(|x| x.as_ref()) {
             package_hashes_from_pending_reports
-                .insert(pending_report.work_report.work_package_hash().clone());
+                .insert(pending_report.work_report().work_package_hash().clone());
         }
 
         package_hashes_from_already_available_set.extend(package_hashes_from_acc_history);

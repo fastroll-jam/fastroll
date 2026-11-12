@@ -197,17 +197,14 @@ generate_typed_tests! {
 
     // Success
     // Report uses current guarantors rotation.
-    #[ignore = "GP 0.8.0 not implemented"]
     report_curr_rotation_1: "report_curr_rotation-1.json",
 
     // Success
     // Report uses previous guarantors rotation.
-    #[ignore = "GP 0.8.0 not implemented"]
     report_prev_rotation_1: "report_prev_rotation-1.json",
 
     // Success
     // Multiple good work reports.
-    #[ignore = "GP 0.8.0 not implemented"]
     multiple_reports_1: "multiple_reports-1.json",
 
     // Fail
@@ -248,7 +245,6 @@ generate_typed_tests! {
 
     // Fail
     // A core is not available.
-    #[ignore = "GP 0.8.0 not implemented"]
     core_engaged_1: "core_engaged-1.json",
 
     // Fail
@@ -273,7 +269,6 @@ generate_typed_tests! {
 
     // Success
     // Work report per core gas is very high, still less than the limit.
-    #[ignore = "GP 0.8.0 not implemented"]
     high_work_report_gas_1: "high_work_report_gas-1.json",
 
     // Fail
@@ -286,7 +281,6 @@ generate_typed_tests! {
 
     // Success
     // Work report has many dependencies, still less than the limit.
-    #[ignore = "GP 0.8.0 not implemented"]
     many_dependencies_1: "many_dependencies-1.json",
 
     // Fail
@@ -319,34 +313,28 @@ generate_typed_tests! {
 
     // Success
     // Simple report dependency satisfied by another work report in the same extrinsic.
-    #[ignore = "GP 0.8.0 not implemented"]
     reports_with_dependencies_1: "reports_with_dependencies-1.json",
 
     // Success
     // Work reports mutual dependency (indirect self-referential dependencies).
-    #[ignore = "GP 0.8.0 not implemented"]
     reports_with_dependencies_2: "reports_with_dependencies-2.json",
 
     // Success
     // Work report direct self-referential dependency.
-    #[ignore = "GP 0.8.0 not implemented"]
     reports_with_dependencies_3: "reports_with_dependencies-3.json",
 
     // Success
     // Work report dependency satisfied by recent blocks history.
-    #[ignore = "GP 0.8.0 not implemented"]
     reports_with_dependencies_4: "reports_with_dependencies-4.json",
 
     // Success
     // Work report segments tree root lookup dependency satisfied
     // by another work report in the same extrinsic.
-    #[ignore = "GP 0.8.0 not implemented"]
     reports_with_dependencies_5: "reports_with_dependencies-5.json",
 
     // Success
     // Work report segments tree root lookup dependency satisfied
     // by recent blocks history.
-    #[ignore = "GP 0.8.0 not implemented"]
     reports_with_dependencies_6: "reports_with_dependencies-6.json",
 
     // Fail
@@ -364,12 +352,10 @@ generate_typed_tests! {
 
     // Success
     // Report for a free core. Other cores already hold pending availability assignments.
-    #[ignore = "GP 0.8.0 not implemented"]
     with_avail_assignments_1: "with_avail_assignments-1.json",
 
     // Success
     // Work report output is very big, still less than the limit.
-    #[ignore = "GP 0.8.0 not implemented"]
     big_work_report_output_1: "big_work_report_output-1.json",
 
     // Fail
@@ -388,7 +374,6 @@ generate_typed_tests! {
     // Success
     // Two reports for different cores. One is guaranteed under the previous rotation, the other under the current one.
     // The rotation shifts the cores assignment, so the same guarantors sign both reports.
-    #[ignore = "GP 0.8.0 not implemented"]
     different_core_same_guarantors_1: "different_core_same_guarantors-1.json",
 
     // Fail
@@ -401,7 +386,6 @@ generate_typed_tests! {
     // Success
     // Same routing, report for an active core with the erasure shards count of the shrunk set.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     inactive_core_index_2: "inactive_core_index-2.json",
 
     // Fail
@@ -412,6 +396,5 @@ generate_typed_tests! {
     // Success
     // Guarantors assigned under the permutation of the shrunk set.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     report_with_shrunken_val_set_2: "report_with_shrunken_val_set-2.json",
 }

@@ -45,7 +45,7 @@ impl GuaranteesXt {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GuaranteesCredential {
     /// `v`: Guarantor's validator index
     pub validator_index: ValidatorIndex,
@@ -82,11 +82,11 @@ impl JamDecode for GuaranteesCredential {
 /// Each block, three **Guarantors** are assigned per core to refine work packages into work reports
 /// and guarantee correctness of the computation. The extrinsic entry carries signatures
 /// signed by two or three of the **Guarantors**.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GuaranteesXtEntry {
     /// **`r`**: The work report that is subject to the guarantee.
     pub work_report: WorkReport,
-    /// `t`: The timeslot index used for determining timeout of the work report.
+    /// `t`: The timeslot of the guarantee, which selects the guarantor assignment rotation.
     pub timeslot_index: TimeslotIndex,
     /// `a`: The signatures of two or three of the **Guarantors**.
     pub credentials: Vec<GuaranteesCredential>,

@@ -39,14 +39,24 @@ impl StateTransitionTest for AssurancesTest {
         // Convert ASN pre-state into FastRoll types.
         let pre_pending_reports = PendingReports::from(test_pre_state.avail_assignments.clone());
         let pre_active_set = ActiveSet(test_pre_state.curr_validators.clone().into());
-        let posterior_active_set = ActiveSet(test_pre_state.post_validators.clone().into());
 
         // Load pre-state info the state cache.
         state_manager
             .add_pending_reports(pre_pending_reports)
             .await?;
         state_manager.add_active_set(pre_active_set).await?;
-        // `κ'` replaces the working value, while `κ` stays as the clean prior value.
+        // Additionally, initialize the timeslot state cache
+        state_manager.add_timeslot(Timeslot::new(0)).await?;
+
+        Ok(())
+    }
+
+    async fn load_updated_pre_state(
+        test_pre_state: &Self::State,
+        state_manager: Arc<StateManager>,
+    ) -> Result<(), StateManagerError> {
+        // `κ'` replaces the working value, while the committed `κ` stays as the clean prior value.
+        let posterior_active_set = ActiveSet(test_pre_state.post_validators.clone().into());
         state_manager
             .with_mut_active_set(
                 StateMut::Update,
@@ -56,9 +66,6 @@ impl StateTransitionTest for AssurancesTest {
                 },
             )
             .await?;
-        // Additionally, initialize the timeslot state cache
-        state_manager.add_timeslot(Timeslot::new(0)).await?;
-
         Ok(())
     }
 
@@ -120,12 +127,12 @@ impl StateTransitionTest for AssurancesTest {
 
         // Get the posterior state from the state cache.
         let curr_pending_reports = state_manager.get_pending_reports().await?;
-        let prior_active_set = state_manager.get_active_set_clean().await?;
         let posterior_active_set = state_manager.get_active_set().await?;
 
         Ok(State {
             avail_assignments: curr_pending_reports.into(),
-            curr_validators: prior_active_set.0.into(),
+            // `κ` is not part of the committed post-state, and this transition never changes it.
+            curr_validators: pre_state.curr_validators.clone(),
             post_validators: posterior_active_set.0.into(),
         })
     }
@@ -136,23 +143,19 @@ generate_typed_tests! {
 
     // Success
     // Progress with an empty assurances extrinsic.
-    #[ignore = "GP 0.8.0 not implemented"]
     no_assurances_1: "no_assurances-1.json",
 
     // Success
     // Several assurances contributing to establishing availability super-majority for some of the cores.
-    #[ignore = "GP 0.8.0 not implemented"]
     some_assurances_1: "some_assurances-1.json",
 
     // Success
     // Progress with an empty assurances extrinsic.
     // Stale work report assignment is removed (but not returned in the output).
-    #[ignore = "GP 0.8.0 not implemented"]
     no_assurances_with_stale_report_1: "no_assurances_with_stale_report-1.json",
 
     // Fail
     // One assurance has a bad signature.
-    #[ignore = "GP 0.8.0 not implemented"]
     assurances_with_bad_signature_1: "assurances_with_bad_signature-1.json",
 
     // TODO: Test: - this test vector also returns err(not_sorted_or_unique_assurers)
@@ -163,33 +166,27 @@ generate_typed_tests! {
 
     // Fail
     // One assurance targets a core without any assigned work report.
-    #[ignore = "GP 0.8.0 not implemented"]
     assurance_for_not_engaged_core_1: "assurance_for_not_engaged_core-1.json",
 
     // Fail
     // One assurance has a bad attestation parent hash.
-    #[ignore = "GP 0.8.0 not implemented"]
     assurance_with_bad_attestation_parent_1: "assurance_with_bad_attestation_parent-1.json",
 
     // Fail
     // One assurance targets a core with a stale report.
     // We are lenient on the stale report as far as it is available.
-    #[ignore = "GP 0.8.0 not implemented"]
     assurances_for_stale_report_1: "assurances_for_stale_report-1.json",
 
     // Fail
     // Assurers not sorted.
-    #[ignore = "GP 0.8.0 not implemented"]
     assurers_not_sorted_or_unique_1: "assurers_not_sorted_or_unique-1.json",
 
     // Fail
     // Duplicate assurer.
-    #[ignore = "GP 0.8.0 not implemented"]
     assurers_not_sorted_or_unique_2: "assurers_not_sorted_or_unique-2.json",
 
     // Success
     // Posterior active validators set is smaller than the prior one.
     // Assurances, signed by the prior set, make the core 0 report available. Every other pending report is cleared.
-    #[ignore = "GP 0.8.0 not implemented"]
     val_set_size_change_clears_pending_reports_1: "val_set_size_change_clears_pending_reports-1.json",
 }

@@ -3,6 +3,7 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
     types::{work_report::WorkReport, Timeslot},
 };
+use fr_block::types::extrinsics::guarantees::GuaranteesXtEntry;
 use fr_codec::prelude::*;
 use fr_common::{CoreIndex, WorkReportHash, CORE_COUNT, PENDING_REPORT_TIMEOUT};
 use fr_crypto::{error::CryptoError, hash, Blake2b256};
@@ -22,7 +23,7 @@ pub enum PendingReportsError {
 
 pub type CorePendingReportsEntries = FixedVec<Option<PendingReport>, CORE_COUNT>;
 
-/// Work reports pending availability by assurers.
+/// Availability assignments, one optional work report guarantee per core, pending availability by assurers.
 ///
 /// Represents `ρ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
@@ -66,7 +67,7 @@ impl PendingReports {
         for (i, maybe_report) in self.0.iter().enumerate() {
             if let Some(report) = maybe_report {
                 if current_timeslot.slot() as usize
-                    >= report.reported_timeslot.slot() as usize + PENDING_REPORT_TIMEOUT
+                    >= report.registered_timeslot.slot() as usize + PENDING_REPORT_TIMEOUT
                 {
                     timed_out_core_indices.push(i as CoreIndex);
                 }
@@ -83,7 +84,7 @@ impl PendingReports {
     ) -> Result<bool, PendingReportsError> {
         for report_entry in self.0.iter_mut() {
             if let Some(report) = report_entry {
-                if &hash::<Blake2b256>(&report.work_report.encode()?)? == target_hash {
+                if &hash::<Blake2b256>(&report.work_report().encode()?)? == target_hash {
                     *report_entry = None;
                     return Ok(true); // Hash found and entry turned into None
                 }
@@ -112,32 +113,39 @@ impl PendingReports {
     }
 }
 
+/// Availability assignment of a core, holding the work report guarantee until the report is available.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PendingReport {
-    /// **`r`**: Work Report
-    pub work_report: WorkReport,
-    /// `t`: Timeslot when the work report was introduced on-chain (reported).
-    pub reported_timeslot: Timeslot,
+    /// `g`: Guarantee of the work report, with the guarantee timeslot and the guarantor credentials.
+    pub guarantee: GuaranteesXtEntry,
+    /// `t`: Timeslot when the guarantee was introduced on-chain, which the availability timeout counts from.
+    pub registered_timeslot: Timeslot,
+}
+
+impl PendingReport {
+    pub fn work_report(&self) -> &WorkReport {
+        &self.guarantee.work_report
+    }
 }
 
 impl Display for PendingReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "PendingReport: {{ wr: {}, slot: {:?} }}",
-            self.work_report, self.reported_timeslot
+            "PendingReport: {{ wr: {}, guarantee_slot: {}, slot: {:?} }}",
+            self.guarantee.work_report, self.guarantee.timeslot_index, self.registered_timeslot
         )
     }
 }
 
 impl JamEncode for PendingReport {
     fn size_hint(&self) -> usize {
-        self.work_report.size_hint() + 4
+        self.guarantee.size_hint() + 4
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.work_report.encode_to(dest)?;
-        self.reported_timeslot.encode_to_fixed(dest, 4)?;
+        self.guarantee.encode_to(dest)?;
+        self.registered_timeslot.encode_to_fixed(dest, 4)?;
         Ok(())
     }
 }
@@ -145,8 +153,8 @@ impl JamEncode for PendingReport {
 impl JamDecode for PendingReport {
     fn decode<T: JamInput>(input: &mut T) -> Result<Self, JamCodecError> {
         Ok(Self {
-            work_report: WorkReport::decode(input)?,
-            reported_timeslot: Timeslot::decode_fixed(input, 4)?,
+            guarantee: GuaranteesXtEntry::decode(input)?,
+            registered_timeslot: Timeslot::decode_fixed(input, 4)?,
         })
     }
 }

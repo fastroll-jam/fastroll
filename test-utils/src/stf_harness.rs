@@ -23,7 +23,7 @@ pub struct TestCase<I, O, S> {
 }
 
 #[async_trait]
-pub trait StateTransitionTest {
+pub trait StateTransitionTest: Send {
     const PATH_PREFIX: &'static str;
 
     type Input: Serialize + DeserializeOwned + Debug + Clone;
@@ -53,6 +53,15 @@ pub trait StateTransitionTest {
         test_pre_state: &Self::State,
         state_manager: Arc<StateManager>,
     ) -> Result<(), StateManagerError>;
+
+    /// Loads pre-state values that the transition reads as already updated, e.g. the posterior `κ'`.
+    /// Runs after the pre-state is committed, so the committed prior values stay readable as clean values.
+    async fn load_updated_pre_state(
+        _test_pre_state: &Self::State,
+        _state_manager: Arc<StateManager>,
+    ) -> Result<(), StateManagerError> {
+        Ok(())
+    }
 
     fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError>;
 
@@ -106,6 +115,9 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 
     // clear state cache to ensure the test cases read state entries from the DB
     state_manager.clear_state_cache();
+
+    // load pre-state values that are already updated, on top of the committed prior values
+    T::load_updated_pre_state(&test_case.pre_state, state_manager.clone()).await?;
 
     // load JAM input types
     let jam_input = T::convert_input_type(&test_case.input)?;

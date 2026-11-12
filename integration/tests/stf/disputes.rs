@@ -221,7 +221,6 @@ generate_typed_tests! {
 
     // Success
     // Invalidation of availability assignments.
-    #[ignore = "GP 0.8.0 not implemented"]
     progress_invalidates_avail_assignments_1: "progress_invalidates_avail_assignments-1.json",
 
     // Fail
@@ -264,7 +263,6 @@ generate_typed_tests! {
     // Previous epoch validators set is smaller than the current one.
     // Verdict signed by the previous set carries the supermajority of the previous set size.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     progress_with_verdicts_from_resized_previous_set_1: "progress_with_verdicts_from_resized_previous_set-1.json",
 
     // Fail

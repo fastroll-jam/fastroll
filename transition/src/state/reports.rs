@@ -99,6 +99,7 @@ pub async fn transition_reports_clear_availables(
             .get_by_core_index(core_index)?
             .clone()
             .ok_or(TransitionError::PendingReportMissing(core_index))?
+            .guarantee
             .work_report;
         available_reports.push(report);
     }
@@ -141,9 +142,8 @@ pub async fn transition_reports_clear_availables(
 /// # Transitions
 ///
 /// This handles the final state transition for `PendingReports`, yielding `ρ′`.
-/// New work reports from the guarantees extrinsic can be added to `PendingReports`.
-/// If a core's slot is empty, the new report fills it. If the slot is occupied, the existing
-/// entry is replaced only if more than `U` timeslots have passed since the report was submitted.
+/// Each guarantee from the guarantees extrinsic fills the availability assignment of its core,
+/// registered at the current timeslot. Validation already requires the core to be empty in `ρ‡`.
 pub async fn transition_reports_update_entries(
     state_manager: Arc<StateManager>,
     header_db: Arc<BlockHeaderDB>,
@@ -164,11 +164,12 @@ pub async fn transition_reports_update_entries(
         .with_mut_pending_reports(
             StateMut::Update,
             |pending_reports| -> Result<(), StateManagerError> {
-                for report in &new_valid_reports {
-                    pending_reports.0[report.core_index as usize] = Some(PendingReport {
-                        work_report: report.clone(),
-                        reported_timeslot: current_timeslot,
-                    })
+                for guarantee in guarantees_xt.iter() {
+                    pending_reports.0[guarantee.work_report.core_index as usize] =
+                        Some(PendingReport {
+                            guarantee: guarantee.clone(),
+                            registered_timeslot: current_timeslot,
+                        })
                 }
                 Ok(())
             },

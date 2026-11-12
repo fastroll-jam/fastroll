@@ -231,15 +231,15 @@ impl From<AccountMetadata> for AsnServiceInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnAvailAssignment {
-    pub report: AsnWorkReport,
-    pub timeout: u32,
+    pub guarantee: AsnReportGuarantee,
+    pub registered_slot: u32,
 }
 
 impl From<PendingReport> for AsnAvailAssignment {
     fn from(value: PendingReport) -> Self {
         Self {
-            report: value.work_report.into(),
-            timeout: value.reported_timeslot.0,
+            guarantee: value.guarantee.into(),
+            registered_slot: value.registered_timeslot.0,
         }
     }
 }
@@ -247,8 +247,8 @@ impl From<PendingReport> for AsnAvailAssignment {
 impl From<AsnAvailAssignment> for PendingReport {
     fn from(value: AsnAvailAssignment) -> Self {
         Self {
-            work_report: value.report.into(),
-            reported_timeslot: Timeslot::new(value.timeout),
+            guarantee: value.guarantee.into(),
+            registered_timeslot: Timeslot::new(value.registered_slot),
         }
     }
 }
@@ -261,17 +261,7 @@ impl From<AsnAvailAssignments> for PendingReports {
         let mut reports = Vec::with_capacity(ASN_CORE_COUNT);
 
         for item in value.0.iter() {
-            let maybe_report = match item {
-                Some(assignment) => {
-                    let work_report = assignment.clone().report.into();
-                    let pending_report = PendingReport {
-                        work_report,
-                        reported_timeslot: Timeslot::new(assignment.timeout),
-                    };
-                    Some(pending_report)
-                }
-                None => None,
-            };
+            let maybe_report = item.clone().map(PendingReport::from);
             reports.push(maybe_report);
         }
 
@@ -284,17 +274,7 @@ impl From<PendingReports> for AsnAvailAssignments {
         let mut assignments = Vec::with_capacity(ASN_CORE_COUNT);
 
         for report_option in value.0.iter() {
-            let assignment = match report_option {
-                Some(pending_report) => {
-                    let report = pending_report.clone().work_report.into();
-                    let assignment = AsnAvailAssignment {
-                        report,
-                        timeout: pending_report.reported_timeslot.0,
-                    };
-                    Some(assignment)
-                }
-                None => None,
-            };
+            let assignment = report_option.clone().map(AsnAvailAssignment::from);
             assignments.push(assignment);
         }
 
@@ -1667,7 +1647,7 @@ impl From<AssurancesXt> for AsnAssurancesXt {
 // -- Guarantees
 // ----------------------------------------------------
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnValidatorSignature {
     pub validator_index: u16,
     pub signature: AsnEd25519Signature,
@@ -1691,7 +1671,7 @@ impl From<GuaranteesCredential> for AsnValidatorSignature {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnReportGuarantee {
     pub report: AsnWorkReport,
     pub slot: u32,
