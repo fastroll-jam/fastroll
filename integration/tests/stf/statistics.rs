@@ -148,8 +148,7 @@ generate_typed_tests! {
     // Only author blocks counter is incremented.
     stats_with_empty_extrinsic_1: "stats_with_empty_extrinsic-1.json",
 
-    // Misc extrinsic information with no epoch change.
-    #[ignore = "GP 0.8.0 not implemented"]
+    // Misc extrinsic information with an epoch change.
     stats_with_epoch_change_1: "stats_with_epoch_change-1.json",
 
     // Misc extrinsic information with no epoch change.
@@ -158,6 +157,5 @@ generate_typed_tests! {
     // Epoch change with an assurance from the last validator of the prior set.
     // Assurances are credited to the outgoing accumulator, which becomes the last epoch snapshot.
     // The full vector shrinks the active validators set to the minimum size. The tiny vector keeps the size.
-    #[ignore = "GP 0.8.0 not implemented"]
     stats_epoch_change_with_set_resize_1: "stats_epoch_change_with_set_resize-1.json",
 }

@@ -23,6 +23,9 @@ pub async fn transition_onchain_statistics(
     reporter_keys: &HashSet<Ed25519PubKey>,
     accumulate_stats: AccumulateStats,
 ) -> Result<(), TransitionError> {
+    // Assurances count toward the epoch they were made in, before its rotation (`π_V†`)
+    handle_validator_assurances_accumulation(state_manager.clone(), &xts.assurances).await?;
+
     if epoch_progressed {
         handle_new_epoch_transition(state_manager.clone()).await?;
     }
@@ -70,6 +73,41 @@ async fn handle_new_epoch_transition(
     Ok(())
 }
 
+/// Credits each assurer in `π_V`, whose entries follow `κ` before an epoch rotation.
+async fn handle_validator_assurances_accumulation(
+    state_manager: Arc<StateManager>,
+    assurances: &AssurancesXt,
+) -> Result<(), TransitionError> {
+    // Assurer indices must be below `|π_V|`, which equals `|κ|`.
+    let current_epoch_stats_count = state_manager
+        .get_onchain_statistics()
+        .await?
+        .validator_stats
+        .current_epoch_stats()
+        .len();
+    if let Some(assurance) = assurances
+        .iter()
+        .find(|assurance| assurance.validator_index as usize >= current_epoch_stats_count)
+    {
+        return Err(TransitionError::ValidatorIndexOutOfBounds(
+            assurance.validator_index,
+        ));
+    }
+
+    state_manager
+        .with_mut_onchain_statistics(StateMut::Update, |stats| -> Result<(), StateManagerError> {
+            for assurance in assurances.iter() {
+                stats
+                    .validator_stats
+                    .current_epoch_validator_stats_mut(assurance.validator_index)
+                    .assurances_count += 1;
+            }
+            Ok(())
+        })
+        .await?;
+    Ok(())
+}
+
 async fn handle_validator_stats_accumulation(
     state_manager: Arc<StateManager>,
     header_block_author_index: ValidatorIndex,
@@ -103,24 +141,15 @@ async fn handle_validator_stats_accumulation(
             current_epoch_author_stats.preimage_data_octets_count +=
                 xts.preimages.total_preimage_data_len() as u32;
 
-            for ((validator_index, validator_stats), validator_ed25519_key) in stats
+            for (validator_stats, validator_ed25519_key) in stats
                 .validator_stats
                 .current_epoch_stats_mut()
                 .iter_mut()
-                .enumerate()
                 .zip(&validator_keys)
             {
                 // Update `guarantees_count` if the current validator's Ed25519 public key is in reporters set.
                 if reporter_keys.contains(validator_ed25519_key) {
                     validator_stats.guarantees_count += 1;
-                }
-
-                // Update `assurances_count` if the current validator submitted assurances extrinsic entry.
-                if xts
-                    .assurances
-                    .contains_assurance_for_validator(validator_index as ValidatorIndex)
-                {
-                    validator_stats.assurances_count += 1;
                 }
             }
             Ok(())

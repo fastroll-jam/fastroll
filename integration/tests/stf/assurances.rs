@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use fr_asn_types::assurances::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_state::{
+    cache::StateMut,
     error::StateManagerError,
     manager::StateManager,
     types::{ActiveSet, PendingReports, Timeslot},
@@ -38,12 +39,23 @@ impl StateTransitionTest for AssurancesTest {
         // Convert ASN pre-state into FastRoll types.
         let pre_pending_reports = PendingReports::from(test_pre_state.avail_assignments.clone());
         let pre_active_set = ActiveSet(test_pre_state.curr_validators.clone().into());
+        let posterior_active_set = ActiveSet(test_pre_state.post_validators.clone().into());
 
         // Load pre-state info the state cache.
         state_manager
             .add_pending_reports(pre_pending_reports)
             .await?;
         state_manager.add_active_set(pre_active_set).await?;
+        // `κ'` replaces the working value, while `κ` stays as the clean prior value.
+        state_manager
+            .with_mut_active_set(
+                StateMut::Update,
+                |active_set| -> Result<(), StateManagerError> {
+                    *active_set = posterior_active_set;
+                    Ok(())
+                },
+            )
+            .await?;
         // Additionally, initialize the timeslot state cache
         state_manager.add_timeslot(Timeslot::new(0)).await?;
 
@@ -108,11 +120,13 @@ impl StateTransitionTest for AssurancesTest {
 
         // Get the posterior state from the state cache.
         let curr_pending_reports = state_manager.get_pending_reports().await?;
-        let curr_active_set = state_manager.get_active_set().await?;
+        let prior_active_set = state_manager.get_active_set_clean().await?;
+        let posterior_active_set = state_manager.get_active_set().await?;
 
         Ok(State {
             avail_assignments: curr_pending_reports.into(),
-            curr_validators: curr_active_set.0.into(),
+            curr_validators: prior_active_set.0.into(),
+            post_validators: posterior_active_set.0.into(),
         })
     }
 }

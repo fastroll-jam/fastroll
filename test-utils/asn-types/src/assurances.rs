@@ -19,6 +19,8 @@ pub enum AssurancesErrorCode {
 pub struct State {
     pub avail_assignments: AsnAvailAssignments,
     pub curr_validators: AsnValidatorsData,
+    /// `κ'`, which clears every pending report when its size differs from `κ`
+    pub post_validators: AsnValidatorsData,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

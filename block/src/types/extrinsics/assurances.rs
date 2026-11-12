@@ -27,11 +27,6 @@ impl Deref for AssurancesXt {
 }
 
 impl AssurancesXt {
-    pub fn contains_assurance_for_validator(&self, validator_index: ValidatorIndex) -> bool {
-        self.iter()
-            .any(|entry| entry.validator_index == validator_index)
-    }
-
     /// Aggregates core indices whose availability is assured by more than two-thirds of the
     /// active validator set `κ` of `active_validator_count` validators.
     pub fn available_core_indices(&self, active_validator_count: usize) -> Vec<CoreIndex> {

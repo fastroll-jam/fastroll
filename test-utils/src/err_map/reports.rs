@@ -5,7 +5,10 @@ use fr_transition::error::TransitionError;
 /// Converts FastRoll error types into test vector error code output
 pub fn map_error_to_custom_code(e: TransitionError) -> ReportsErrorCode {
     match e {
-        TransitionError::XtError(XtError::InvalidCoreIndex) => ReportsErrorCode::bad_core_index,
+        TransitionError::XtError(XtError::InvalidCoreIndex)
+        | TransitionError::XtError(XtError::InactiveCoreIndex(_)) => {
+            ReportsErrorCode::bad_core_index
+        }
         TransitionError::XtError(XtError::WorkReportTimeslotInFuture) => {
             ReportsErrorCode::future_report_slot
         }

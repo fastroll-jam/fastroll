@@ -97,6 +97,8 @@ pub enum XtError {
     DuplicateCoreIndex,
     #[error("Invalid core index (out of range)")]
     InvalidCoreIndex,
+    #[error("Core is not active under the posterior validator set size. Core index: {0}")]
+    InactiveCoreIndex(CoreIndex),
     #[error("Duplicate work package hashes found in guarantees")]
     DuplicateWorkPackageHash,
     #[error("Duplicate guarantor entry found")]

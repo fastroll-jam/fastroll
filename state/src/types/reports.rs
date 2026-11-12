@@ -92,6 +92,13 @@ impl PendingReports {
         Ok(false) // Hash not found
     }
 
+    /// Removes every pending report, e.g. when the active validator set size changes.
+    pub fn clear(&mut self) {
+        for entry in self.0.iter_mut() {
+            *entry = None;
+        }
+    }
+
     pub fn remove_by_core_index(
         &mut self,
         core_index: CoreIndex,

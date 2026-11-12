@@ -403,7 +403,6 @@ generate_typed_tests! {
     // Guarantee under the previous rotation, routed to the previous set which still has the full size.
     // The report core index is beyond the cores active under the shrunk set.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     inactive_core_index_1: "inactive_core_index-1.json",
 
     // Success

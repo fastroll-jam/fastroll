@@ -64,7 +64,8 @@ pub async fn transition_reports_eliminate_invalid(
 }
 
 /// State transition function of `PendingReports`, removing work reports that are now available for
-/// the accumulation by consuming the `AssurancesXt`. It also removes timed-out entries.
+/// the accumulation by consuming the `AssurancesXt`. It also removes timed-out entries,
+/// and every entry when the active validator set size changes (`|κ| ≠ |κ'|`).
 ///
 /// # Transitions
 ///
@@ -107,10 +108,18 @@ pub async fn transition_reports_clear_availables(
     let timed_out_core_indices =
         prior_pending_reports.get_timed_out_core_indices(&current_timeslot)?;
 
+    // All pending reports time out early when the active set size changes (`|κ| ≠ |κ'|`).
+    let posterior_active_validator_count = state_manager.get_active_set().await?.len(); // |κ'|
+    let active_set_size_changed = prior_active_validator_count != posterior_active_validator_count;
+
     state_manager
         .with_mut_pending_reports(
             StateMut::Update,
             |pending_reports| -> Result<(), StateManagerError> {
+                if active_set_size_changed {
+                    pending_reports.clear();
+                    return Ok(());
+                }
                 // Remove now-available reports and timed-out reports
                 for &core_index in available_reports_core_indices
                     .iter()

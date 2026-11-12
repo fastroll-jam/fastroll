@@ -39,6 +39,7 @@ use std::{collections::HashSet, sync::Arc};
 /// - `work_report`
 ///   - No duplicate `core_index` values are allowed within the extrinsic. Each core can only have
 ///     one work-report per extrinsic.
+///   - The `core_index` must be below `|κ'|/3`, the number of active cores.
 ///   - A new work-report must not be introduced for a core if a previous work-report is still
 ///     pending on that core, unless the pending report has timed out.
 ///   - A new work-report must have its `authorizer_hash` present in the current authorizer pool
@@ -128,6 +129,15 @@ impl GuaranteesXtValidator {
             .iter()
             .map(|e| e.work_report.extract_exports_manifest())
             .collect();
+
+        // Only the first `|κ'|/3` cores are active and take work reports
+        let active_core_count = self.state_manager.get_active_set().await?.len() / 3;
+        if let Some(entry) = extrinsic
+            .iter()
+            .find(|entry| entry.work_report.core_index as usize >= active_core_count)
+        {
+            return Err(XtError::InactiveCoreIndex(entry.work_report.core_index));
+        }
 
         // Validate each entry
         let pending_reports = self.state_manager.get_pending_reports().await?; // ρ‡
