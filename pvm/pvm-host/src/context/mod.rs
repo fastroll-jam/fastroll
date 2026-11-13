@@ -462,8 +462,6 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
 
 #[derive(Clone, Default)]
 pub struct RefineHostContext {
-    /// PVM instance ID to be assigned for the next instance
-    pub next_instance_id: usize,
     /// **`m`**: Inner PVM instances
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
     /// **`e`**: Export data segments
@@ -493,10 +491,14 @@ impl RefineHostContext {
             .map(|vm| &mut vm.memory)
     }
 
+    /// Adds an inner VM under the smallest id that no inner VM holds (`n` of `machine`) and returns the id.
     pub(crate) fn add_pvm_instance(&mut self, pvm: InnerPVM) -> usize {
-        let id = self.next_instance_id;
+        let inner_pvm_count = self.pvm_instances.len();
+        // When every id below the count is taken, those are all the ids and the count itself is free
+        let id = (0..inner_pvm_count)
+            .find(|candidate_id| !self.pvm_instances.contains_key(candidate_id))
+            .unwrap_or(inner_pvm_count);
         self.pvm_instances.insert(id, pvm);
-        self.next_instance_id += 1;
         id
     }
 

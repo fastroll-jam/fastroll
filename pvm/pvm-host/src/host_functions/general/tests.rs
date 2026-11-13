@@ -273,7 +273,6 @@ mod fetch_tests {
             &self,
         ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
             Ok(InvocationContext::X_R(RefineHostContext {
-                next_instance_id: 0,
                 pvm_instances: HashMap::new(),
                 export_segments: Vec::new(),
                 refine_entropy: self.entropy.clone(),

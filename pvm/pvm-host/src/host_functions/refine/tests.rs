@@ -115,6 +115,38 @@ mod machine_tests {
     }
 
     #[test]
+    fn test_machine_reuses_smallest_free_id() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = MachineTestFixture::default();
+        let machine_vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        // Inner VMs of ids 0, 1, 2 and 3
+        let mut context = fixture.prepare_invocation_context(4);
+
+        // Free ids 2 and 0, in that order
+        for expunged_inner_pvm_id in [2, 0] {
+            let expunge_vm = VMStateBuilder::builder()
+                .with_gas_counter(100)
+                .with_reg(7, expunged_inner_pvm_id as RegValue)
+                .build();
+            RefineHostFunction::<MockStateManager>::host_expunge(&expunge_vm, &mut context)?;
+        }
+
+        // Each `machine` takes the smallest free id, which is 4 once ids 0 to 3 are held
+        for new_inner_pvm_id in [0, 2, 4] {
+            let res =
+                RefineHostFunction::<MockStateManager>::host_machine(&machine_vm, &mut context)?;
+            assert_eq!(
+                res,
+                MachineTestFixture::host_call_result_successful(new_inner_pvm_id)
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_machine_full_at_inner_pvm_limit() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = MachineTestFixture::default();

@@ -173,6 +173,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
     ///
     /// Memory of the inner VM is initialized with zero value cells and `Inaccessible` pages.
     /// The refine context holds at most `MAX_INNER_PVM_INSTANCES` inner VMs.
+    /// The new inner VM takes the smallest id that no inner VM holds, so an id freed by `expunge` is reused.
     pub fn host_machine(
         vm: &VMState,
         context: &mut InvocationContext<S>,
