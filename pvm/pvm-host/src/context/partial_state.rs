@@ -1371,11 +1371,14 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             .accounts_sandbox
             .get_mut_account_metadata(state_provider.clone(), service_id)
             .await?
-            .ok_or(PartialStateError::AccountBalanceOverflow(service_id))?;
+            .ok_or(PartialStateError::AccumulatorAccountNotInitialized(
+                service_id,
+            ))?;
 
-        let added_amount = account_metadata.balance.checked_add(amount).ok_or(
-            PartialStateError::AccumulatorAccountNotInitialized(service_id),
-        )?;
+        let added_amount = account_metadata
+            .balance
+            .checked_add(amount)
+            .ok_or(PartialStateError::AccountBalanceOverflow(service_id))?;
         account_metadata.balance = added_amount;
         self.accounts_sandbox
             .mark_account_metadata_updated(state_provider, service_id)
