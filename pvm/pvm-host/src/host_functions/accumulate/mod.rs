@@ -43,6 +43,7 @@ pub struct AccumulateHostFunction<S> {
 impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// Assigns new privileged services: manager (M), assign (A), designate (V), registrar (R) and
     /// always-accumulates (Z) to the accumulate context partial state.
+    /// Only the manager service of the current partial state may invoke it.
     pub fn host_bless(
         vm: &VMState,
         context: &mut InvocationContext<S>,
@@ -98,6 +99,13 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             host_call_panic!()
         };
 
+        // --- Check Privilege (Err: HUH)
+
+        // Checks against `(x_e)_m`, which a previous `BLESS` of this invocation may have changed
+        if x.accumulate_host != x.partial_state.manager_service {
+            continue_huh!()
+        }
+
         // --- Check New Privileges (Err: WHO)
 
         let Ok(manager) = vm.read_reg_as_service_id(7) else {
@@ -126,7 +134,6 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         }
 
         x.assign_new_privileged_services(
-            x.accumulate_host,
             manager,
             AssignServices::try_from(assign_services.clone())?,
             designate,
@@ -267,27 +274,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Privilege (Err: HUH)
 
         // Only the privileged designate service is allowed to invoke this host call
-        if let Some(new_designate_service_by_manager) =
-            x.partial_state.designate_service.change_by_bless
-        {
-            // Designate service is changed in the partial state and the accumulate host is the manager service
-            if x.accumulate_host != new_designate_service_by_manager {
-                continue_huh!()
-            }
-        } else if let Some(new_designate_service_by_self) =
-            x.partial_state.designate_service.change_by_self
-        {
-            // Designate service is changed in the partial state and
-            // the accumulate host was the previous designate service
-            if x.accumulate_host != new_designate_service_by_self {
-                continue_huh!()
-            }
-        } else {
-            // Designate service is not changed in the partial state.
-            // Validate against the last confirmed version.
-            if x.accumulate_host != x.partial_state.designate_service.last_confirmed {
-                continue_huh!()
-            }
+        if x.accumulate_host != x.partial_state.designate_service.current() {
+            continue_huh!()
         }
 
         // --- OK
@@ -389,24 +377,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // Not used if this value is larger than `MIN_PUBLIC_SERVICE_ID`
         let new_small_service_id = vm.read_reg_as_service_id(12).unwrap_or(ServiceId::MAX);
-        let accumulate_host_is_registrar = {
-            if let Some(new_registrar_service_by_manager) =
-                x.partial_state.registrar_service.change_by_bless
-            {
-                // Registrar service is changed in the partial state and the accumulate host is the manager service
-                x.accumulate_host == new_registrar_service_by_manager
-            } else if let Some(new_registrar_service_by_self) =
-                x.partial_state.registrar_service.change_by_self
-            {
-                // Registrar service is changed in the partial state and
-                // the accumulate host was the previous registrar service
-                x.accumulate_host == new_registrar_service_by_self
-            } else {
-                // Registrar service is not changed in the partial state.
-                // Validate against the last confirmed version.
-                x.accumulate_host == x.partial_state.registrar_service.last_confirmed
-            }
-        };
+        let accumulate_host_is_registrar =
+            x.accumulate_host == x.partial_state.registrar_service.current();
         let has_small_service_id =
             new_small_service_id < MIN_PUBLIC_SERVICE_ID && accumulate_host_is_registrar;
         let new_small_service_id_already_taken = x

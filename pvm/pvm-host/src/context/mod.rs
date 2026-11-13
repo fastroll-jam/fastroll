@@ -299,47 +299,17 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
     /// Used by `BLESS` host call
     pub fn assign_new_privileged_services(
         &mut self,
-        accumulate_host: ServiceId,
         manager_service: ServiceId,
         assign_services: AssignServices,
         designate_service: ServiceId,
         registrar_service: ServiceId,
         always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
     ) {
-        let prev_assigns = self.partial_state.assign_services.last_confirmed.clone();
-        let prev_designate = self.partial_state.designate_service.last_confirmed;
-        let prev_registrar = self.partial_state.registrar_service.last_confirmed;
-
-        // BLESS always updates local privileged service candidates. Merge stage enforces pre‑state
-        // roles, so only the pre‑state manager’s bless candidate (and eligible self‑candidates)
-        // can be committed. (Mutates local context first, filters later)
         self.partial_state.manager_service = manager_service;
-        self.partial_state.assign_services.change_by_bless = Some(assign_services.clone());
+        self.partial_state.assign_services.change_by_bless = Some(assign_services);
         self.partial_state.designate_service.change_by_bless = Some(designate_service);
         self.partial_state.registrar_service.change_by_bless = Some(registrar_service);
         self.partial_state.always_accumulate_services = always_accumulate_services;
-
-        prev_assigns
-            .iter()
-            .enumerate()
-            .zip(assign_services.iter().enumerate())
-            .for_each(
-                |((core_index, prev_assign_service_id), (_, new_assign_service_id))| {
-                    if accumulate_host == *prev_assign_service_id {
-                        self.partial_state
-                            .assign_services
-                            .change_by_self
-                            .insert(core_index as CoreIndex, *new_assign_service_id);
-                    }
-                },
-            );
-
-        if accumulate_host == prev_designate {
-            self.partial_state.designate_service.change_by_self = Some(designate_service);
-        }
-        if accumulate_host == prev_registrar {
-            self.partial_state.registrar_service.change_by_self = Some(registrar_service);
-        }
     }
 
     /// Used by `ASSIGN` host call

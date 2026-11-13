@@ -17,7 +17,7 @@ use fr_pvm_types::{
 };
 use fr_state::{
     manager::StateManager,
-    types::{privileges::AssignServices, AccountPreimagesEntry, Timeslot},
+    types::{AccountPreimagesEntry, Timeslot},
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -189,10 +189,6 @@ async fn merge_partial_state_change(
     accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState<StateManager>,
     mut accumulate_result_partial_state: AccumulatePartialState<StateManager>,
-    prev_manager: ServiceId,
-    prev_assigns: &AssignServices,
-    prev_designate: ServiceId,
-    prev_registrar: ServiceId,
     base_present_service_ids: &HashSet<ServiceId>,
     base_removed_service_ids: &HashSet<ServiceId>,
     new_service_ids_this_round: &mut HashSet<ServiceId>,
@@ -210,43 +206,6 @@ async fn merge_partial_state_change(
     // Ejected accounts cannot produce state diff (no code)
     if accumulate_host_sandbox.is_ejected().await {
         return Ok(());
-    }
-
-    // Filter local privilege candidates to pre-state roles before merging into global state
-    let is_prev_manager = accumulate_host == prev_manager;
-    let is_prev_designate = accumulate_host == prev_designate;
-    let is_prev_registrar = accumulate_host == prev_registrar;
-
-    if !is_prev_manager {
-        accumulate_result_partial_state
-            .assign_services
-            .change_by_bless = None;
-        accumulate_result_partial_state
-            .designate_service
-            .change_by_bless = None;
-        accumulate_result_partial_state
-            .registrar_service
-            .change_by_bless = None;
-    }
-
-    accumulate_result_partial_state
-        .assign_services
-        .change_by_self
-        .retain(|core_idx, _| {
-            prev_assigns
-                .get(*core_idx as usize)
-                .is_some_and(|assigner| *assigner == accumulate_host)
-        });
-
-    if !is_prev_designate {
-        accumulate_result_partial_state
-            .designate_service
-            .change_by_self = None;
-    }
-    if !is_prev_registrar {
-        accumulate_result_partial_state
-            .registrar_service
-            .change_by_self = None;
     }
 
     // Merge StagingSet changes
@@ -277,12 +236,11 @@ async fn merge_partial_state_change(
 
     // Merge PrivilegedServices changes
 
-    // Extra check - only manager can mutate manager / always-accumulate services
-    let manager_invoked_bless = is_prev_manager
-        && accumulate_result_partial_state
-            .assign_services
-            .change_by_bless
-            .is_some();
+    // Only the manager service can invoke `BLESS`, which changes the manager and always-accumulate services
+    let manager_invoked_bless = accumulate_result_partial_state
+        .assign_services
+        .change_by_bless
+        .is_some();
     if manager_invoked_bless {
         partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
         partial_state_union.always_accumulate_services = accumulate_result_partial_state
@@ -441,10 +399,6 @@ async fn accumulate_parallel(
 ) -> Result<ParallelAccumulationResult, PVMInvokeError> {
     tracing::info!("Δ* invoked");
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
-    let prev_manager = partial_state_union.manager_service;
-    let prev_assigns = partial_state_union.assign_services.last_confirmed.clone();
-    let prev_designate = partial_state_union.designate_service.last_confirmed;
-    let prev_registrar = partial_state_union.registrar_service.last_confirmed;
 
     // It is not allowed to reuse service IDs (Create/Remove) that were modified
     // by other accumulate hosts in the current parallel accumulation round.
@@ -543,10 +497,6 @@ async fn accumulate_parallel(
                 accumulate_result.accumulate_host,
                 partial_state_union,
                 accumulate_result.partial_state,
-                prev_manager,
-                &prev_assigns,
-                prev_designate,
-                prev_registrar,
                 &base_present_service_ids,
                 &base_removed_service_ids,
                 &mut new_service_ids_this_round,
@@ -586,13 +536,12 @@ async fn accumulate_parallel(
     }
 
     // Multiple services that are accumulated in the same `Δ*` round can produce conflicting
-    // changes to the privileged services: assigners, designate and registrar.
-    // So at this point, `partial_state_union` may hold `Some` variants for both `change_by_bless`
-    // and `change_by_self` fields for partial state of the privileged services.
+    // changes to the assigners. So at this point, `partial_state_union` may hold both
+    // `change_by_bless` from the manager service and `change_by_self` from the assigners themselves.
     //
-    // If such conflicts happen, changes by the manager services should be prioritized over changes
-    // by the privileged services themselves. This behavior is described in the `R(o, a, b)` util
-    // function of the Graypaper.
+    // If such conflicts happen, changes by the manager service should be prioritized over changes
+    // by the assigners themselves. This behavior is described in the `R(o, a, b)` util
+    // function of the Graypaper. The designate and registrar services change only by the manager service.
     //
     // Once the state change is confirmed, partial state change fields of the union should be cleared.
 
@@ -620,10 +569,6 @@ async fn accumulate_parallel(
         partial_state_union.designate_service.change_by_bless
     {
         partial_state_union.designate_service.last_confirmed = new_designate_service_by_manager;
-    } else if let Some(new_designate_service_by_self) =
-        partial_state_union.designate_service.change_by_self
-    {
-        partial_state_union.designate_service.last_confirmed = new_designate_service_by_self;
     }
 
     // Confirm the new registrar service
@@ -631,10 +576,6 @@ async fn accumulate_parallel(
         partial_state_union.registrar_service.change_by_bless
     {
         partial_state_union.registrar_service.last_confirmed = new_registrar_service_by_manager;
-    } else if let Some(new_registrar_service_by_self) =
-        partial_state_union.registrar_service.change_by_self
-    {
-        partial_state_union.registrar_service.last_confirmed = new_registrar_service_by_self;
     }
 
     // Clear state changes marked in `partial_state_union`, since they are resolved

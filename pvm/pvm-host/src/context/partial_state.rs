@@ -1085,11 +1085,11 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
 pub struct AssignServicesPartialState {
     /// The latest state copied from the beginning of the current parallel accumulation round.
     pub last_confirmed: AssignServices,
-    /// The changed assigner service ids by the `BLESS` host call within the
+    /// The changed assigner service ids by the `BLESS` host call of the manager service within the
     /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
     pub change_by_bless: Option<AssignServices>,
-    /// The changed assigner service ids by the assigner services themselves within the current
-    /// parallel accumulation round.
+    /// The changed assigner service ids by the `ASSIGN` host call of the assigner services
+    /// themselves within the current parallel accumulation round.
     pub change_by_self: HashMap<CoreIndex, ServiceId>,
 }
 
@@ -1130,36 +1130,29 @@ impl AssignServicesPartialState {
 pub struct DesignateServicePartialState {
     /// The latest state copied from the beginning of the current parallel accumulation round.
     pub last_confirmed: ServiceId,
-    /// The changed designate service id by the `BLESS` host call within the
-    /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
+    /// The changed designate service id by the `BLESS` host call of the manager service within the
+    /// current parallel accumulation round.
     pub change_by_bless: Option<ServiceId>,
-    /// The changed designate service id by the designate service itself within the current
-    /// parallel accumulation round.
-    pub change_by_self: Option<ServiceId>,
 }
 
 impl DesignateServicePartialState {
     pub fn new(designate_service: ServiceId) -> Self {
         Self {
             last_confirmed: designate_service,
-            change_by_self: None,
             change_by_bless: None,
         }
     }
 
+    /// Returns the designate service of the current partial state, changed by `BLESS` or else the last confirmed one.
+    pub fn current(&self) -> ServiceId {
+        self.change_by_bless.unwrap_or(self.last_confirmed)
+    }
+
     /// Merges changes of the designate service from the `other` partial state into `self`.
     pub fn merge_changes_from(&mut self, other: &DesignateServicePartialState) {
-        let original = other.last_confirmed;
         if let Some(designate_by_manager) = other.change_by_bless {
-            if designate_by_manager != original {
+            if designate_by_manager != other.last_confirmed {
                 self.change_by_bless = Some(designate_by_manager);
-                return;
-            }
-        }
-
-        if let Some(designate_by_self) = other.change_by_self {
-            if designate_by_self != original {
-                self.change_by_self = Some(designate_by_self);
             }
         }
     }
@@ -1169,36 +1162,29 @@ impl DesignateServicePartialState {
 pub struct RegistrarServicePartialState {
     /// The latest state copied from the beginning of the current parallel accumulation round.
     pub last_confirmed: ServiceId,
-    /// The changed registrar service id by the `BLESS` host call within the
-    /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
+    /// The changed registrar service id by the `BLESS` host call of the manager service within the
+    /// current parallel accumulation round.
     pub change_by_bless: Option<ServiceId>,
-    /// The changed registrar service id by the registrar service itself within the current
-    /// parallel accumulation round.
-    pub change_by_self: Option<ServiceId>,
 }
 
 impl RegistrarServicePartialState {
     pub fn new(registrar_service: ServiceId) -> Self {
         Self {
             last_confirmed: registrar_service,
-            change_by_self: None,
             change_by_bless: None,
         }
     }
 
+    /// Returns the registrar service of the current partial state, changed by `BLESS` or else the last confirmed one.
+    pub fn current(&self) -> ServiceId {
+        self.change_by_bless.unwrap_or(self.last_confirmed)
+    }
+
     /// Merges changes of the registrar service from the `other` partial state into `self`.
     pub fn merge_changes_from(&mut self, other: &RegistrarServicePartialState) {
-        let original = other.last_confirmed;
         if let Some(registrar_by_manager) = other.change_by_bless {
-            if registrar_by_manager != original {
+            if registrar_by_manager != other.last_confirmed {
                 self.change_by_bless = Some(registrar_by_manager);
-                return;
-            }
-        }
-
-        if let Some(registrar_by_self) = other.change_by_self {
-            if registrar_by_self != original {
-                self.change_by_self = Some(registrar_by_self);
             }
         }
     }
@@ -1393,8 +1379,6 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
         self.assign_services.change_by_bless = None;
         self.assign_services.change_by_self = HashMap::new();
         self.designate_service.change_by_bless = None;
-        self.designate_service.change_by_self = None;
         self.registrar_service.change_by_bless = None;
-        self.registrar_service.change_by_self = None;
     }
 }

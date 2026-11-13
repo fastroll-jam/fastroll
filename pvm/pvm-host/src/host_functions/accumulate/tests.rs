@@ -36,6 +36,7 @@ use std::{collections::HashMap, error::Error, ops::Range, sync::Arc};
 
 mod bless_tests {
     use super::*;
+    use crate::context::AccumulateHostContext;
 
     struct BlessTestFixture {
         accumulate_host: ServiceId,
@@ -76,7 +77,7 @@ mod bless_tests {
                 ..always_accumulate_offset + (12 * always_accumulate_services.len()) as MemAddress;
 
             Self {
-                accumulate_host: 1,
+                accumulate_host: 5,
                 prev_manager: 5,
                 prev_designate: 20,
                 prev_registrar: 30,
@@ -173,6 +174,18 @@ mod bless_tests {
             }
         }
 
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
         fn host_call_result_who() -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
@@ -184,13 +197,45 @@ mod bless_tests {
                 },
             }
         }
+
+        fn assert_privileges_blessed(&self, x: &AccumulateHostContext<MockStateManager>) {
+            let partial_state = &x.partial_state;
+            assert_eq!(partial_state.manager_service, self.manager as ServiceId);
+            assert_eq!(
+                partial_state.assign_services.change_by_bless,
+                Some(self.assign_services.clone())
+            );
+            assert_eq!(
+                partial_state.designate_service.change_by_bless,
+                Some(self.designate as ServiceId)
+            );
+            assert_eq!(
+                partial_state.registrar_service.change_by_bless,
+                Some(self.registrar as ServiceId)
+            );
+            assert_eq!(
+                partial_state.always_accumulate_services,
+                self.always_accumulate_services
+            );
+        }
+
+        fn assert_privileges_unchanged(&self, x: &AccumulateHostContext<MockStateManager>) {
+            let partial_state = &x.partial_state;
+            assert_eq!(partial_state.manager_service, self.prev_manager);
+            assert!(partial_state.assign_services.change_by_bless.is_none());
+            assert!(partial_state.designate_service.change_by_bless.is_none());
+            assert!(partial_state.registrar_service.change_by_bless.is_none());
+            assert_eq!(
+                partial_state.always_accumulate_services,
+                self.prev_always_accumulate_services
+            );
+        }
     }
 
     #[tokio::test]
-    async fn test_bless_successful_by_manager_service() -> Result<(), Box<dyn Error>> {
+    async fn test_bless_successful() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let mut fixture = BlessTestFixture::default();
-        fixture.accumulate_host = fixture.prev_manager;
+        let fixture = BlessTestFixture::default();
         let vm = fixture
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
@@ -201,46 +246,48 @@ mod bless_tests {
             .prepare_invocation_context(state_provider.clone())
             .await?;
 
-        // Check host-call result
         let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
         assert_eq!(res, BlessTestFixture::host_call_result_successful());
-
-        // Check partial state after host-call
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(
-            x.partial_state.manager_service,
-            fixture.manager as ServiceId
-        );
-        assert_eq!(
-            x.partial_state.assign_services.change_by_bless,
-            Some(fixture.assign_services)
-        );
-        assert_eq!(
-            x.partial_state.assign_services.change_by_self,
-            HashMap::new()
-        );
-        assert_eq!(
-            x.partial_state.designate_service.change_by_bless,
-            Some(fixture.designate as ServiceId)
-        );
-        assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.registrar_service.change_by_bless,
-            Some(fixture.registrar as ServiceId)
-        );
-        assert!(x.partial_state.registrar_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.always_accumulate_services
-        );
+        fixture.assert_privileges_blessed(context.get_accumulate_x().unwrap());
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_bless_successful_by_designate_service() -> Result<(), Box<dyn Error>> {
+    async fn test_bless_accumulate_host_not_manager() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let mut fixture = BlessTestFixture::default();
-        fixture.accumulate_host = fixture.prev_designate;
+        let default_fixture = BlessTestFixture::default();
+        // Privileged services other than the manager cannot hand over their roles via `BLESS`
+        let non_manager_privileged_services = [
+            default_fixture.prev_designate,
+            default_fixture.prev_registrar,
+            default_fixture.prev_assign_services[0],
+        ];
+        for accumulate_host in non_manager_privileged_services {
+            let fixture = BlessTestFixture {
+                accumulate_host,
+                ..Default::default()
+            };
+            let vm = fixture
+                .prepare_vm_builder()?
+                .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
+                .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
+                .build();
+            let state_provider = Arc::new(fixture.prepare_state_provider());
+            let mut context = fixture
+                .prepare_invocation_context(state_provider.clone())
+                .await?;
+
+            let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
+            assert_eq!(res, BlessTestFixture::host_call_result_huh());
+            fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_accumulate_host_not_manager_after_handover() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = BlessTestFixture::default();
         let vm = fixture
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
@@ -251,109 +298,25 @@ mod bless_tests {
             .prepare_invocation_context(state_provider.clone())
             .await?;
 
-        // Check host-call result
+        // The first `BLESS` hands over the manager role to `fixture.manager`
         let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
         assert_eq!(res, BlessTestFixture::host_call_result_successful());
 
-        // Check partial state after host-call
-        let x = context.get_accumulate_x().unwrap();
-
-        // Even non-manager service can mutate the local candidate for privileged service IDs via
-        // BLESS host-call.
-        // This change eventually gets filtered in state merging after parallel accumulation.
-        assert_eq!(
-            x.partial_state.manager_service,
-            fixture.manager as ServiceId
-        );
-        assert_eq!(
-            x.partial_state.assign_services.change_by_bless,
-            Some(fixture.assign_services)
-        );
-        assert_eq!(
-            x.partial_state.assign_services.change_by_self,
-            HashMap::new()
-        );
-        assert_eq!(
-            x.partial_state.designate_service.change_by_bless,
-            Some(fixture.designate as ServiceId)
-        );
-        assert_eq!(
-            x.partial_state.designate_service.change_by_self,
-            Some(fixture.designate as ServiceId)
-        );
-        assert_eq!(
-            x.partial_state.registrar_service.change_by_bless,
-            Some(fixture.registrar as ServiceId)
-        );
-        assert!(x.partial_state.registrar_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.always_accumulate_services
-        );
+        // The second `BLESS` checks the manager of the partial state, not of the prior state
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
+        assert_eq!(res, BlessTestFixture::host_call_result_huh());
+        fixture.assert_privileges_blessed(context.get_accumulate_x().unwrap());
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_bless_successful_by_assigner_service_valid() -> Result<(), Box<dyn Error>> {
+    async fn test_bless_accumulate_host_not_manager_with_invalid_service_id(
+    ) -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let mut fixture = BlessTestFixture::default();
-        fixture.accumulate_host = fixture.prev_assign_services[0];
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
-            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
-
-        // Check host-call result
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_successful());
-
-        // Check partial state after host-call
-        let x = context.get_accumulate_x().unwrap();
-
-        // Even non-manager service can mutate the local candidate for privileged service IDs via
-        // BLESS host-call.
-        // This change eventually gets filtered in state merging after parallel accumulation.
-        assert_eq!(
-            x.partial_state.manager_service,
-            fixture.manager as ServiceId
-        );
-        let assign_services = fixture.assign_services.clone();
-        assert_eq!(
-            x.partial_state.assign_services.change_by_bless,
-            Some(assign_services.clone())
-        );
-        let assign_services_vec = vec![(0, assign_services[0])];
-        assert_eq!(
-            x.partial_state.assign_services.change_by_self,
-            HashMap::from_iter(assign_services_vec)
-        );
-        assert_eq!(
-            x.partial_state.designate_service.change_by_bless,
-            Some(fixture.designate as ServiceId)
-        );
-        assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.registrar_service.change_by_bless,
-            Some(fixture.registrar as ServiceId)
-        );
-        assert!(x.partial_state.registrar_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.always_accumulate_services
-        );
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_bless_successful_by_assigner_service_invalid() -> Result<(), Box<dyn Error>> {
-        setup_tracing();
+        // HUH takes precedence over WHO
         let fixture = BlessTestFixture {
-            accumulate_host: ServiceId::MAX, // Accumulate host is not assigner service
+            accumulate_host: 1,
+            manager: RegValue::MAX, // Invalid service id
             ..Default::default()
         };
         let vm = fixture
@@ -366,38 +329,9 @@ mod bless_tests {
             .prepare_invocation_context(state_provider.clone())
             .await?;
 
-        // Check host-call result
         let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_successful());
-
-        // Check partial state after host-call
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(
-            x.partial_state.manager_service,
-            fixture.manager as ServiceId
-        );
-        assert_eq!(
-            x.partial_state.assign_services.change_by_bless,
-            Some(fixture.assign_services)
-        );
-        assert_eq!(
-            x.partial_state.assign_services.change_by_self,
-            HashMap::new()
-        );
-        assert_eq!(
-            x.partial_state.designate_service.change_by_bless,
-            Some(fixture.designate as ServiceId)
-        );
-        assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.registrar_service.change_by_bless,
-            Some(fixture.registrar as ServiceId)
-        );
-        assert!(x.partial_state.registrar_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.always_accumulate_services
-        );
+        assert_eq!(res, BlessTestFixture::host_call_result_huh());
+        fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
 
@@ -418,27 +352,9 @@ mod bless_tests {
             .prepare_invocation_context(state_provider.clone())
             .await?;
 
-        // Check host-call result
         let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
         assert_eq!(res, BlessTestFixture::host_call_result_who());
-
-        // Check partial state after host-call
-        // Partial state should remain unchanged
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_bless.is_none());
-        assert_eq!(
-            x.partial_state.assign_services.change_by_self,
-            HashMap::new()
-        );
-        assert!(x.partial_state.designate_service.change_by_bless.is_none());
-        assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
-        assert!(x.partial_state.registrar_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.prev_always_accumulate_services
-        );
+        fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
 
@@ -459,27 +375,9 @@ mod bless_tests {
             .prepare_invocation_context(state_provider.clone())
             .await?;
 
-        // Check host-call result
         let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
         assert_eq!(res, BlessTestFixture::host_call_result_who());
-
-        // Check partial state after host-call
-        // Partial state should remain unchanged
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_bless.is_none());
-        assert_eq!(
-            x.partial_state.assign_services.change_by_self,
-            HashMap::new()
-        );
-        assert!(x.partial_state.designate_service.change_by_bless.is_none());
-        assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
-        assert!(x.partial_state.registrar_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.prev_always_accumulate_services
-        );
+        fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
 
@@ -500,34 +398,20 @@ mod bless_tests {
             .prepare_invocation_context(state_provider.clone())
             .await?;
 
-        // Check host-call result
         let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
         assert_eq!(res, BlessTestFixture::host_call_result_who());
-
-        // Check partial state after host-call
-        // Partial state should remain unchanged
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_bless.is_none());
-        assert_eq!(
-            x.partial_state.assign_services.change_by_self,
-            HashMap::new()
-        );
-        assert!(x.partial_state.designate_service.change_by_bless.is_none());
-        assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
-        assert!(x.partial_state.registrar_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.prev_always_accumulate_services
-        );
+        fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
 
     #[tokio::test]
     async fn test_bless_mem_not_readable_assign_services() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let fixture = BlessTestFixture::default();
+        // A non-manager accumulate host shows that panic takes precedence over HUH
+        let fixture = BlessTestFixture {
+            accumulate_host: 1,
+            ..Default::default()
+        };
         let vm = fixture
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
@@ -537,27 +421,9 @@ mod bless_tests {
             .prepare_invocation_context(state_provider.clone())
             .await?;
 
-        // Check host-call result
         let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
         assert_eq!(res, BlessTestFixture::host_call_result_panic());
-
-        // Check partial state after host-call
-        // Partial state should remain unchanged
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_bless.is_none());
-        assert_eq!(
-            x.partial_state.assign_services.change_by_self,
-            HashMap::new()
-        );
-        assert!(x.partial_state.designate_service.change_by_bless.is_none());
-        assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
-        assert!(x.partial_state.registrar_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.prev_always_accumulate_services
-        );
+        fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
 
@@ -565,7 +431,11 @@ mod bless_tests {
     async fn test_bless_mem_not_readable_always_accumulate_services() -> Result<(), Box<dyn Error>>
     {
         setup_tracing();
-        let fixture = BlessTestFixture::default();
+        // A non-manager accumulate host shows that panic takes precedence over HUH
+        let fixture = BlessTestFixture {
+            accumulate_host: 1,
+            ..Default::default()
+        };
         let vm = fixture
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
@@ -575,27 +445,9 @@ mod bless_tests {
             .prepare_invocation_context(state_provider.clone())
             .await?;
 
-        // Check host-call result
         let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
         assert_eq!(res, BlessTestFixture::host_call_result_panic());
-
-        // Check partial state after host-call
-        // Partial state should remain unchanged
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert!(x.partial_state.assign_services.change_by_bless.is_none());
-        assert_eq!(
-            x.partial_state.assign_services.change_by_self,
-            HashMap::new()
-        );
-        assert!(x.partial_state.designate_service.change_by_bless.is_none());
-        assert!(x.partial_state.designate_service.change_by_self.is_none());
-        assert!(x.partial_state.registrar_service.change_by_bless.is_none());
-        assert!(x.partial_state.registrar_service.change_by_self.is_none());
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.prev_always_accumulate_services
-        );
+        fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
 }
