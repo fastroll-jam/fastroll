@@ -1074,6 +1074,7 @@ pub struct AsnServiceActivityRecord {
     pub extrinsic_size: u32,
     pub exports: u32,
     pub accumulate_count: u32,
+    pub accumulate_transfer_count: u32,
     pub accumulate_gas_used: u64,
 }
 
@@ -1089,6 +1090,7 @@ impl From<AsnServiceActivityRecord> for ServiceStatsEntry {
             extrinsics_octets: value.extrinsic_size,
             exports_count: value.exports,
             accumulate_digests_count: value.accumulate_count,
+            accumulate_transfers_count: value.accumulate_transfer_count,
             accumulate_gas_used: value.accumulate_gas_used,
         }
     }
@@ -1106,6 +1108,7 @@ impl From<ServiceStatsEntry> for AsnServiceActivityRecord {
             extrinsic_size: value.extrinsics_octets,
             exports: value.exports_count,
             accumulate_count: value.accumulate_digests_count,
+            accumulate_transfer_count: value.accumulate_transfers_count,
             accumulate_gas_used: value.accumulate_gas_used,
         }
     }

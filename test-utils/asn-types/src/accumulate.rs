@@ -1,7 +1,8 @@
 use crate::{
     common::{
         AsnAccumulateHistory, AsnAccumulateQueue, AsnAccumulateRoot, AsnEntropy,
-        AsnPrivilegedServices, AsnServiceId, AsnServiceInfo, AsnTimeSlot, AsnWorkReport,
+        AsnPrivilegedServices, AsnServiceActivityRecords, AsnServiceId, AsnServiceInfo,
+        AsnTimeSlot, AsnWorkReport,
     },
     preimages::{AsnLookupMetaMapEntry, AsnPreimagesMapEntry},
 };
@@ -71,6 +72,8 @@ pub struct State {
     pub ready_queue: AsnAccumulateQueue,
     pub accumulated: AsnAccumulateHistory,
     pub privileges: AsnPrivilegedServices,
+    /// Service statistics `π_S` holding only the accumulation statistics `I` of the block.
+    pub statistics: AsnServiceActivityRecords,
     pub accounts: AsnServices,
 }
 

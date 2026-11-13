@@ -35,6 +35,8 @@ pub struct OuterAccumulationResult {
     pub service_output_pairs: AccumulationOutputPairs,
     /// **`u`**: Pairs of service ids and gas usages.
     pub service_gas_pairs: AccumulationGasPairs,
+    /// **`t`**: The deferred transfers processed in all rounds, in the order of processing.
+    pub processed_transfers: Vec<DeferredTransfer>,
 }
 
 #[inline]
@@ -81,6 +83,7 @@ pub async fn accumulate_outer(
 
     let mut service_gas_pairs_flattened = Vec::new();
     let mut service_output_pairs_flattened = BTreeSet::new();
+    let mut processed_transfers = Vec::new();
 
     // Initialize accumulate partial state
     let mut partial_state_union = AccumulatePartialState::new(state_manager.clone()).await?;
@@ -156,6 +159,7 @@ pub async fn accumulate_outer(
             .ok_or(PVMInvokeError::GasOverflow)?;
         service_gas_pairs_flattened.extend(service_gas_pairs);
         service_output_pairs_flattened.extend(output_pairs.0);
+        processed_transfers.extend(prev_deferred_transfers);
     }
 
     let service_output_pairs = AccumulationOutputPairs(service_output_pairs_flattened);
@@ -165,6 +169,7 @@ pub async fn accumulate_outer(
         service_gas_pairs: service_gas_pairs_flattened,
         service_output_pairs,
         partial_state_union,
+        processed_transfers,
     })
 }
 

@@ -186,8 +186,8 @@ async fn handle_per_block_transition(
         entry.assurers_count = *count as u16;
     }
 
-    // Update service stats
-    let mut service_stats = ServiceStats::default();
+    // Update service stats, starting from the accumulation statistics `I`
+    let mut service_stats = ServiceStats::from(accumulate_stats);
     for digest in guarantees
         .extract_work_reports()
         .into_iter()
@@ -199,11 +199,6 @@ async fn handle_per_block_transition(
     for preimage in &preimages.items {
         let entry = service_stats.service_stats_entry_mut(preimage.service_id);
         entry.add_preimage_load(preimage)
-    }
-    for (service_id, stats_entry) in accumulate_stats.iter() {
-        let entry = service_stats.service_stats_entry_mut(*service_id);
-        entry.accumulate_gas_used += stats_entry.gas_used;
-        entry.accumulate_digests_count += stats_entry.digests_count;
     }
 
     state_manager

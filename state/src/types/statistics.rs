@@ -9,6 +9,7 @@ use fr_common::{
     MAX_VALIDATOR_COUNT,
 };
 use fr_limited_vec::{FixedVec, LimitedVec, LimitedVecError};
+use fr_pvm_types::stats::AccumulateStats;
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},
@@ -307,7 +308,9 @@ pub struct ServiceStatsEntry {
     pub exports_count: u32,
     /// `a.0`: The number of accumulated work-digests in the block by the service.
     pub accumulate_digests_count: u32,
-    /// `a.1`: The total amount of gas used in the block by accumulation of the service.
+    /// `a.1`: The number of deferred transfers to the service processed in the block.
+    pub accumulate_transfers_count: u32,
+    /// `a.2`: The total amount of gas used in the block by accumulation of the service.
     pub accumulate_gas_used: UnsignedGas,
 }
 
@@ -326,6 +329,11 @@ impl Display for ServiceStatsEntry {
             f,
             "\t    accumulate_digests_count: {}",
             self.accumulate_digests_count
+        )?;
+        writeln!(
+            f,
+            "\t    accumulate_transfers_count: {}",
+            self.accumulate_transfers_count
         )?;
         writeln!(f, "\t    accumulate_gas_used: {}", self.accumulate_gas_used)?;
         write!(f, "\t  }}")
@@ -406,8 +414,52 @@ impl JamDecode for ServiceStats {
     }
 }
 
+/// Records the accumulation statistics `I` as `a` of each service, leaving the other fields zero.
+impl From<&AccumulateStats> for ServiceStats {
+    fn from(accumulate_stats: &AccumulateStats) -> Self {
+        Self(
+            accumulate_stats
+                .iter()
+                .map(|(&service_id, stats_entry)| {
+                    let service_stats_entry = ServiceStatsEntry {
+                        accumulate_digests_count: stats_entry.digests_count,
+                        accumulate_transfers_count: stats_entry.transfers_count,
+                        accumulate_gas_used: stats_entry.gas_used,
+                        ..Default::default()
+                    };
+                    (service_id, service_stats_entry)
+                })
+                .collect(),
+        )
+    }
+}
+
 impl ServiceStats {
     pub fn service_stats_entry_mut(&mut self, service_id: ServiceId) -> &mut ServiceStatsEntry {
         self.0.entry(service_id).or_default()
+    }
+}
+
+#[cfg(test)]
+mod service_stats_tests {
+    use super::*;
+    use std::error::Error;
+
+    #[test]
+    fn test_encodes_accumulation_stats_as_digests_transfers_gas() -> Result<(), Box<dyn Error>> {
+        let entry = ServiceStatsEntry {
+            accumulate_digests_count: 1,
+            accumulate_transfers_count: 2,
+            accumulate_gas_used: 3,
+            ..Default::default()
+        };
+
+        let encoded = entry.encode()?;
+
+        // Each field is compact-encoded into one octet, and `a = (N, T, G)` comes last.
+        assert_eq!(encoded.len(), 11);
+        assert_eq!(encoded[8..], [1, 2, 3]);
+        assert_eq!(ServiceStatsEntry::decode(&mut encoded.as_slice())?, entry);
+        Ok(())
     }
 }

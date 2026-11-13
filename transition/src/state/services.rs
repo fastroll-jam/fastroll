@@ -148,9 +148,10 @@ pub async fn transition_on_accumulate(
     Ok(AccumulateSummary {
         accumulated_reports_count: outer_accumulate_result.accumulated_reports_count,
         output_pairs: outer_accumulate_result.service_output_pairs,
-        accumulate_stats: AccumulateStats::from_accumulated_reports(
+        accumulate_stats: AccumulateStats::from_outer_accumulation(
             &reports[..outer_accumulate_result.accumulated_reports_count],
             &outer_accumulate_result.service_gas_pairs,
+            &outer_accumulate_result.processed_transfers,
         ),
         account_state_changes,
     })
@@ -392,7 +393,8 @@ async fn transition_service_account(
 }
 
 /// The second state transition function of service accounts, updating `last_accumulate_at` field of
-/// all service accounts that had been accumulated during `transition_on_accumulate`, yielding `δ‡`.
+/// all services in the accumulation statistics `I` of `transition_on_accumulate`, yielding `δ‡`.
+/// `I` also holds services that only received transfers.
 pub async fn transition_services_last_accumulate_at(
     state_manager: Arc<StateManager>,
     accumulated_services: &[ServiceId],
@@ -400,7 +402,7 @@ pub async fn transition_services_last_accumulate_at(
     // Mark the last accumulate timeslots of all accumulated services in the blocks.
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
     for service_id in accumulated_services {
-        // Check if the accumulate host exists
+        // Skip a service in `I` whose account no longer exists (e.g. ejected in this block)
         if state_manager.account_exists(*service_id).await? {
             // Directly mutate account metadata
             // Note: not considering new accounts having accumulated items within the same block

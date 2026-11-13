@@ -276,7 +276,7 @@ impl WorkExecutionResult {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct RefineStats {
     /// `u`: The actual amount of gas used during refinement.
     pub refine_gas_used: UnsignedGas,
