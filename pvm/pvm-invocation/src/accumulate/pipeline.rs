@@ -539,30 +539,14 @@ async fn accumulate_parallel(
     // changes to the assigners. So at this point, `partial_state_union` may hold both
     // `change_by_bless` from the manager service and `change_by_self` from the assigners themselves.
     //
-    // If such conflicts happen, changes by the manager service should be prioritized over changes
-    // by the assigners themselves. This behavior is described in the `R(o, a, b)` util
-    // function of the Graypaper. The designate and registrar services change only by the manager service.
+    // If such conflicts happen, the change by the manager service wins on the cores it changed,
+    // following the `R(o, a, b)` util function of the Graypaper.
+    // The designate and registrar services change only by the manager service.
     //
     // Once the state change is confirmed, partial state change fields of the union should be cleared.
 
     // Confirm the new assign services
-    if let Some(new_assign_services_by_manager) =
-        &partial_state_union.assign_services.change_by_bless
-    {
-        partial_state_union.assign_services.last_confirmed = new_assign_services_by_manager.clone();
-    } else {
-        for (core_idx, new_assign_service_by_self) in
-            &partial_state_union.assign_services.change_by_self
-        {
-            if let Some(assign) = partial_state_union
-                .assign_services
-                .last_confirmed
-                .get_mut(*core_idx as usize)
-            {
-                *assign = *new_assign_service_by_self;
-            }
-        }
-    }
+    partial_state_union.assign_services.confirm_changes();
 
     // Confirm the new designate service
     if let Some(new_designate_service_by_manager) =

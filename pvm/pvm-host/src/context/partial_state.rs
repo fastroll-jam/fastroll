@@ -1086,7 +1086,7 @@ pub struct AssignServicesPartialState {
     /// The latest state copied from the beginning of the current parallel accumulation round.
     pub last_confirmed: AssignServices,
     /// The changed assigner service ids by the `BLESS` host call of the manager service within the
-    /// current parallel accumulation round. This change is prioritized over the `change_by_self`.
+    /// current parallel accumulation round. It wins over `change_by_self` only on the cores it changed.
     pub change_by_bless: Option<AssignServices>,
     /// The changed assigner service ids by the `ASSIGN` host call of the assigner services
     /// themselves within the current parallel accumulation round.
@@ -1107,6 +1107,8 @@ impl AssignServicesPartialState {
         &mut self,
         other: &AssignServicesPartialState,
     ) -> Result<(), PartialStateError> {
+        // The manager's `change_by_bless` already holds its final assigners `(x_e)_a`,
+        // which supersede its own `change_by_self`.
         if let Some(assigners_by_manager) = &other.change_by_bless {
             self.change_by_bless = Some(assigners_by_manager.clone());
             return Ok(());
@@ -1123,6 +1125,21 @@ impl AssignServicesPartialState {
         }
 
         Ok(())
+    }
+
+    /// Confirms the merged assigner changes of the round into `last_confirmed`, per core by `R(o, a, b)` of the GP.
+    /// The manager's change wins on a core it changed. On any other core the assigner's own change is kept.
+    pub fn confirm_changes(&mut self) {
+        for (core_index, assigner) in self.last_confirmed.iter_mut().enumerate() {
+            let original = *assigner;
+            let assigner_by_manager = self
+                .change_by_bless
+                .as_ref()
+                .map(|assigners_by_manager| assigners_by_manager[core_index])
+                .filter(|assigner_by_manager| *assigner_by_manager != original);
+            let assigner_by_self = self.change_by_self.get(&(core_index as CoreIndex)).copied();
+            *assigner = assigner_by_manager.or(assigner_by_self).unwrap_or(original);
+        }
     }
 }
 
@@ -1380,5 +1397,79 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
         self.assign_services.change_by_self = HashMap::new();
         self.designate_service.change_by_bless = None;
         self.registrar_service.change_by_bless = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fr_common::CORE_COUNT;
+    use std::error::Error;
+
+    /// Builds assigners with consecutive service ids from `first_service_id`, e.g. `[10, 11, ...]`.
+    fn consecutive_assigners(
+        first_service_id: ServiceId,
+    ) -> Result<AssignServices, Box<dyn Error>> {
+        let service_ids: Vec<ServiceId> =
+            (first_service_id..first_service_id + CORE_COUNT as ServiceId).collect();
+        Ok(AssignServices::try_from(service_ids)?)
+    }
+
+    #[test]
+    fn test_confirm_changes_with_bless() -> Result<(), Box<dyn Error>> {
+        let original_assigners = consecutive_assigners(10)?;
+        let mut assigners_by_manager = original_assigners.clone();
+        assigners_by_manager[1] = 20;
+        let mut assign_services = AssignServicesPartialState {
+            last_confirmed: original_assigners.clone(),
+            change_by_bless: Some(assigners_by_manager),
+            change_by_self: HashMap::from([(0, 30), (1, 31)]),
+        };
+
+        assign_services.confirm_changes();
+
+        let mut expected_assigners = original_assigners;
+        // Core 0 is unchanged by the manager, so the assigner's own change is kept
+        expected_assigners[0] = 30;
+        // Core 1 is changed by the manager, so the manager's change wins
+        expected_assigners[1] = 20;
+        assert_eq!(assign_services.last_confirmed, expected_assigners);
+        Ok(())
+    }
+
+    #[test]
+    fn test_confirm_changes_with_bless_superseding_manager_assign() -> Result<(), Box<dyn Error>> {
+        // The manager is also the assigner of core 0. It assigns core 0 to service 30
+        // and then blesses core 0 back to itself, so `(x_e)_a` keeps the original assigner.
+        let original_assigners = consecutive_assigners(10)?;
+        let manager_result = AssignServicesPartialState {
+            last_confirmed: original_assigners.clone(),
+            change_by_bless: Some(original_assigners.clone()),
+            change_by_self: HashMap::from([(0, 30)]),
+        };
+        let mut assign_services = AssignServicesPartialState::new(original_assigners.clone());
+
+        assign_services.merge_changes_from(&manager_result)?;
+        assign_services.confirm_changes();
+
+        assert_eq!(assign_services.last_confirmed, original_assigners);
+        Ok(())
+    }
+
+    #[test]
+    fn test_confirm_changes_without_bless() -> Result<(), Box<dyn Error>> {
+        let original_assigners = consecutive_assigners(10)?;
+        let mut assign_services = AssignServicesPartialState {
+            last_confirmed: original_assigners.clone(),
+            change_by_bless: None,
+            change_by_self: HashMap::from([(0, 30)]),
+        };
+
+        assign_services.confirm_changes();
+
+        let mut expected_assigners = original_assigners;
+        expected_assigners[0] = 30;
+        assert_eq!(assign_services.last_confirmed, expected_assigners);
+        Ok(())
     }
 }
