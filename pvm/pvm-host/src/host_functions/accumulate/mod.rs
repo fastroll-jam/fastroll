@@ -669,6 +669,13 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
+        // --- Check Preimage Size (Err: HUH)
+
+        // A size of `2^32` or more gives `HUH` even when the hash is unreadable.
+        let Ok(preimage_size) = vm.read_reg_as_u32(8) else {
+            continue_huh!()
+        };
+
         // --- Read from Memory (Err: Panic)
 
         let Ok(offset) = vm.read_reg_as_mem_address(7) else {
@@ -684,16 +691,6 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // --- Check Preimage Lookups Manifest Entry (Err: NONE)
 
-        let Ok(preimage_size) = vm.read_reg_as_u32(8) else {
-            return Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-                    r7_write: Some(HostCallReturnCode::NONE as RegValue),
-                    r8_write: Some(0),
-                    memory_write: None,
-                },
-            ));
-        };
         let lookups_key = (preimage_hash, preimage_size);
         let Some(entry) = x
             .partial_state
@@ -766,6 +763,13 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
+        // --- Check Preimage Size (Err: HUH)
+
+        // A size of `2^32` or more gives `HUH` even when the hash is unreadable.
+        let Ok(preimage_size) = vm.read_reg_as_u32(8) else {
+            continue_huh!()
+        };
+
         // --- Read from Memory (Err: Panic)
 
         let Ok(offset) = vm.read_reg_as_mem_address(7) else {
@@ -779,21 +783,14 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         };
         let lookup_hash = Hash32::decode(&mut lookup_hash_octets.as_slice())?;
 
-        // TODO: Determine whether lookups size larger than `u32::MAX` should be allowed.
-        // TODO: For now, continues with `FULL` code with no further threshold balance check.
-        // TODO: Also check `host_query`, `host_forget`, `host_eject` which assume those lookups entry doesn't exist.
-        let Ok(lookups_size) = vm.read_reg_as_u32(8) else {
-            continue_full!()
-        };
+        // --- Check Preimage Solicit Status & Accumulate Host Balance (Err: HUH & FULL)
 
-        let lookups_key = (lookup_hash, lookups_size);
+        let lookups_key = (lookup_hash, preimage_size);
         let prev_lookups_entry = x
             .partial_state
             .accounts_sandbox
             .get_account_lookups_entry(state_provider.clone(), x.accumulate_host, &lookups_key)
             .await?;
-
-        // --- Check Preimage Solicit Status & Accumulate Host Balance (Err: HUH & FULL)
 
         // Insert current timeslot if the entry exists and the timeslot vector length is 2.
         // If the key doesn't exist, insert a new empty Vec<Timeslot> with the key.
@@ -815,7 +812,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                 // empty timeslot vector is added.
                 let new_lookups_entry = AccountLookupsEntry::default();
                 let new_lookups_octets_usage = Some(AccountLookupsEntryExt {
-                    preimage_length: lookups_size,
+                    preimage_length: preimage_size,
                     entry: new_lookups_entry.clone(),
                 });
                 let lookups_usage_delta = AccountMetadata::calculate_storage_usage_delta(
@@ -895,6 +892,13 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
+        // --- Check Preimage Size (Err: HUH)
+
+        // A size of `2^32` or more gives `HUH` even when the hash is unreadable.
+        let Ok(preimage_size) = vm.read_reg_as_u32(8) else {
+            continue_huh!()
+        };
+
         // --- Read from Memory (Err: Panic)
 
         let Ok(offset) = vm.read_reg_as_mem_address(7) else {
@@ -910,11 +914,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // --- Check Preimage Status (Err: HUH)
 
-        let Ok(lookup_len) = vm.read_reg_as_u32(8) else {
-            continue_huh!()
-        };
-
-        let lookups_key = (lookup_hash.clone(), lookup_len);
+        let lookups_key = (lookup_hash.clone(), preimage_size);
         let lookups_entry = x
             .partial_state
             .accounts_sandbox
@@ -1163,18 +1163,25 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
+        // --- Check Preimage Size (Err: HUH)
+
+        // A size of `2^32` or more gives `HUH` even when the preimage is unreadable.
+        let Ok(preimage_size) = vm.read_reg_as_u32(9) else {
+            continue_huh!()
+        };
+
         // --- Read from Memory (Err: Panic)
 
         let Ok(offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(preimage_size) = vm.read_reg_as_usize(9) else {
-            host_call_panic!()
-        };
-        if !vm.memory.is_address_range_readable(offset, preimage_size) {
+        if !vm
+            .memory
+            .is_address_range_readable(offset, preimage_size as usize)
+        {
             host_call_panic!()
         }
-        let Ok(preimage_data) = vm.memory.read_bytes(offset, preimage_size) else {
+        let Ok(preimage_data) = vm.memory.read_bytes(offset, preimage_size as usize) else {
             host_call_panic!()
         };
 
@@ -1203,7 +1210,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Preimage Solicit Status (Err: HUH)
 
         // Check current lookups entry
-        let lookups_key = (hash::<Blake2b256>(&preimage_data)?, preimage_size as u32);
+        let lookups_key = (hash::<Blake2b256>(&preimage_data)?, preimage_size);
         let Some(lookups_entry) = x
             .partial_state
             .accounts_sandbox

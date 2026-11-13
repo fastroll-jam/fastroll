@@ -34,6 +34,33 @@ use fr_state::types::{
 };
 use std::{collections::HashMap, error::Error, ops::Range, sync::Arc};
 
+/// Smallest preimage size that preimage host calls reject with `HUH`.
+const OUT_OF_RANGE_PREIMAGE_SIZE: RegValue = 1 << 32;
+
+/// Asserts that the account's sandboxed metadata, preimages and lookups entries are all clean.
+fn assert_account_sandbox_clean(
+    context: &InvocationContext<MockStateManager>,
+    service_id: ServiceId,
+) {
+    let x = context.get_accumulate_x().unwrap();
+    // An account absent from the sandbox has not been touched.
+    let Some(account_sandbox) = x.partial_state.accounts_sandbox.get(&service_id) else {
+        return;
+    };
+    assert_eq!(
+        account_sandbox.metadata.status(),
+        &SandboxEntryStatus::Clean
+    );
+    assert!(account_sandbox
+        .preimages
+        .values()
+        .all(|entry| entry.status() == &SandboxEntryStatus::Clean));
+    assert!(account_sandbox
+        .lookups
+        .values()
+        .all(|entry| entry.status() == &SandboxEntryStatus::Clean));
+}
+
 mod bless_tests {
     use super::*;
     use crate::context::AccumulateHostContext;
@@ -2819,6 +2846,18 @@ mod query_tests {
                 },
             }
         }
+
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
     }
 
     #[tokio::test]
@@ -2917,6 +2956,83 @@ mod query_tests {
         )
         .await?;
         assert_eq!(res, fixture.host_call_result_successful_timeslots_3());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_query_preimage_size_out_of_range_returns_huh() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = QueryTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(8, OUT_OF_RANGE_PREIMAGE_SIZE)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_2());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result (`r8` is left unchanged)
+        let res = AccumulateHostFunction::<MockStateManager>::host_query(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, QueryTestFixture::host_call_result_huh());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_query_preimage_size_out_of_range_mem_not_readable_returns_huh(
+    ) -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = QueryTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(8, OUT_OF_RANGE_PREIMAGE_SIZE)
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_2());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_query(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, QueryTestFixture::host_call_result_huh());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_query_preimage_size_u32_max_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = QueryTestFixture {
+            preimage_size: u32::MAX,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_2());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_query(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_successful_timeslots_2());
         Ok(())
     }
 }
@@ -3254,6 +3370,110 @@ mod solicit_tests {
             )
             .await?;
         assert!(lookups_entry_updated.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_solicit_preimage_size_out_of_range_returns_huh() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = SolicitTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(8, OUT_OF_RANGE_PREIMAGE_SIZE)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_no_lookups_entry());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_solicit(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, SolicitTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call (should remain unchanged)
+        assert_account_sandbox_clean(&context, fixture.accumulate_host);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_solicit_preimage_size_out_of_range_mem_not_readable_returns_huh(
+    ) -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = SolicitTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(8, OUT_OF_RANGE_PREIMAGE_SIZE)
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_no_lookups_entry());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_solicit(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, SolicitTestFixture::host_call_result_huh());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_solicit_preimage_size_u32_max_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = SolicitTestFixture {
+            preimage_size: u32::MAX,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_2());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_solicit(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, SolicitTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        let lookups_entry_updated = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_lookups_entry(
+                state_provider,
+                fixture.accumulate_host,
+                &(fixture.preimage_hash.clone(), fixture.preimage_size),
+            )
+            .await?
+            .expect("Lookups inserted during initialization");
+        assert_eq!(
+            lookups_entry_updated.entry.value,
+            AccountLookupsEntryTimeslots::try_from(vec![
+                fixture.timeslot_x,
+                fixture.timeslot_y,
+                Timeslot::new(fixture.curr_timeslot_index)
+            ])?
+        );
         Ok(())
     }
 }
@@ -3700,6 +3920,118 @@ mod forget_tests {
         )
         .await?;
         assert_eq!(res, ForgetTestFixture::host_call_result_huh());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forget_preimage_size_out_of_range_returns_huh() -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(8, OUT_OF_RANGE_PREIMAGE_SIZE)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_0());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call (should remain unchanged)
+        assert_account_sandbox_clean(&context, fixture.accumulate_host);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forget_preimage_size_out_of_range_mem_not_readable_returns_huh(
+    ) -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(8, OUT_OF_RANGE_PREIMAGE_SIZE)
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_0());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_huh());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forget_preimage_size_u32_max_successful() -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture {
+            preimage_size: u32::MAX,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        // Only the lookups entry, since a preimages entry of `2^32 - 1` octets is too large to build
+        let state_provider = Arc::new(
+            MockStateManager::builder()
+                .with_empty_account(fixture.accumulate_host)
+                .with_lookups_entry(
+                    fixture.accumulate_host,
+                    (fixture.preimage_hash.clone(), fixture.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![fixture.timeslot_x])?,
+                    },
+                ),
+        );
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        assert_eq!(
+            x.partial_state
+                .accounts_sandbox
+                .get_account_lookups_entry(
+                    state_provider.clone(),
+                    fixture.accumulate_host,
+                    &(fixture.preimage_hash.clone(), fixture.preimage_size)
+                )
+                .await?
+                .unwrap()
+                .entry,
+            AccountLookupsEntry {
+                value: AccountLookupsEntryTimeslots::try_from(vec![
+                    fixture.timeslot_x,
+                    Timeslot::new(fixture.curr_timeslot_index)
+                ])?
+            }
+        );
         Ok(())
     }
 }
@@ -4217,6 +4549,86 @@ mod provide_tests {
         )
         .await?;
         assert_eq!(res, ProvideTestFixture::host_call_result_huh());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_provide_preimage_size_out_of_range_returns_huh() -> Result<(), Box<dyn Error>> {
+        let fixture = ProvideTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(9, OUT_OF_RANGE_PREIMAGE_SIZE)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_provide(
+            fixture.provide_service,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, ProvideTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call (should remain unchanged)
+        let x = context.get_mut_accumulate_x().unwrap();
+        assert!(x.provided_preimages.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_provide_preimage_size_out_of_range_mem_not_readable_returns_huh(
+    ) -> Result<(), Box<dyn Error>> {
+        let fixture = ProvideTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(9, OUT_OF_RANGE_PREIMAGE_SIZE)
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_provide(
+            fixture.provide_service,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, ProvideTestFixture::host_call_result_huh());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_provide_preimage_size_u32_max_exceeds_readable_mem_panics(
+    ) -> Result<(), Box<dyn Error>> {
+        let fixture = ProvideTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(9, u32::MAX)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result (the size passes the bound, then the `2^32 - 1` octets are unreadable)
+        let res = AccumulateHostFunction::<MockStateManager>::host_provide(
+            fixture.provide_service,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, ProvideTestFixture::host_call_result_panic());
         Ok(())
     }
 }
