@@ -23,10 +23,10 @@ bitvec = { workspace = true }
 hex = { workspace = true }
 mini-moka = { workspace = true }
 paste = { workspace = true }
-tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }
+tempfile = { workspace = true }

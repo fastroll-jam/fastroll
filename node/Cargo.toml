@@ -14,7 +14,6 @@ fr-common = { workspace = true }
 fr-config = { workspace = true }
 fr-crypto = { workspace = true }
 fr-extrinsics = { workspace = true }
-fr-limited-vec = { workspace = true }
 fr-network = { workspace = true }
 fr-pvm-invocation = { workspace = true }
 fr-state = { workspace = true }
@@ -24,10 +23,12 @@ clap = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [features]
 tiny = ["fr-common/tiny"]

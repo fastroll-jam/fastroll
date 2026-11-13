@@ -999,7 +999,6 @@ dependencies = [
  "fr-config",
  "fr-crypto",
  "fr-extrinsics",
- "fr-limited-vec",
  "fr-network",
  "fr-pvm-invocation",
  "fr-state",
