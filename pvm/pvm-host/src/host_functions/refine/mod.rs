@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::{
     context::InvocationContext,
     error::HostCallError,
@@ -21,7 +24,7 @@ use fr_pvm_core::{
 };
 use fr_pvm_types::{
     common::{ExportDataSegment, MemAddress, RegValue},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
+    constants::{HOSTCALL_BASE_GAS_CHARGE, MAX_INNER_PVM_INSTANCES, PAGE_SIZE},
     exit_reason::ExitReason,
 };
 use fr_state::{provider::HostStateProvider, types::Timeslot};
@@ -169,6 +172,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
     /// Initializes an inner VM with the specified program and the initial program counter.
     ///
     /// Memory of the inner VM is initialized with zero value cells and `Inaccessible` pages.
+    /// The refine context holds at most `MAX_INNER_PVM_INSTANCES` inner VMs.
     pub fn host_machine(
         vm: &VMState,
         context: &mut InvocationContext<S>,
@@ -176,6 +180,12 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         tracing::debug!("Hostcall invoked: MACHINE");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
+
+        // --- Check Inner VM Count (Err: FULL)
+
+        if x.pvm_instances.len() >= MAX_INNER_PVM_INSTANCES {
+            continue_full!()
+        }
 
         // --- Read from Memory (Err: Panic)
 

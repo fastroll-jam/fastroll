@@ -1,11 +1,14 @@
 #![allow(dead_code)]
-use crate::context::{
-    partial_state::{
-        AccumulatePartialState, AssignServicesPartialState, DesignateServicePartialState,
-        RegistrarServicePartialState,
+use crate::{
+    context::{
+        partial_state::{
+            AccumulatePartialState, AssignServicesPartialState, DesignateServicePartialState,
+            RegistrarServicePartialState,
+        },
+        AccumulateHostContext, AccumulateHostContextPair, InvocationContext,
+        IsAuthorizedHostContext, RefineHostContext,
     },
-    AccumulateHostContext, AccumulateHostContextPair, InvocationContext, IsAuthorizedHostContext,
-    RefineHostContext,
+    inner_vm::InnerPVM,
 };
 use async_trait::async_trait;
 use fr_common::{
@@ -406,6 +409,15 @@ impl InvocationContextBuilder {
     pub(crate) fn with_preimage_provided(mut self, provided: (ServiceId, Octets)) -> Self {
         if let Self::X_A(ref mut context_pair) = self {
             context_pair.x.provided_preimages.insert(provided);
+        }
+        self
+    }
+
+    pub(crate) fn with_inner_pvm_instances(mut self, inner_pvms: Vec<InnerPVM>) -> Self {
+        if let Self::X_R(ref mut context) = self {
+            for inner_pvm in inner_pvms {
+                context.add_pvm_instance(inner_pvm);
+            }
         }
         self
     }

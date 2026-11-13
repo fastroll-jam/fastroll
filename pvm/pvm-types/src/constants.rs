@@ -23,6 +23,9 @@ pub const MEMORY_SIZE: usize = 1 << 32;
 /// The standard PVM program size limit in octets.
 pub const STANDARD_PROGRAM_SIZE_LIMIT: usize = 1 << 32;
 
+/// Maximum number of inner PVM instances that a refine invocation holds at once.
+pub const MAX_INNER_PVM_INSTANCES: usize = 63;
+
 /// `Z_A`: The PVM dynamic address alignment factor.
 pub const JUMP_ALIGNMENT: usize = 2;
 
