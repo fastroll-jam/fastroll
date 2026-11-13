@@ -252,12 +252,10 @@ generate_typed_tests! {
 
     // Fail
     // Submit tickets with bad ring proof.
-    #[cfg_attr(feature = "tiny", ignore = "GP 0.8.0 not implemented")]
     publish_tickets_no_mark_5: "publish-tickets-no-mark-5.json",
 
     // Success
     // Submit some tickets.
-    #[cfg_attr(feature = "tiny", ignore = "GP 0.8.0 not implemented")]
     publish_tickets_no_mark_6: "publish-tickets-no-mark-6.json",
 
     // Fail
@@ -277,13 +275,11 @@ generate_typed_tests! {
     // Success
     // Publish some tickets with an almost full tickets accumulator.
     // Tickets accumulator is not full yet. No ticket is dropped from accumulator.
-    #[cfg_attr(feature = "tiny", ignore = "GP 0.8.0 not implemented")]
     publish_tickets_with_mark_1: "publish-tickets-with-mark-1.json",
 
     // Success
     // Publish some tickets filling the accumulator.
     // Two old tickets are removed from the accumulator.
-    #[cfg_attr(feature = "tiny", ignore = "GP 0.8.0 not implemented")]
     publish_tickets_with_mark_2: "publish-tickets-with-mark-2.json",
 
     // Success
@@ -317,7 +313,6 @@ generate_typed_tests! {
     // Success
     // Tickets with attempts allowed by the smaller pending set size, beyond the bound of the full size set.
     #[cfg(feature = "full")]
-    #[ignore = "GP 0.8.0 not implemented"]
     enact_epoch_change_with_set_resize_2: "enact-epoch-change-with-set-resize-2.json",
 
     // Fail

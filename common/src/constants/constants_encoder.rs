@@ -7,13 +7,12 @@ use crate::{
     MAX_SERVICE_CODE_SIZE, MAX_TICKETS_PER_EXTRINSIC, MAX_VALIDATOR_COUNT,
     MAX_WORK_ITEMS_PER_PACKAGE, MIN_BALANCE_PER_ITEM, MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
     PENDING_REPORT_TIMEOUT, PREIMAGE_EXPIRATION_PERIOD, REFINE_GAS_PER_WORK_PACKAGE, SLOT_DURATION,
-    TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, TRANSFER_MEMO_SIZE,
-    WORK_REPORT_OUTPUT_SIZE_LIMIT,
+    TICKET_CONTEST_DURATION, TRANSFER_MEMO_SIZE, WORK_REPORT_OUTPUT_SIZE_LIMIT,
 };
 use fr_codec::prelude::*;
 
 pub fn encode_constants_for_fetch_hostcall() -> Result<Vec<u8>, JamCodecError> {
-    let mut buf = Vec::with_capacity(134);
+    let mut buf = Vec::with_capacity(132);
     MIN_BALANCE_PER_ITEM.encode_to_fixed(&mut buf, 8)?; // B_I
     MIN_BALANCE_PER_OCTET.encode_to_fixed(&mut buf, 8)?; // B_L
     MIN_BASIC_BALANCE.encode_to_fixed(&mut buf, 8)?; // B_S
@@ -29,7 +28,6 @@ pub fn encode_constants_for_fetch_hostcall() -> Result<Vec<u8>, JamCodecError> {
     MAX_REPORT_DEPENDENCIES.encode_to_fixed(&mut buf, 2)?; // J
     MAX_TICKETS_PER_EXTRINSIC.encode_to_fixed(&mut buf, 2)?; // K
     MAX_LOOKUP_ANCHOR_AGE.encode_to_fixed(&mut buf, 4)?; // L
-    TICKETS_PER_VALIDATOR.encode_to_fixed(&mut buf, 2)?; // N
     MAX_AUTH_POOL_SIZE.encode_to_fixed(&mut buf, 2)?; // O
     SLOT_DURATION.encode_to_fixed(&mut buf, 2)?; // P
     AUTH_QUEUE_SIZE.encode_to_fixed(&mut buf, 2)?; // Q

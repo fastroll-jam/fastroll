@@ -1,5 +1,6 @@
 use crate::{
-    Balance, ServiceId, UnsignedGas, CORE_COUNT, DATA_SEGMENTS_CHUNKS, ERASURE_CHUNK_SIZE,
+    Balance, ServiceId, UnsignedGas, CORE_COUNT, DATA_SEGMENTS_CHUNKS, EPOCH_LENGTH,
+    ERASURE_CHUNK_SIZE,
 };
 
 pub mod constants_encoder;
@@ -13,6 +14,15 @@ pub const fn is_validator_set_size(validator_count: usize) -> bool {
     validator_count.is_multiple_of(3)
         && 6 <= validator_count
         && validator_count <= MAX_VALIDATOR_COUNT
+}
+
+/// Returns `⌈2E/v⌉`, the ticket entries each validator may submit for a pending set `γ_P'` of `v` validators.
+/// A smaller set gets more entries per validator, so the ticket accumulator can still fill up.
+pub const fn ticket_entries_per_validator(validator_count: usize) -> usize {
+    if validator_count == 0 {
+        return 0;
+    }
+    (2 * EPOCH_LENGTH).div_ceil(validator_count)
 }
 
 /// The supermajority of the largest validator set, which bounds the judgments of a verdict.

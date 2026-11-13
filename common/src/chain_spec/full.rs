@@ -21,9 +21,6 @@ pub const EPOCH_LENGTH: usize = 600;
 /// `Y`: The number of slots into an epoch at which ticket-submission ends.
 pub const TICKET_CONTEST_DURATION: usize = 500;
 
-/// `N`: The number of ticket entries per validator.
-pub const TICKETS_PER_VALIDATOR: u8 = 2;
-
 /// `K`: The maximum number of tickets which may be submitted in a single extrinsic.
 pub const MAX_TICKETS_PER_EXTRINSIC: usize = 16;
 

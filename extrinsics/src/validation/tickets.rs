@@ -1,8 +1,8 @@
 use crate::validation::error::XtError;
 use fr_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
 use fr_common::{
-    ticket::Ticket, ByteEncodable, Hash32, EPOCH_LENGTH, MAX_TICKETS_PER_EXTRINSIC,
-    TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
+    ticket::Ticket, ticket_entries_per_validator, ByteEncodable, Hash32, EPOCH_LENGTH,
+    MAX_TICKETS_PER_EXTRINSIC, TICKET_CONTEST_DURATION, X_T,
 };
 use fr_crypto::{traits::VrfSignature, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_state::manager::StateManager;
@@ -41,6 +41,8 @@ fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Result<Vec<Ticket>, XtErr
 /// - Within the submission deadline, length of the extrinsic must not exceed `MAX_TICKETS_PER_EXTRINSIC`.
 ///
 /// ## Entry Validation
+/// - `entry_index`
+///   - Each entry index must be below `⌈2E/|γ_P'|⌉`, so a smaller pending set gives each validator more entries.
 /// - `ticket_proof`
 ///   - Each entry's `ticket_proof` must be a valid Bandersnatch RingVRF proof, using the `ring_root`
 ///     retrieved from the `SafroleState` and a context that includes the secondary history component
@@ -149,11 +151,12 @@ impl TicketsXtValidator {
 
         let epoch_entropy = self.state_manager.get_epoch_entropy().await?;
         let entropy_2 = epoch_entropy.second_history();
+        let ticket_entries = ticket_entries_per_validator(curr_pending_set.len());
 
         // Validate each entry
-        extrinsic
-            .par_iter()
-            .try_for_each(|entry| self.validate_entry(entry, &verifier, entropy_2))?;
+        extrinsic.par_iter().try_for_each(|entry| {
+            self.validate_entry(entry, &verifier, entropy_2, ticket_entries)
+        })?;
 
         Ok(new_tickets)
     }
@@ -165,9 +168,10 @@ impl TicketsXtValidator {
         entry: &TicketsXtEntry,
         verifier: &RingVrfVerifier,
         entropy_2: &Hash32,
+        ticket_entries: usize,
     ) -> Result<(), XtError> {
-        // Check if the ticket attempt number is correct
-        if entry.entry_index > TICKETS_PER_VALIDATOR - 1 {
+        // Check the entry index is below `⌈2E/|γ_P'|⌉`
+        if entry.entry_index as usize >= ticket_entries {
             return Err(XtError::InvalidTicketAttemptNumber(entry.entry_index));
         }
 
