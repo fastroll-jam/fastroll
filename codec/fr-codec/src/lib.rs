@@ -585,7 +585,13 @@ macro_rules! impl_jam_fixed_codec_for_uint {
                     for i in 0..size_in_bytes {
                         value |= (input.read_byte()? as u64) << (8 * i);
                     }
-                    Self::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()))
+                    // The conversion error is `Infallible` for `u64`, so the message does not read it.
+                    Self::try_from(value).map_err(|_| {
+                        JamCodecError::ConversionError(format!(
+                            "Value {value} does not fit in {}",
+                            std::any::type_name::<Self>()
+                        ))
+                    })
                 }
             }
         )*
