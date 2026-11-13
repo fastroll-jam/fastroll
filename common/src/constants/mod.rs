@@ -1,7 +1,4 @@
-use crate::{
-    Balance, ServiceId, UnsignedGas, CORE_COUNT, DATA_SEGMENTS_CHUNKS, EPOCH_LENGTH,
-    ERASURE_CHUNK_SIZE,
-};
+use crate::{Balance, ServiceId, UnsignedGas, CORE_COUNT, EPOCH_LENGTH};
 
 pub mod constants_encoder;
 
@@ -128,8 +125,8 @@ pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
 /// `W_F` = `W_G` + 32 * ceil(log2(`W_M`))
 pub const AUDIT_DA_IMPORT_FOOTPRINT: usize = 4_488;
 
-/// `W_G`: Data segment size (`W_E` * `W_P`).
-pub const SEGMENT_SIZE: usize = ERASURE_CHUNK_SIZE * DATA_SEGMENTS_CHUNKS;
+/// `W_G`: The size of a segment in octets.
+pub const SEGMENT_SIZE: usize = 4_104;
 
 /// `W_M`: The maximum number of imports in a work-package.
 pub const MAX_IMPORTS_PER_PACKAGE: usize = 3_072;

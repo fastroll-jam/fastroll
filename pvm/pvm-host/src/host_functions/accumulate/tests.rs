@@ -11,16 +11,17 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    utils::tracing::setup_tracing, AuthHash, Balance, ByteEncodable, CodeHash, CoreIndex, Hash32,
-    Octets, ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
-    MAX_VALIDATOR_COUNT, MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD, TRANSFER_MEMO_SIZE,
+    utils::tracing::setup_tracing, AuthHash, Balance, ByteArray, ByteEncodable, CodeHash,
+    CoreIndex, Hash32, Octets, ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT,
+    HASH_SIZE, MAX_VALIDATOR_COUNT, MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD,
+    TRANSFER_MEMO_SIZE,
 };
 use fr_crypto::{
     hash,
-    types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys},
+    types::{Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys},
     Blake2b256,
 };
-use fr_pvm_core::state::state_change::HostCallVMStateChange;
+use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, PAGE_SIZE},
@@ -789,70 +790,77 @@ mod designate_tests {
 
     struct DesignateTestFixture {
         accumulate_host: ServiceId,
-        staging_set_offset: MemAddress,
         prev_designator: ServiceId,
-        new_staging_set: StagingSet,
-        mem_readable_range: Range<MemAddress>,
+        validator_keys_offset: MemAddress,
+        /// `z`, the number of validator keys in memory from `validator_keys_offset`
+        validator_count: usize,
     }
 
     impl Default for DesignateTestFixture {
         fn default() -> Self {
-            let validator = ValidatorKey {
-                bandersnatch: BandersnatchPubKey::from_hex("0x123").unwrap(),
-                ed25519: Ed25519PubKey::from_hex("0x456").unwrap(),
-                ..Default::default()
-            };
-            let validators = vec![validator.clone(); MAX_VALIDATOR_COUNT];
-            let new_staging_set = StagingSet(ValidatorKeySet(
-                ValidatorKeys::try_from(validators).unwrap(),
-            ));
-            let staging_set_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
-            let mem_readable_range =
-                staging_set_offset..staging_set_offset + 336 * MAX_VALIDATOR_COUNT as MemAddress;
-
             Self {
                 accumulate_host: 1,
-                staging_set_offset,
                 prev_designator: 1,
-                new_staging_set,
-                mem_readable_range,
+                validator_keys_offset: (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress,
+                validator_count: 6,
             }
         }
     }
 
     impl DesignateTestFixture {
+        /// Returns `z` validator keys that differ in their Ed25519 key, so that their order is checked.
+        fn validator_keys(&self) -> Vec<ValidatorKey> {
+            (0..self.validator_count)
+                .map(|i| ValidatorKey {
+                    ed25519: Ed25519PubKey(ByteArray::new([i as u8; 32])),
+                    ..Default::default()
+                })
+                .collect()
+        }
+
+        fn validator_keys_range(&self) -> Range<MemAddress> {
+            self.validator_keys_offset
+                ..self.validator_keys_offset + (336 * self.validator_count) as MemAddress
+        }
+
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             // `designate` reads the validator keys back to back, without a length prefix.
             let mut validator_keys_data = Vec::new();
-            for validator_key in self.new_staging_set.iter() {
+            for validator_key in self.validator_keys() {
                 validator_key.encode_to(&mut validator_keys_data)?;
             }
             VMStateBuilder::builder()
                 .with_pc(0)
                 .with_gas_counter(100)
-                .with_reg(7, self.staging_set_offset)
-                .with_mem_data(self.staging_set_offset, validator_keys_data.as_slice())
+                .with_reg(7, self.validator_keys_offset)
+                .with_reg(8, self.validator_count as RegValue)
+                .with_mem_data(self.validator_keys_offset, validator_keys_data.as_slice())
         }
 
-        fn prepare_state_provider(&self) -> MockStateManager {
-            MockStateManager::builder().with_empty_account(self.accumulate_host)
+        fn prepare_readable_vm(&self) -> Result<VMState, Box<dyn Error>> {
+            Ok(self
+                .prepare_vm_builder()?
+                .with_mem_readable_range(self.validator_keys_range())?
+                .build())
         }
 
-        async fn prepare_invocation_context(
+        /// Invokes `designate` with the fixture's designator and returns the result and the posterior staging set.
+        async fn invoke_designate(
             &self,
-            state_provider: Arc<MockStateManager>,
-            accumulate_host: Option<ServiceId>,
-        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
-            let accumulate_host = accumulate_host.unwrap_or(self.accumulate_host);
-            Ok(
-                InvocationContextBuilder::accumulate_context_builder_default(
-                    state_provider,
-                    accumulate_host,
-                )
-                .await?
-                .with_designate_service(self.prev_designator)
-                .build(),
+            vm: &VMState,
+        ) -> Result<(HostCallResult, Option<StagingSet>), Box<dyn Error>> {
+            let state_provider =
+                Arc::new(MockStateManager::builder().with_empty_account(self.accumulate_host));
+            let mut context = InvocationContextBuilder::accumulate_context_builder_default(
+                state_provider,
+                self.accumulate_host,
             )
+            .await?
+            .with_designate_service(self.prev_designator)
+            .build();
+            let res = AccumulateHostFunction::<MockStateManager>::host_designate(vm, &mut context)?;
+            let x = context.get_accumulate_x().unwrap();
+            Ok((res, x.partial_state.new_staging_set.clone()))
         }
 
         fn host_call_result_successful() -> HostCallResult {
@@ -892,77 +900,152 @@ mod designate_tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_designate_successful() -> Result<(), Box<dyn Error>> {
-        setup_tracing();
-        let fixture = DesignateTestFixture::default();
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone(), None)
-            .await?;
-
-        // Check host-call result
-        let res = AccumulateHostFunction::<MockStateManager>::host_designate(&vm, &mut context)?;
+    async fn assert_designate_successful(
+        fixture: DesignateTestFixture,
+    ) -> Result<(), Box<dyn Error>> {
+        let vm = fixture.prepare_readable_vm()?;
+        let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
         assert_eq!(res, DesignateTestFixture::host_call_result_successful());
+        let expected_staging_set = StagingSet(ValidatorKeySet(ValidatorKeys::try_from(
+            fixture.validator_keys(),
+        )?));
+        assert_eq!(new_staging_set, Some(expected_staging_set));
+        Ok(())
+    }
 
-        // Check partial state after host-call
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(
-            x.partial_state.new_staging_set,
-            Some(fixture.new_staging_set)
-        );
+    async fn assert_designate_huh(fixture: DesignateTestFixture) -> Result<(), Box<dyn Error>> {
+        let vm = fixture.prepare_readable_vm()?;
+        let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
+        assert_eq!(res, DesignateTestFixture::host_call_result_huh());
+        assert_eq!(new_staging_set, None);
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_designate_mem_not_readable() -> Result<(), Box<dyn Error>> {
+    async fn test_designate_min_validator_count() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let fixture = DesignateTestFixture::default();
-        let vm = fixture.prepare_vm_builder()?.build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone(), None)
-            .await?;
+        assert_designate_successful(DesignateTestFixture::default()).await
+    }
 
-        // Check host-call result
-        let res = AccumulateHostFunction::<MockStateManager>::host_designate(&vm, &mut context)?;
-        assert_eq!(res, DesignateTestFixture::host_call_result_panic());
+    #[tokio::test]
+    async fn test_designate_max_validator_count() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        assert_designate_successful(DesignateTestFixture {
+            validator_count: MAX_VALIDATOR_COUNT,
+            ..Default::default()
+        })
+        .await
+    }
 
-        // Check partial state after host-call
-        // Partial state should remain unchanged
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(x.partial_state.new_staging_set, None);
+    #[tokio::test]
+    async fn test_designate_validator_count_below_min() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        assert_designate_huh(DesignateTestFixture {
+            validator_count: 3,
+            ..Default::default()
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_designate_validator_count_not_multiple_of_3() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        assert_designate_huh(DesignateTestFixture {
+            validator_count: 7,
+            ..Default::default()
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_designate_validator_count_above_max() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        assert_designate_huh(DesignateTestFixture {
+            validator_count: MAX_VALIDATOR_COUNT + 3,
+            ..Default::default()
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_designate_zero_validators_at_offset_beyond_memory() -> Result<(), Box<dyn Error>>
+    {
+        setup_tracing();
+        // The empty range of `z = 0` is readable even at an offset beyond the 32-bit address space.
+        let fixture = DesignateTestFixture {
+            validator_count: 0,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(7, 1u64 << 32)
+            .build();
+        let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
+        assert_eq!(res, DesignateTestFixture::host_call_result_huh());
+        assert_eq!(new_staging_set, None);
         Ok(())
     }
 
     #[tokio::test]
     async fn test_designate_accumulate_host_not_designator() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let accumulate_host = 2;
+        assert_designate_huh(DesignateTestFixture {
+            accumulate_host: 2,
+            ..Default::default()
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_designate_mem_last_octet_not_readable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        // The keys end one octet into a page that is not readable.
+        let page_end = (INIT_ZONE_SIZE + 2 * PAGE_SIZE) as MemAddress;
         let fixture = DesignateTestFixture {
-            accumulate_host,
+            validator_keys_offset: page_end + 1 - 336 * 6,
             ..Default::default()
         };
         let vm = fixture
             .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .with_mem_readable_range(fixture.validator_keys_range().start..page_end)?
             .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone(), Some(accumulate_host))
-            .await?;
+        let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
+        assert_eq!(res, DesignateTestFixture::host_call_result_panic());
+        assert_eq!(new_staging_set, None);
+        Ok(())
+    }
 
-        // Check host-call result
-        let res = AccumulateHostFunction::<MockStateManager>::host_designate(&vm, &mut context)?;
-        assert_eq!(res, DesignateTestFixture::host_call_result_huh());
+    #[tokio::test]
+    async fn test_designate_mem_not_readable_before_huh() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        // An unreadable range panics even when `z ∉ 𝕍` and the host is not the designator.
+        let fixture = DesignateTestFixture {
+            accumulate_host: 2,
+            validator_count: 7,
+            ..Default::default()
+        };
+        let vm = fixture.prepare_vm_builder()?.build();
+        let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
+        assert_eq!(res, DesignateTestFixture::host_call_result_panic());
+        assert_eq!(new_staging_set, None);
+        Ok(())
+    }
 
-        // Check partial state after host-call
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(x.partial_state.new_staging_set, None);
+    #[tokio::test]
+    async fn test_designate_validator_keys_size_overflow() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        // `336z` overflows the 64-bit range. A wrapping product would be 0, an empty readable range.
+        let fixture = DesignateTestFixture {
+            validator_count: 0,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(8, 1u64 << 60)
+            .build();
+        let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
+        assert_eq!(res, DesignateTestFixture::host_call_result_panic());
+        assert_eq!(new_staging_set, None);
         Ok(())
     }
 }

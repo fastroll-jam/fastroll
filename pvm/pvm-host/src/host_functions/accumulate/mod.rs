@@ -11,9 +11,9 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    AuthHash, ByteArray, CoreIndex, Hash32, Octets, ServiceId, SignedGas, TimeslotIndex,
-    UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MAX_VALIDATOR_COUNT,
-    MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, TRANSFER_MEMO_SIZE,
+    is_validator_set_size, AuthHash, ByteArray, CoreIndex, Hash32, Octets, ServiceId, SignedGas,
+    TimeslotIndex, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MIN_PUBLIC_SERVICE_ID,
+    PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, TRANSFER_MEMO_SIZE,
 };
 use fr_crypto::{
     hash,
@@ -234,7 +234,9 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         continue_ok!()
     }
 
-    /// Assigns `MAX_VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
+    /// Designates `z` validator keys read from memory as the new `StagingSet` in the accumulate context partial state.
+    /// Panics when the `336z` octets from `o` are not readable.
+    /// Then returns HUH when `z ∉ 𝕍` or when the accumulate host is not the designate service.
     pub fn host_designate(
         vm: &VMState,
         context: &mut InvocationContext<S>,
@@ -243,33 +245,32 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        // --- Read from Memory (Err: Panic)
+        // --- Check Memory Read Access (Err: Panic)
 
-        let Ok(offset) = vm.read_reg_as_mem_address(7) else {
+        let Ok(validator_count) = vm.read_reg_as_usize(8) else {
             host_call_panic!()
         };
-
+        let Some(validator_keys_size) = validator_count.checked_mul(PUBLIC_KEY_SIZE) else {
+            host_call_panic!()
+        };
+        let validator_keys_offset = match vm.read_reg_as_mem_address(7) {
+            Ok(offset) => offset,
+            // The empty range of `z = 0` is readable at any offset, and `z = 0` returns HUH below
+            Err(_) if validator_keys_size == 0 => 0,
+            Err(_) => host_call_panic!(),
+        };
         if !vm
             .memory
-            .is_address_range_readable(offset, PUBLIC_KEY_SIZE * MAX_VALIDATOR_COUNT)
+            .is_address_range_readable(validator_keys_offset, validator_keys_size)
         {
             host_call_panic!()
         }
 
-        let mut new_validator_keys = Vec::with_capacity(MAX_VALIDATOR_COUNT);
-        for i in 0..MAX_VALIDATOR_COUNT {
-            let Ok(validator_key) = vm.memory.read_bytes(
-                offset + (PUBLIC_KEY_SIZE * i) as MemAddress,
-                PUBLIC_KEY_SIZE,
-            ) else {
-                host_call_panic!()
-            };
-            new_validator_keys.push(ValidatorKey::decode(&mut validator_key.as_slice())?);
+        // --- Check Validator Count (Err: HUH)
+
+        if !is_validator_set_size(validator_count) {
+            continue_huh!()
         }
-        let Ok(new_validator_keys) = ValidatorKeys::try_from(new_validator_keys) else {
-            host_call_panic!()
-        };
-        let new_staging_set = StagingSet(ValidatorKeySet(new_validator_keys));
 
         // --- Check Privilege (Err: HUH)
 
@@ -280,6 +281,18 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // --- OK
 
+        let validator_keys_octets = vm
+            .memory
+            .read_bytes(validator_keys_offset, validator_keys_size)?;
+        let new_validator_keys = validator_keys_octets
+            .as_chunks::<PUBLIC_KEY_SIZE>()
+            .0
+            .iter()
+            .map(|validator_key| ValidatorKey::decode(&mut validator_key.as_slice()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let new_staging_set = StagingSet(ValidatorKeySet(ValidatorKeys::try_from(
+            new_validator_keys,
+        )?));
         x.assign_new_staging_set(new_staging_set);
         continue_ok!()
     }
