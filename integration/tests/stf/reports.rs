@@ -364,7 +364,6 @@ generate_typed_tests! {
 
     // Fail
     // Work report with an empty work results sequence.
-    #[ignore = "GP 0.8.0 not implemented"]
     report_with_no_results_1: "report_with_no_results-1.json",
 
     // Fail

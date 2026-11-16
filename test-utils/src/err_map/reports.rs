@@ -85,6 +85,9 @@ pub fn map_error_to_custom_code(e: TransitionError) -> ReportsErrorCode {
             ReportsErrorCode::work_report_too_big
         }
         TransitionError::XtError(XtError::BannedValidator(_)) => ReportsErrorCode::banned_validator,
+        TransitionError::XtError(XtError::WorkReportWithoutDigests) => {
+            ReportsErrorCode::missing_work_results
+        }
         _ => ReportsErrorCode::reserved,
     }
 }

@@ -157,6 +157,8 @@ pub enum XtError {
     SegmentsRootLookupEntryNotFound,
     #[error("Segments root lookup dictionary entry of the work report was found in the recent history but has an invalid value")]
     SegmentsRoofLookupEntryInvalidValue,
+    #[error("Work report has no work digests")]
+    WorkReportWithoutDigests,
     #[error("Work report output size limit exceeded")]
     WorkReportOutputSizeLimitExceeded,
     #[error("Work report's total gas allotted for accumulation exceeds its limit")]

@@ -230,6 +230,11 @@ impl GuaranteesXtValidator {
         work_package_hashes: &HashSet<&Hash32>,
         header_timeslot_index: TimeslotIndex,
     ) -> Result<(), XtError> {
+        // Check that the work report has at least one work digest
+        if work_report.digests.is_empty() {
+            return Err(XtError::WorkReportWithoutDigests);
+        }
+
         // Check work report output size limit
         if work_report.total_output_size() > WORK_REPORT_OUTPUT_SIZE_LIMIT {
             return Err(XtError::WorkReportOutputSizeLimitExceeded);

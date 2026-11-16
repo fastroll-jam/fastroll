@@ -35,6 +35,7 @@ pub enum ReportsErrorCode {
     work_report_too_big,
     reserved,
     banned_validator,
+    missing_work_results,
     bad_anchor_slot,
     bad_erasure_shards,
 }
