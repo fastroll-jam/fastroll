@@ -39,10 +39,17 @@ pub struct OuterAccumulationResult {
     pub processed_transfers: Vec<DeferredTransfer>,
 }
 
+/// Counts the work reports `i` accumulated in a `Δ+` round.
+///
+/// They are the longest prefix of `reports` whose digest gas limits fit in `gas_limit` after `reserved_gas`, the gas of the round's deferred transfers and always-accumulate services.
 #[inline]
-fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> usize {
+fn max_processable_reports(
+    reports: &[WorkReport],
+    gas_limit: UnsignedGas,
+    reserved_gas: UnsignedGas,
+) -> usize {
     let mut max_processable = 0;
-    let mut gas_counter: UnsignedGas = 0;
+    let mut gas_counter = reserved_gas;
 
     for report in reports {
         let mut report_gas_limit: UnsignedGas = 0;
@@ -89,7 +96,7 @@ pub async fn accumulate_outer(
     let mut partial_state_union = AccumulatePartialState::new(state_manager.clone()).await?;
 
     // There is no deferred transfers in the initial round of `Δ+`
-    let mut deferred_transfers = Vec::new();
+    let mut deferred_transfers: Vec<DeferredTransfer> = Vec::new();
 
     loop {
         let has_reports_remaining = report_idx < reports.len();
@@ -103,7 +110,13 @@ pub async fn accumulate_outer(
         let always_accumulate_services = always_accumulate_services.take().unwrap_or_default();
 
         let processable_reports_prediction = if has_reports_remaining {
-            max_processable_reports(&reports[report_idx..], remaining_gas_limit)
+            let reserved_gas = checked_gas_sum(
+                deferred_transfers
+                    .iter()
+                    .map(|transfer| transfer.gas_limit)
+                    .chain(always_accumulate_services.values().copied()),
+            )?;
+            max_processable_reports(&reports[report_idx..], remaining_gas_limit, reserved_gas)
         } else {
             0
         };
@@ -141,19 +154,12 @@ pub async fn accumulate_outer(
 
         deferred_transfers = new_deferred_transfers;
         report_idx += processable_reports_prediction;
-        let gas_used = service_gas_pairs
-            .iter()
-            .try_fold(0u64, |acc, pair| acc.checked_add(pair.gas))
-            .ok_or(PVMInvokeError::GasOverflow)?;
-        let deferred_transfer_gas =
-            prev_deferred_transfers
-                .iter()
-                .try_fold(0u64, |acc, transfer| {
-                    acc.checked_add(transfer.gas_limit)
-                        .ok_or(PVMInvokeError::GasOverflow)
-                })?;
+        let gas_used = checked_gas_sum(service_gas_pairs.iter().map(|pair| pair.gas))?;
+        // The next round's gas limit `g*` adds the gas of the deferred transfers created in this round
+        let new_deferred_transfer_gas =
+            checked_gas_sum(deferred_transfers.iter().map(|transfer| transfer.gas_limit))?;
         remaining_gas_limit = remaining_gas_limit
-            .checked_add(deferred_transfer_gas)
+            .checked_add(new_deferred_transfer_gas)
             .ok_or(PVMInvokeError::GasOverflow)?
             .checked_sub(gas_used)
             .ok_or(PVMInvokeError::GasOverflow)?;
@@ -171,6 +177,16 @@ pub async fn accumulate_outer(
         partial_state_union,
         processed_transfers,
     })
+}
+
+/// Sums gas values and fails on overflow.
+fn checked_gas_sum(
+    gas_values: impl IntoIterator<Item = UnsignedGas>,
+) -> Result<UnsignedGas, PVMInvokeError> {
+    gas_values
+        .into_iter()
+        .try_fold(0, |acc: UnsignedGas, gas| acc.checked_add(gas))
+        .ok_or(PVMInvokeError::GasOverflow)
 }
 
 struct ParallelAccumulationResult {
@@ -656,4 +672,48 @@ async fn accumulate_single_service(
         },
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fr_common::workloads::{RefineStats, WorkDigest, WorkExecutionResult};
+    use std::error::Error;
+
+    /// Builds a work report with one digest per accumulate gas limit in `digest_gas_limits`.
+    fn report_with_digest_gas_limits(
+        digest_gas_limits: &[UnsignedGas],
+    ) -> Result<WorkReport, Box<dyn Error>> {
+        let digests: Vec<WorkDigest> = digest_gas_limits
+            .iter()
+            .map(|&accumulate_gas_limit| WorkDigest {
+                service_id: 0,
+                service_code_hash: Default::default(),
+                payload_hash: Default::default(),
+                accumulate_gas_limit,
+                refine_result: WorkExecutionResult::Output(Octets::default()),
+                refine_stats: RefineStats::default(),
+            })
+            .collect();
+        Ok(WorkReport {
+            digests: digests.try_into()?,
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn test_max_processable_reports_with_reserved_gas() -> Result<(), Box<dyn Error>> {
+        // Reports needing 30, 30 and 40 gas
+        let reports = vec![
+            report_with_digest_gas_limits(&[10, 20])?,
+            report_with_digest_gas_limits(&[30])?,
+            report_with_digest_gas_limits(&[40])?,
+        ];
+        assert_eq!(max_processable_reports(&reports, 100, 0), 3);
+        // Reserving 10 gas leaves room for the first two reports only
+        assert_eq!(max_processable_reports(&reports, 100, 10), 2);
+        // Reserving more gas than the limit leaves room for no report
+        assert_eq!(max_processable_reports(&reports, 100, 101), 0);
+        Ok(())
+    }
 }
