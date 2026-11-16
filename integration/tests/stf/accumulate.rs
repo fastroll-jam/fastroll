@@ -5,8 +5,7 @@ use fr_asn_types::{
     accumulate::*,
     common::{AsnOpaqueHash, AsnServiceInfo},
     preimages::{
-        AsnLookupMetaMapEntry, AsnLookupMetaMapKey, AsnPreimagesMapEntry, LookupMetaMapEntry,
-        PreimagesMapEntry,
+        AsnLookupMetaMapEntry, AsnPreimagesMapEntry, LookupMetaMapEntry, PreimagesMapEntry,
     },
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
@@ -17,9 +16,8 @@ use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{
-        privileges::PrivilegedServices, AccountLookupsEntry, AccountLookupsEntryTimeslots,
-        AccountMetadata, AccumulateHistory, AccumulateQueue, AuthQueue, EpochEntropy,
-        LastAccumulateOutputs, OnChainStatistics, ServiceStats, Timeslot,
+        privileges::PrivilegedServices, AccountMetadata, AccumulateHistory, AccumulateQueue,
+        AuthQueue, EpochEntropy, LastAccumulateOutputs, OnChainStatistics, ServiceStats, Timeslot,
     },
 };
 use fr_test_utils::{
@@ -36,10 +34,7 @@ use fr_transition::{
     },
 };
 use futures::future::join_all;
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc};
 
 #[allow(dead_code)]
 struct AccumulateTest;
@@ -110,35 +105,22 @@ impl StateTransitionTest for AccumulateTest {
                     .add_account_storage_entry(account.id, &key, val)
                     .await?
             }
-            let mut preimage_size_map = HashMap::new(); // Required to construct `LookupsKey`
-
             // Add preimages entries
             for preimage in &account.data.preimage_blobs {
                 let key = preimage.hash.clone();
                 let val = PreimagesMapEntry::from(preimage.clone()).data;
-                preimage_size_map.insert(key.clone(), preimage.blob.len());
                 state_manager
                     .add_account_preimages_entry(account.id, &key, val)
                     .await?;
             }
             // Add lookups entries
             for lookup in &account.data.preimage_requests {
-                let size = preimage_size_map
-                    .get(&lookup.key.hash)
-                    .expect("Preimage blob not provided");
-                let key: LookupsKey = (lookup.key.hash.clone(), *size as u32);
-                let val = AccountLookupsEntry {
-                    value: AccountLookupsEntryTimeslots::try_from(
-                        lookup
-                            .value
-                            .iter()
-                            .map(|slot| Timeslot::new(*slot))
-                            .collect::<Vec<_>>(),
-                    )
-                    .expect("Failed to convert between timeslot vec types"),
-                };
                 state_manager
-                    .add_account_lookups_entry(account.id, key, val)
+                    .add_account_lookups_entry(
+                        account.id,
+                        LookupsKey::from(lookup.key.clone()),
+                        LookupMetaMapEntry::from(lookup.clone()).data,
+                    )
                     .await?;
             }
         }
@@ -316,26 +298,16 @@ impl StateTransitionTest for AccumulateTest {
                 })
             }))
             .await;
-            let curr_lookups = join_all(s.data.preimage_blobs.iter().map(|e| async {
+            let curr_lookups = join_all(s.data.preimage_requests.iter().map(|e| async {
                 // Get the key from the post-state
-                let key: LookupsKey = (e.hash.clone(), e.blob.len() as u32);
+                let key = LookupsKey::from(e.key.clone());
                 // Get the posterior lookups value
                 let lookups = state_manager
                     .get_account_lookups_entry(s.id, &key)
                     .await
                     .unwrap()
                     .unwrap();
-                AsnLookupMetaMapEntry {
-                    key: AsnLookupMetaMapKey {
-                        hash: key.0,
-                        length: key.1,
-                    },
-                    value: lookups
-                        .value
-                        .into_iter()
-                        .map(|timeslot| timeslot.slot())
-                        .collect(),
-                }
+                AsnLookupMetaMapEntry::from(LookupMetaMapEntry { key, data: lookups })
             }))
             .await;
 
@@ -396,6 +368,10 @@ impl StateTransitionTest for AccumulateTest {
                 assert_eq!(actual_preimages.hash, expected_preimages.hash);
                 assert_eq!(actual_preimages.blob, expected_preimages.blob);
             }
+            assert_eq!(
+                actual.data.preimage_requests,
+                expected.data.preimage_requests
+            );
         }
     }
 }
