@@ -17,3 +17,7 @@ fr-state = { workspace = true }
 mini-moka = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true }

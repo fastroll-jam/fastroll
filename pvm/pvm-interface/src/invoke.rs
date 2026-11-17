@@ -190,27 +190,9 @@ impl PVMInterface {
         curr_timeslot_index: Option<TimeslotIndex>,
     ) -> Result<PVMInvocationResult, PVMError> {
         tracing::info!("Ψ_M invoked. s={service_id}");
-        let program_hash = hash::<Blake2b256>(standard_program)?;
-        // First attempt to fetch the program from the global program cache that is persisted across
-        // multiple block executions. Decode and load program on cache miss only.
-        let cached_program = if let Some(entry) = program_cache().get(&program_hash) {
-            entry
-        } else {
-            let formatted_program = FormattedProgram::from_standard_program(standard_program)?;
-            if !formatted_program.is_program_size_valid() {
-                return Err(PVMError::VMCoreError(VMCoreError::InvalidProgram));
-            }
-
-            // Initialize the program state
-            let mut program_state = ProgramState::default();
-            ProgramLoader::load_program(&formatted_program.code, &mut program_state)?;
-
-            let cached = Arc::new(CachedProgram {
-                formatted_program: Arc::new(formatted_program),
-                program_state: Arc::new(program_state),
-            });
-            program_cache().insert(program_hash, cached.clone());
-            cached
+        // `Ψ_M` panics with no gas used when `Y` or `deblob` fails, and the caller carries on
+        let Some(cached_program) = Self::get_or_load_program(standard_program)? else {
+            return Ok(PVMInvocationResult::panic(0));
         };
 
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
@@ -255,6 +237,49 @@ impl PVMInterface {
             }
             _ => Ok(PVMInvocationResult::panic(gas_used)),
         }
+    }
+
+    /// Gets a loaded program from the global program cache, or decodes and loads it on a cache miss.
+    ///
+    /// The cache is persisted across multiple block executions.
+    /// Returns `None` when the standard program initialization `Y` or `deblob` fails, and such a program is not cached.
+    fn get_or_load_program(
+        standard_program: &[u8],
+    ) -> Result<Option<Arc<CachedProgram>>, PVMError> {
+        let program_hash = hash::<Blake2b256>(standard_program)?;
+        if let Some(cached_program) = program_cache().get(&program_hash) {
+            return Ok(Some(cached_program));
+        }
+
+        match Self::load_program(standard_program) {
+            Ok(cached_program) => {
+                let cached_program = Arc::new(cached_program);
+                program_cache().insert(program_hash, cached_program.clone());
+                Ok(Some(cached_program))
+            }
+            Err(e) => {
+                tracing::warn!("Ψ_M Panic: Failed to load the program. {e}");
+                Ok(None)
+            }
+        }
+    }
+
+    /// Decodes a standard program blob (`Y`) and loads its code (`deblob`).
+    ///
+    /// Every error means the program content is invalid, which the GP treats as a panic.
+    fn load_program(standard_program: &[u8]) -> Result<CachedProgram, VMCoreError> {
+        let formatted_program = FormattedProgram::from_standard_program(standard_program)?;
+        if !formatted_program.is_program_size_valid() {
+            return Err(VMCoreError::InvalidProgram);
+        }
+
+        let mut program_state = ProgramState::default();
+        ProgramLoader::load_program(&formatted_program.code, &mut program_state)?;
+
+        Ok(CachedProgram {
+            formatted_program: Arc::new(formatted_program),
+            program_state: Arc::new(program_state),
+        })
     }
 
     /// Invokes the PVM general functions including host calls with arguments injected by the `Ψ_M`
@@ -507,5 +532,101 @@ impl PVMInterface {
         };
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fr_codec::prelude::*;
+    use fr_common::workloads::WorkPackage;
+    use fr_pvm_core::program::instruction::opcode::Opcode;
+    use fr_pvm_host::context::IsAuthorizedHostContext;
+    use fr_pvm_types::invoke_args::IsAuthorizedInvokeArgs;
+    use fr_state::test_utils::init_db_and_manager;
+    use std::error::Error;
+
+    /// Encodes a code blob `E(|j|) ⌢ E_1(z) ⌢ E(|c|) ⌢ j ⌢ c ⌢ k` of one `trap` and an empty jump table.
+    fn single_trap_code_blob() -> Vec<u8> {
+        vec![0, 0, 1, Opcode::TRAP as u8, 0b1]
+    }
+
+    /// Encodes a standard program `E_3(|o|) ⌢ E_3(|w|) ⌢ E_2(z) ⌢ E_3(s) ⌢ o ⌢ w ⌢ E_4(|c|) ⌢ c` with empty data sections.
+    fn standard_program(code_blob: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+        let mut program = vec![0; 3 + 3 + 2 + 3];
+        program.extend((code_blob.len() as u32).encode_fixed(4)?);
+        program.extend_from_slice(code_blob);
+        Ok(program)
+    }
+
+    /// Standard program whose code blob has an octet after `k`, so `deblob` fails.
+    fn program_failing_deblob() -> Result<Vec<u8>, Box<dyn Error>> {
+        let mut code_blob = single_trap_code_blob();
+        code_blob.push(0);
+        standard_program(&code_blob)
+    }
+
+    #[test]
+    fn test_get_or_load_program_when_y_or_deblob_fails() -> Result<(), Box<dyn Error>> {
+        let valid_program = standard_program(&single_trap_code_blob())?;
+        assert!(PVMInterface::get_or_load_program(&valid_program)?.is_some());
+
+        let mut program_with_trailing_octet = valid_program.clone();
+        program_with_trailing_octet.push(0);
+        let truncated_program = valid_program[..valid_program.len() - 1].to_vec();
+        let cases = [
+            (
+                "`Y` fails on an octet after the code blob",
+                program_with_trailing_octet,
+            ),
+            ("`Y` fails on a truncated code blob", truncated_program),
+            (
+                "`deblob` fails on an octet after `k`",
+                program_failing_deblob()?,
+            ),
+        ];
+        for (description, program) in cases {
+            assert!(
+                PVMInterface::get_or_load_program(&program)?.is_none(),
+                "{description}"
+            );
+            let program_hash = hash::<Blake2b256>(&program)?;
+            assert!(
+                program_cache().get(&program_hash).is_none(),
+                "{description} and is not cached"
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_invoke_with_args_panics_when_deblob_fails() -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempfile::tempdir()?;
+        let (_header_db, state_manager) = init_db_and_manager(temp_dir.path().join("db"));
+        let mut context =
+            InvocationContext::X_I(IsAuthorizedHostContext::new(IsAuthorizedInvokeArgs {
+                package: WorkPackage::default(),
+                core_idx: 0,
+            }));
+
+        let result = PVMInterface::invoke_with_args(
+            Arc::new(state_manager),
+            0,
+            &program_failing_deblob()?,
+            &InvocationType::IsAuthorized,
+            0,
+            1_000,
+            &[],
+            &mut context,
+            None,
+        )
+        .await?;
+
+        assert_eq!(result.gas_used, 0);
+        assert!(matches!(
+            result.output,
+            PVMInvocationOutput::Panic(ExitReason::Panic)
+        ));
+        Ok(())
     }
 }
