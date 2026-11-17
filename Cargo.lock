@@ -1066,7 +1066,9 @@ dependencies = [
  "fr-pvm-types",
  "fr-state",
  "mini-moka",
+ "tempfile",
  "thiserror 2.0.17",
+ "tokio",
  "tracing",
 ]
 
