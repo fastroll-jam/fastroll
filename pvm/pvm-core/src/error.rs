@@ -18,6 +18,12 @@ pub enum VMCoreError {
     GasCounterOverflow,
     #[error("Invalid program")]
     InvalidProgram,
+    #[error("Instruction data size limit exceeded ({0} octets)")]
+    InstructionDataSizeLimitExceeded(usize),
+    #[error("Jump table entry count limit exceeded ({0} entries)")]
+    JumpTableEntryCountLimitExceeded(usize),
+    #[error("Jump table entry size limit exceeded ({0} octets)")]
+    JumpTableEntrySizeLimitExceeded(u8),
     #[error("Program arguments size limit exceeded")]
     ProgramArgsSizeLimitExceeded,
     #[error("Invalid instruction format")]
