@@ -50,7 +50,7 @@ impl Display for DisputesState {
     }
 }
 
-// Note: No duplication check is conducted here.
+// The report hash sets take no duplicate check, since the GP keeps new verdicts disjoint from `ψ_G`, `ψ_B` and `ψ_W`.
 impl DisputesState {
     pub fn get_punish_set(&self) -> &Vec<Ed25519PubKey> {
         &self.punish_set
@@ -71,9 +71,13 @@ impl DisputesState {
         self.wonky_set.sort()
     }
 
+    /// Adds the new offender keys to `ψ_O` as a set union, kept sorted.
+    ///
+    /// A key reported as both a culprit and a fault in one block appears twice in the offenders marker `H_O` but once in `ψ'_O`.
     pub fn sort_extend_punish_set(&mut self, punish_set: Vec<Ed25519PubKey>) {
         self.punish_set.extend(punish_set);
         self.punish_set.sort();
+        self.punish_set.dedup();
     }
 
     pub fn get_all_report_hashes(&self) -> Vec<WorkReportHash> {
@@ -83,5 +87,34 @@ impl DisputesState {
             .chain(&self.wonky_set)
             .cloned()
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fr_common::ByteArray;
+    use std::error::Error;
+
+    fn ed25519_key(byte: u8) -> Ed25519PubKey {
+        Ed25519PubKey(ByteArray([byte; 32]))
+    }
+
+    #[test]
+    fn test_sort_extend_punish_set_with_culprit_also_fault() -> Result<(), Box<dyn Error>> {
+        let mut disputes = DisputesState {
+            punish_set: vec![ed25519_key(2)],
+            ..Default::default()
+        };
+
+        // Offenders marker `H_O` of culprit key 3 followed by fault keys 1 and 3
+        let offenders_marker = vec![ed25519_key(3), ed25519_key(1), ed25519_key(3)];
+        disputes.sort_extend_punish_set(offenders_marker);
+
+        assert_eq!(
+            disputes.punish_set,
+            vec![ed25519_key(1), ed25519_key(2), ed25519_key(3)]
+        );
+        Ok(())
     }
 }
