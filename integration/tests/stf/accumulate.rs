@@ -601,12 +601,13 @@ generate_typed_tests! {
 
     // `bless` host call from the designator, which is not the manager.
     // The vector accepts it and hands the designate role over to another service.
-    #[ignore = "GP deviation, bless from a non-manager is accepted where GP 0.8.0 returns HUH (GP #519)"]
+    // The call also passes an always-accumulate entry, which the vector ignores.
+    #[ignore = "GP deviation, bless from a non-manager that changes the always-accumulate services is accepted where the post-0.8.0 GP change #558 returns HUH"]
     bless_from_non_manager_1: "bless_from_non_manager-1.json",
 
     // The manager and the designator both change the designator in the same round.
     // The manager choice wins.
-    #[ignore = "GP deviation, bless from a non-manager is accepted where GP 0.8.0 returns HUH (GP #519)"]
+    #[ignore = "GP 0.8.0 not implemented"]
     bless_from_non_manager_2: "bless_from_non_manager-2.json",
 
     // `upgrade` host call. Code hash and minimum gas requirements are replaced.

@@ -11,7 +11,7 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    is_validator_set_size, AuthHash, ByteArray, CoreIndex, Hash32, Octets, ServiceId, SignedGas,
+    is_validator_set_size, AuthHash, ByteArray, Hash32, Octets, ServiceId, SignedGas,
     TimeslotIndex, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MIN_PUBLIC_SERVICE_ID,
     PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, TRANSFER_MEMO_SIZE,
 };
@@ -31,11 +31,17 @@ use fr_state::{
     provider::HostStateProvider,
     state_utils::get_account_lookups_state_key,
     types::{
-        privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
-        AccountStorageUsageDelta, CoreAuthQueue, StagingSet, Timeslot,
+        AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AccountStorageUsageDelta,
+        CoreAuthQueue, StagingSet, Timeslot,
     },
 };
 use std::{collections::BTreeMap, marker::PhantomData, sync::Arc};
+
+/// The `BLESS` register value that keeps the current privileged service, assign services or always-accumulate services.
+const BLESS_KEEP_CURRENT: RegValue = RegValue::MAX;
+
+/// The `BLESS` assign service entry that keeps the current assign service of its core.
+const BLESS_KEEP_CURRENT_ASSIGN_SERVICE: ServiceId = ServiceId::MAX;
 
 pub struct AccumulateHostFunction<S> {
     _phantom: PhantomData<S>,
@@ -43,7 +49,9 @@ pub struct AccumulateHostFunction<S> {
 impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// Assigns new privileged services: manager (M), assign (A), designate (V), registrar (R) and
     /// always-accumulates (Z) to the accumulate context partial state.
-    /// Only the manager service of the current partial state may invoke it.
+    /// The manager service of the current partial state may change all of them.
+    /// Any other service may only hand over the assign, designate or registrar roles it holds, and returns HUH otherwise.
+    /// A register of `2^64 − 1` or an assign service entry of `2^32 − 1` keeps the current value.
     pub fn host_bless(
         vm: &VMState,
         context: &mut InvocationContext<S>,
@@ -51,100 +59,143 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         tracing::debug!("Hostcall invoked: BLESS");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
+        let current_manager = x.partial_state.manager_service;
+        let current_assign_services = x.partial_state.assign_services.current();
+        let current_designate = x.partial_state.designate_service.current();
+        let current_registrar = x.partial_state.registrar_service.current();
 
         // --- Read from Memory (Err: Panic)
 
-        let Ok(assign_offset) = vm.read_reg_as_mem_address(8) else {
-            host_call_panic!()
-        };
-        let Ok(always_accumulate_offset) = vm.read_reg_as_mem_address(11) else {
-            host_call_panic!()
-        };
-        let Ok(always_accumulates_count) = vm.read_reg_as_usize(12) else {
-            host_call_panic!()
-        };
-
         // Read assign services from the memory
-        if !vm
-            .memory
-            .is_address_range_readable(assign_offset, 4 * CORE_COUNT)
-        {
-            host_call_panic!()
-        }
-        let Ok(assign_services_data) = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT) else {
-            host_call_panic!()
+        let assign_services = if vm.read_reg(8) == BLESS_KEEP_CURRENT {
+            current_assign_services.clone()
+        } else {
+            let Ok(assign_offset) = vm.read_reg_as_mem_address(8) else {
+                host_call_panic!()
+            };
+            if !vm
+                .memory
+                .is_address_range_readable(assign_offset, 4 * CORE_COUNT)
+            {
+                host_call_panic!()
+            }
+            let Ok(assign_services_data) = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT)
+            else {
+                host_call_panic!()
+            };
+            let mut assign_services = current_assign_services.clone();
+            for (assign_service, assign_service_data) in assign_services
+                .iter_mut()
+                .zip(assign_services_data.as_chunks::<4>().0)
+            {
+                let new_assign_service = ServiceId::decode_fixed(&mut &assign_service_data[..], 4)?;
+                if new_assign_service != BLESS_KEEP_CURRENT_ASSIGN_SERVICE {
+                    *assign_service = new_assign_service;
+                }
+            }
+            assign_services
         };
-        let mut assign_services = Vec::with_capacity(CORE_COUNT);
-        for i in 0..CORE_COUNT {
-            assign_services.push(ServiceId::decode_fixed(
-                &mut &assign_services_data[i * 4..i * 4 + 4],
-                4,
-            )?)
-        }
 
         // Read always-accumulate services from the memory
-        let Some(always_accumulate_len) = always_accumulates_count.checked_mul(12) else {
-            host_call_panic!()
-        };
-        if !vm
-            .memory
-            .is_address_range_readable(always_accumulate_offset, always_accumulate_len)
-        {
-            host_call_panic!()
-        }
-        let Ok(always_accumulate_services_data) = vm
-            .memory
-            .read_bytes(always_accumulate_offset, always_accumulate_len)
-        else {
-            host_call_panic!()
+        let always_accumulate_services = if vm.read_reg(11) == BLESS_KEEP_CURRENT {
+            x.partial_state.always_accumulate_services.clone()
+        } else {
+            let Ok(always_accumulate_offset) = vm.read_reg_as_mem_address(11) else {
+                host_call_panic!()
+            };
+            let Ok(always_accumulates_count) = vm.read_reg_as_usize(12) else {
+                host_call_panic!()
+            };
+            let Some(always_accumulate_len) = always_accumulates_count.checked_mul(12) else {
+                host_call_panic!()
+            };
+            if !vm
+                .memory
+                .is_address_range_readable(always_accumulate_offset, always_accumulate_len)
+            {
+                host_call_panic!()
+            }
+            let Ok(always_accumulate_services_data) = vm
+                .memory
+                .read_bytes(always_accumulate_offset, always_accumulate_len)
+            else {
+                host_call_panic!()
+            };
+            let mut always_accumulate_services = BTreeMap::new();
+            for always_accumulate_service_data in
+                always_accumulate_services_data.as_chunks::<12>().0
+            {
+                let address =
+                    ServiceId::decode_fixed(&mut &always_accumulate_service_data[..4], 4)?;
+                let basic_gas =
+                    UnsignedGas::decode_fixed(&mut &always_accumulate_service_data[4..], 8)?;
+                always_accumulate_services.insert(address, basic_gas);
+            }
+            always_accumulate_services
         };
 
         // --- Check Privilege (Err: HUH)
 
+        let resolve_keep_current = |reg_index: usize, current_service: ServiceId| -> RegValue {
+            match vm.read_reg(reg_index) {
+                BLESS_KEEP_CURRENT => current_service as RegValue,
+                reg_value => reg_value,
+            }
+        };
+        let manager = resolve_keep_current(7, current_manager);
+        let designate = resolve_keep_current(9, current_designate);
+        let registrar = resolve_keep_current(10, current_registrar);
+
         // Checks against `(x_e)_m`, which a previous `BLESS` of this invocation may have changed
-        if x.accumulate_host != x.partial_state.manager_service {
+        let is_manager = x.accumulate_host == current_manager;
+        // A service other than the manager may change only the assign, designate and registrar roles it holds
+        let changes_only_held_roles = manager == current_manager as RegValue
+            && assign_services
+                .iter()
+                .zip(current_assign_services.iter())
+                .all(|(assign_service, current_assign_service)| {
+                    assign_service == current_assign_service
+                        || x.accumulate_host == *current_assign_service
+                })
+            && (designate == current_designate as RegValue
+                || x.accumulate_host == current_designate)
+            && (registrar == current_registrar as RegValue
+                || x.accumulate_host == current_registrar)
+            && always_accumulate_services == x.partial_state.always_accumulate_services;
+        if !is_manager && !changes_only_held_roles {
             continue_huh!()
         }
 
         // --- Check New Privileges (Err: WHO)
 
-        let Ok(manager) = vm.read_reg_as_service_id(7) else {
+        let Ok(manager) = ServiceId::try_from(manager) else {
             continue_who!()
         };
-        let Ok(designate) = vm.read_reg_as_service_id(9) else {
+        let Ok(designate) = ServiceId::try_from(designate) else {
             continue_who!()
         };
-        let Ok(registrar) = vm.read_reg_as_service_id(10) else {
+        let Ok(registrar) = ServiceId::try_from(registrar) else {
             continue_who!()
         };
 
         // --- OK
 
-        let mut always_accumulate_services = BTreeMap::new();
-        for i in 0..always_accumulates_count {
-            let address = ServiceId::decode_fixed(
-                &mut &always_accumulate_services_data[i * 12..i * 12 + 4],
-                4,
-            )?;
-            let basic_gas = UnsignedGas::decode_fixed(
-                &mut &always_accumulate_services_data[i * 12 + 4..i * 12 + 12],
-                8,
-            )?;
-            always_accumulate_services.insert(address, basic_gas);
-        }
-
-        x.assign_new_privileged_services(
-            manager,
-            AssignServices::try_from(assign_services.clone())?,
-            designate,
-            registrar,
-            always_accumulate_services.clone(),
-        );
         tracing::debug!(
             "BLESS manager={manager} assigns={:?} designate={designate} registrar={registrar} always_accumulates={:?}",
             assign_services.as_slice(),
             always_accumulate_services.keys()
         );
+        if is_manager {
+            x.assign_new_privileged_services(
+                manager,
+                assign_services,
+                designate,
+                registrar,
+                always_accumulate_services,
+            );
+        } else {
+            x.hand_over_held_privileged_services(&assign_services, designate, registrar);
+        }
         continue_ok!()
     }
 
@@ -194,30 +245,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // --- Check Privilege (Err: HUH)
 
         // Only the privileged assign service of the core is allowed to invoke this host call
-        if let Some(new_assign_services_by_manager) =
-            &x.partial_state.assign_services.change_by_bless
-        {
-            // Assigner is changed in the partial state and the accumulate host is the manager service
-            if x.accumulate_host != new_assign_services_by_manager[core_index] {
-                continue_huh!()
-            }
-        } else if let Some(new_assign_service_by_self) = x
-            .partial_state
-            .assign_services
-            .change_by_self
-            .get(&(core_index as CoreIndex))
-        {
-            // Assigner is changed in the partial state and
-            // the accumulate host was the previous assigner of the core
-            if x.accumulate_host != *new_assign_service_by_self {
-                continue_huh!()
-            }
-        } else {
-            // Assigner is not changed in the partial state.
-            // Validate against the last confirmed version.
-            if x.accumulate_host != x.partial_state.assign_services.last_confirmed[core_index] {
-                continue_huh!()
-            }
+        if x.accumulate_host != x.partial_state.assign_services.current_of_core(core_index) {
+            continue_huh!()
         }
 
         // --- Check New Privilege (Err: WHO)
