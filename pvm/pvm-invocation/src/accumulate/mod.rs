@@ -72,9 +72,9 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         accumulate_host: ServiceId,
         recv_amount: Balance,
     ) -> Result<(), PVMInvokeError> {
-        // Add the received amount to the partial state of the accumulate host.
+        // Add the received amount to the partial state of the accumulate host, capped at `2^64-1`.
         partial_state
-            .add_account_balance(state_manager.clone(), accumulate_host, recv_amount)
+            .saturating_add_account_balance(state_manager.clone(), accumulate_host, recv_amount)
             .await?;
         tracing::debug!("Deferred transfer: s={accumulate_host} received {recv_amount}");
         Ok(())
