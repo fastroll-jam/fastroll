@@ -69,12 +69,6 @@ impl DisputesXt {
             .count()
     }
 
-    pub fn get_verdict_by_report_hash(&self, report_hash: &WorkReportHash) -> Option<&Verdict> {
-        self.verdicts
-            .iter()
-            .find(|&verdict| &verdict.report_hash == report_hash)
-    }
-
     pub fn split_report_set(
         &self,
     ) -> (

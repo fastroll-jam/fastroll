@@ -51,9 +51,7 @@ pub enum XtError {
     DuplicateCulprit,
     #[error("Duplicate fault entry found")]
     DuplicateFault,
-    #[error("Validator was not a culprit. Validator Ed25519 key: {0}")]
-    NotCulprit(String),
-    #[error("Validator did not cast a faulty vote. Voter: {0}")]
+    #[error("Fault vote does not contradict a good or bad judgment of its report. Validator Ed25519 key: {0}")]
     NotFault(String),
     #[error("Verdicts with all positive votes must have at least one fault for the corresponding work report. Work report hash: {0}")]
     NotEnoughFault(String),
@@ -73,10 +71,10 @@ pub enum XtError {
     InvalidFaultsAuditorKey(String),
     #[error("Epoch index of the verdict is older than the previous epoch. Epoch index: {0}, Current epoch index: {1}")]
     InvalidJudgmentsAge(u32, u32),
-    #[error("Report hash of culprit entry is not found in the extrinsic verdicts. Validator Ed25519 key: {0}")]
+    #[error(
+        "Report hash of culprit entry is not in the posterior bad set. Validator Ed25519 key: {0}"
+    )]
     InvalidCulpritReportHash(String),
-    #[error("Report hash of fault entry is not found in the extrinsic verdicts. Validator Ed25519 key: {0}")]
-    InvalidFaultReportHash(String),
     #[error("Positive votes count must be 0, a third of the validator set, or all judgments. Provided: {0}.")]
     InvalidVotesCount(usize),
     #[error("Judgments count of a verdict must be the supermajority of its validator set. Provided: {0}, Expected: {1}")]
