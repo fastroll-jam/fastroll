@@ -57,6 +57,28 @@ cargo run --features "tiny,fuzz" -- fuzz --socket "/tmp/jam_target.sock"
 - RocksDB path: `./.rocksdb`
 - Fuzzer socket: `/tmp/jam_target.sock`
 
+### Run the Docker image
+
+Each [release](RELEASING.md) publishes an image with the `tiny` and `full` fuzz targets for `linux/amd64`:
+
+```bash
+docker run --rm \
+  -v /tmp/fastroll:/fastroll \
+  -e JAM_FUZZ=1 \
+  -e JAM_FUZZ_SPEC=tiny \
+  -e JAM_FUZZ_DATA_PATH=/fastroll/data \
+  -e JAM_FUZZ_SOCK_PATH=/fastroll/jam_target.sock \
+  ghcr.io/fastroll-jam/fastroll:latest
+```
+
+| Variable | Required | Description |
+|---|---|---|
+| `JAM_FUZZ` | Yes | Runs the fuzz target when defined. Otherwise the container passes its arguments to the `tiny` binary. |
+| `JAM_FUZZ_SPEC` | Yes | Chain spec, `tiny` or `full`. |
+| `JAM_FUZZ_DATA_PATH` | Yes | Data directory, created at startup. |
+| `JAM_FUZZ_SOCK_PATH` | Yes | Unix socket path for the fuzzer. Mount its directory to reach it from the host. |
+| `JAM_FUZZ_LOG_LEVEL` | No | `error`, `warn`, `info`, `debug` or `trace`. An explicit `RUST_LOG` takes precedence. |
+
 ## Conformance Testing
 
 ### Test vector submodules
@@ -185,6 +207,7 @@ Top-level directories and their roles:
 - `config/`: Configuration and defaults.
 - `crypto/`: Hashing, signatures, VRF, and signing key utilities.
 - `db/`: RocksDB-backed storage primitives.
+- `docker/`: Entrypoint of the published container image.
 - `extrinsics/`: Extrinsic types and validation.
 - `fuzz/`: Fuzz harness and integration with the block importer.
 - `integration/`: Integration test crate and test-vector submodules.
