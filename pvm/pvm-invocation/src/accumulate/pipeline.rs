@@ -252,10 +252,10 @@ async fn merge_partial_state_change(
 
     // Merge PrivilegedServices changes
 
-    // Only the manager service can invoke `BLESS`, which changes the manager and always-accumulate services
+    // Only the `BLESS` of the manager service changes the manager and always-accumulate services
     let manager_invoked_bless = accumulate_result_partial_state
         .assign_services
-        .change_by_bless
+        .change_by_manager
         .is_some();
     if manager_invoked_bless {
         partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
@@ -552,31 +552,17 @@ async fn accumulate_parallel(
     }
 
     // Multiple services that are accumulated in the same `Δ*` round can produce conflicting
-    // changes to the assigners. So at this point, `partial_state_union` may hold both
-    // `change_by_bless` from the manager service and `change_by_self` from the assigners themselves.
+    // changes to the assign, designate and registrar services. So at this point, `partial_state_union`
+    // may hold both `change_by_manager` from the manager service and `change_by_self` from the
+    // privileged services themselves.
     //
-    // If such conflicts happen, the change by the manager service wins on the cores it changed,
+    // If such conflicts happen, the change by the manager service wins on the privileges it changed,
     // following the `R(o, a, b)` util function of the Graypaper.
-    // The designate and registrar services change only by the manager service.
     //
     // Once the state change is confirmed, partial state change fields of the union should be cleared.
-
-    // Confirm the new assign services
     partial_state_union.assign_services.confirm_changes();
-
-    // Confirm the new designate service
-    if let Some(new_designate_service_by_manager) =
-        partial_state_union.designate_service.change_by_bless
-    {
-        partial_state_union.designate_service.last_confirmed = new_designate_service_by_manager;
-    }
-
-    // Confirm the new registrar service
-    if let Some(new_registrar_service_by_manager) =
-        partial_state_union.registrar_service.change_by_bless
-    {
-        partial_state_union.registrar_service.last_confirmed = new_registrar_service_by_manager;
-    }
+    partial_state_union.designate_service.confirm_changes();
+    partial_state_union.registrar_service.confirm_changes();
 
     // Clear state changes marked in `partial_state_union`, since they are resolved
     partial_state_union.clear_privileged_services_changes();

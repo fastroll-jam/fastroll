@@ -1,7 +1,8 @@
 use crate::error::PartialStateError;
 use fr_codec::prelude::*;
 use fr_common::{
-    Balance, CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey, MIN_PUBLIC_SERVICE_ID,
+    Balance, CoreIndex, LookupsKey, PreimagesKey, ServiceId, StorageKey, CORE_COUNT,
+    MIN_PUBLIC_SERVICE_ID,
 };
 use fr_state::{
     error::StateManagerError,
@@ -1087,8 +1088,8 @@ pub struct AssignServicesPartialState {
     pub last_confirmed: AssignServices,
     /// The changed assigner service ids by the `BLESS` host call of the manager service within the
     /// current parallel accumulation round. It wins over `change_by_self` only on the cores it changed.
-    pub change_by_bless: Option<AssignServices>,
-    /// The changed assigner service ids by the `ASSIGN` host call of the assigner services
+    pub change_by_manager: Option<AssignServices>,
+    /// The changed assigner service ids by the `ASSIGN` or `BLESS` host call of the assigner services
     /// themselves within the current parallel accumulation round.
     pub change_by_self: HashMap<CoreIndex, ServiceId>,
 }
@@ -1097,8 +1098,41 @@ impl AssignServicesPartialState {
     pub fn new(assign_services: AssignServices) -> Self {
         Self {
             last_confirmed: assign_services,
-            change_by_bless: None,
+            change_by_manager: None,
             change_by_self: HashMap::new(),
+        }
+    }
+
+    /// Returns the assigners of all cores in the current partial state.
+    pub fn current(&self) -> AssignServices {
+        (0..CORE_COUNT)
+            .map(|core_index| self.current_of_core(core_index))
+            .collect()
+    }
+
+    /// Returns the assigner of the core in the current partial state.
+    /// It is the one changed by the manager, else the one changed by the assigner itself, else the last confirmed one.
+    pub fn current_of_core(&self, core_index: usize) -> ServiceId {
+        if let Some(assigners_by_manager) = &self.change_by_manager {
+            return assigners_by_manager[core_index];
+        }
+        self.change_by_self
+            .get(&(core_index as CoreIndex))
+            .copied()
+            .unwrap_or(self.last_confirmed[core_index])
+    }
+
+    /// Records that the assigner of the core hands the core over to `assign_service`.
+    /// A change by the manager earlier in the same invocation follows it, since it holds the latest assigners of the invocation.
+    pub fn hand_over_by_self(&mut self, core_index: usize, assign_service: ServiceId) {
+        self.change_by_self
+            .insert(core_index as CoreIndex, assign_service);
+        if let Some(assigner_by_manager) = self
+            .change_by_manager
+            .as_mut()
+            .and_then(|assigners_by_manager| assigners_by_manager.get_mut(core_index))
+        {
+            *assigner_by_manager = assign_service;
         }
     }
 
@@ -1107,10 +1141,10 @@ impl AssignServicesPartialState {
         &mut self,
         other: &AssignServicesPartialState,
     ) -> Result<(), PartialStateError> {
-        // The manager's `change_by_bless` already holds its final assigners `(x_e)_a`,
+        // The manager's `change_by_manager` already holds its final assigners `(x_e)_a`,
         // which supersede its own `change_by_self`.
-        if let Some(assigners_by_manager) = &other.change_by_bless {
-            self.change_by_bless = Some(assigners_by_manager.clone());
+        if let Some(assigners_by_manager) = &other.change_by_manager {
+            self.change_by_manager = Some(assigners_by_manager.clone());
             return Ok(());
         }
 
@@ -1133,7 +1167,7 @@ impl AssignServicesPartialState {
         for (core_index, assigner) in self.last_confirmed.iter_mut().enumerate() {
             let original = *assigner;
             let assigner_by_manager = self
-                .change_by_bless
+                .change_by_manager
                 .as_ref()
                 .map(|assigners_by_manager| assigners_by_manager[core_index])
                 .filter(|assigner_by_manager| *assigner_by_manager != original);
@@ -1143,67 +1177,70 @@ impl AssignServicesPartialState {
     }
 }
 
+/// Partial state of an owned privilege, the designate service (`v`) or the registrar service (`r`), within a parallel accumulation round.
+/// The manager or the service holding the privilege may change it, and the manager's change wins by `R(o, a, b)` of the GP.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct DesignateServicePartialState {
+pub struct OwnedPrivilegePartialState {
     /// The latest state copied from the beginning of the current parallel accumulation round.
     pub last_confirmed: ServiceId,
-    /// The changed designate service id by the `BLESS` host call of the manager service within the
+    /// The changed service id by the `BLESS` host call of the manager service within the
     /// current parallel accumulation round.
-    pub change_by_bless: Option<ServiceId>,
+    pub change_by_manager: Option<ServiceId>,
+    /// The changed service id by the `BLESS` host call of the privileged service itself within the
+    /// current parallel accumulation round.
+    pub change_by_self: Option<ServiceId>,
 }
 
-impl DesignateServicePartialState {
-    pub fn new(designate_service: ServiceId) -> Self {
+impl OwnedPrivilegePartialState {
+    pub fn new(service_id: ServiceId) -> Self {
         Self {
-            last_confirmed: designate_service,
-            change_by_bless: None,
+            last_confirmed: service_id,
+            change_by_manager: None,
+            change_by_self: None,
         }
     }
 
-    /// Returns the designate service of the current partial state, changed by `BLESS` or else the last confirmed one.
+    /// Returns the privileged service of the current partial state.
+    /// It is the one changed by the manager, else the one changed by the privileged service itself, else the last confirmed one.
     pub fn current(&self) -> ServiceId {
-        self.change_by_bless.unwrap_or(self.last_confirmed)
+        self.change_by_manager
+            .or(self.change_by_self)
+            .unwrap_or(self.last_confirmed)
     }
 
-    /// Merges changes of the designate service from the `other` partial state into `self`.
-    pub fn merge_changes_from(&mut self, other: &DesignateServicePartialState) {
-        if let Some(designate_by_manager) = other.change_by_bless {
-            if designate_by_manager != other.last_confirmed {
-                self.change_by_bless = Some(designate_by_manager);
+    /// Records that the privileged service hands the privilege over to `service_id`.
+    /// A change by the manager earlier in the same invocation follows it, since it holds the latest value of the invocation.
+    pub fn hand_over_by_self(&mut self, service_id: ServiceId) {
+        self.change_by_self = Some(service_id);
+        if let Some(service_id_by_manager) = self.change_by_manager.as_mut() {
+            *service_id_by_manager = service_id;
+        }
+    }
+
+    /// Merges changes of the privileged service from the `other` partial state into `self`.
+    pub fn merge_changes_from(&mut self, other: &OwnedPrivilegePartialState) {
+        // The manager's `change_by_manager` already holds its final value, which supersedes its own `change_by_self`.
+        if let Some(service_id_by_manager) = other.change_by_manager {
+            self.change_by_manager = Some(service_id_by_manager);
+            return;
+        }
+        if let Some(service_id_by_self) = other.change_by_self {
+            if service_id_by_self != other.last_confirmed {
+                self.change_by_self = Some(service_id_by_self);
             }
         }
     }
-}
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct RegistrarServicePartialState {
-    /// The latest state copied from the beginning of the current parallel accumulation round.
-    pub last_confirmed: ServiceId,
-    /// The changed registrar service id by the `BLESS` host call of the manager service within the
-    /// current parallel accumulation round.
-    pub change_by_bless: Option<ServiceId>,
-}
-
-impl RegistrarServicePartialState {
-    pub fn new(registrar_service: ServiceId) -> Self {
-        Self {
-            last_confirmed: registrar_service,
-            change_by_bless: None,
-        }
-    }
-
-    /// Returns the registrar service of the current partial state, changed by `BLESS` or else the last confirmed one.
-    pub fn current(&self) -> ServiceId {
-        self.change_by_bless.unwrap_or(self.last_confirmed)
-    }
-
-    /// Merges changes of the registrar service from the `other` partial state into `self`.
-    pub fn merge_changes_from(&mut self, other: &RegistrarServicePartialState) {
-        if let Some(registrar_by_manager) = other.change_by_bless {
-            if registrar_by_manager != other.last_confirmed {
-                self.change_by_bless = Some(registrar_by_manager);
-            }
-        }
+    /// Confirms the merged change of the round into `last_confirmed` by `R(o, a, b)` of the GP.
+    /// The manager's change wins if it changed the privileged service. Otherwise the privileged service's own change is kept.
+    pub fn confirm_changes(&mut self) {
+        let original = self.last_confirmed;
+        let service_id_by_manager = self
+            .change_by_manager
+            .filter(|service_id_by_manager| *service_id_by_manager != original);
+        self.last_confirmed = service_id_by_manager
+            .or(self.change_by_self)
+            .unwrap_or(original);
     }
 }
 
@@ -1223,9 +1260,9 @@ pub struct AccumulatePartialState<S: HostStateProvider> {
     /// **`a`**: Sandboxed copy of privileged assign service ids
     pub assign_services: AssignServicesPartialState,
     /// `v`: Sandboxed copy of privileged designate service id
-    pub designate_service: DesignateServicePartialState,
+    pub designate_service: OwnedPrivilegePartialState,
     /// `r`: Sandboxed copy of privileged registrar service id
-    pub registrar_service: RegistrarServicePartialState,
+    pub registrar_service: OwnedPrivilegePartialState,
     /// **`z`**: Sandboxed copy of privileged always-accumulate services
     pub always_accumulate_services: AlwaysAccumulateServices,
 }
@@ -1253,8 +1290,8 @@ impl<S: HostStateProvider> Default for AccumulatePartialState<S> {
             auth_queue: AuthQueue::default(),
             manager_service: ServiceId::default(),
             assign_services: AssignServicesPartialState::default(),
-            designate_service: DesignateServicePartialState::default(),
-            registrar_service: RegistrarServicePartialState::default(),
+            designate_service: OwnedPrivilegePartialState::default(),
+            registrar_service: OwnedPrivilegePartialState::default(),
             always_accumulate_services: AlwaysAccumulateServices::default(),
         }
     }
@@ -1277,8 +1314,8 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             auth_queue,
             manager_service,
             assign_services: AssignServicesPartialState::new(assign_services),
-            designate_service: DesignateServicePartialState::new(designate_service),
-            registrar_service: RegistrarServicePartialState::new(registrar_service),
+            designate_service: OwnedPrivilegePartialState::new(designate_service),
+            registrar_service: OwnedPrivilegePartialState::new(registrar_service),
             always_accumulate_services,
         })
     }
@@ -1310,8 +1347,8 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             auth_queue,
             manager_service,
             assign_services: AssignServicesPartialState::new(assign_services),
-            designate_service: DesignateServicePartialState::new(designate_service),
-            registrar_service: RegistrarServicePartialState::new(registrar_service),
+            designate_service: OwnedPrivilegePartialState::new(designate_service),
+            registrar_service: OwnedPrivilegePartialState::new(registrar_service),
             always_accumulate_services,
         })
     }
@@ -1393,17 +1430,18 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
     /// the union partial state only - which holds the merged and finalized effects of
     /// multiple single-service accumulations within a parallel accumulation.
     pub fn clear_privileged_services_changes(&mut self) {
-        self.assign_services.change_by_bless = None;
+        self.assign_services.change_by_manager = None;
         self.assign_services.change_by_self = HashMap::new();
-        self.designate_service.change_by_bless = None;
-        self.registrar_service.change_by_bless = None;
+        self.designate_service.change_by_manager = None;
+        self.designate_service.change_by_self = None;
+        self.registrar_service.change_by_manager = None;
+        self.registrar_service.change_by_self = None;
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fr_common::CORE_COUNT;
     use std::error::Error;
 
     /// Builds assigners with consecutive service ids from `first_service_id`, e.g. `[10, 11, ...]`.
@@ -1415,14 +1453,27 @@ mod tests {
         Ok(AssignServices::try_from(service_ids)?)
     }
 
+    /// Merges the results of the manager and the privileged service itself into a new union in the given order, and confirms them.
+    fn merge_and_confirm(
+        original: ServiceId,
+        results: &[&OwnedPrivilegePartialState],
+    ) -> ServiceId {
+        let mut union = OwnedPrivilegePartialState::new(original);
+        for result in results {
+            union.merge_changes_from(result);
+        }
+        union.confirm_changes();
+        union.last_confirmed
+    }
+
     #[test]
-    fn test_confirm_changes_with_bless() -> Result<(), Box<dyn Error>> {
+    fn test_assign_services_confirm_changes_by_manager_and_self() -> Result<(), Box<dyn Error>> {
         let original_assigners = consecutive_assigners(10)?;
         let mut assigners_by_manager = original_assigners.clone();
         assigners_by_manager[1] = 20;
         let mut assign_services = AssignServicesPartialState {
             last_confirmed: original_assigners.clone(),
-            change_by_bless: Some(assigners_by_manager),
+            change_by_manager: Some(assigners_by_manager),
             change_by_self: HashMap::from([(0, 30), (1, 31)]),
         };
 
@@ -1438,13 +1489,14 @@ mod tests {
     }
 
     #[test]
-    fn test_confirm_changes_with_bless_superseding_manager_assign() -> Result<(), Box<dyn Error>> {
+    fn test_assign_services_confirm_changes_by_manager_superseding_its_assign(
+    ) -> Result<(), Box<dyn Error>> {
         // The manager is also the assigner of core 0. It assigns core 0 to service 30
         // and then blesses core 0 back to itself, so `(x_e)_a` keeps the original assigner.
         let original_assigners = consecutive_assigners(10)?;
         let manager_result = AssignServicesPartialState {
             last_confirmed: original_assigners.clone(),
-            change_by_bless: Some(original_assigners.clone()),
+            change_by_manager: Some(original_assigners.clone()),
             change_by_self: HashMap::from([(0, 30)]),
         };
         let mut assign_services = AssignServicesPartialState::new(original_assigners.clone());
@@ -1457,11 +1509,11 @@ mod tests {
     }
 
     #[test]
-    fn test_confirm_changes_without_bless() -> Result<(), Box<dyn Error>> {
+    fn test_assign_services_confirm_changes_by_self() -> Result<(), Box<dyn Error>> {
         let original_assigners = consecutive_assigners(10)?;
         let mut assign_services = AssignServicesPartialState {
             last_confirmed: original_assigners.clone(),
-            change_by_bless: None,
+            change_by_manager: None,
             change_by_self: HashMap::from([(0, 30)]),
         };
 
@@ -1470,6 +1522,56 @@ mod tests {
         let mut expected_assigners = original_assigners;
         expected_assigners[0] = 30;
         assert_eq!(assign_services.last_confirmed, expected_assigners);
+        Ok(())
+    }
+
+    #[test]
+    fn test_owned_privilege_confirm_changes_by_manager_and_self() -> Result<(), Box<dyn Error>> {
+        let original = 10;
+        let mut manager_result = OwnedPrivilegePartialState::new(original);
+        manager_result.change_by_manager = Some(20);
+        let mut holder_result = OwnedPrivilegePartialState::new(original);
+        holder_result.hand_over_by_self(30);
+
+        // The manager's change wins regardless of the merge order
+        assert_eq!(
+            merge_and_confirm(original, &[&manager_result, &holder_result]),
+            20
+        );
+        assert_eq!(
+            merge_and_confirm(original, &[&holder_result, &manager_result]),
+            20
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owned_privilege_confirm_changes_by_self() -> Result<(), Box<dyn Error>> {
+        // The manager blesses but keeps the privileged service, so the holder's own change is kept
+        let original = 10;
+        let mut manager_result = OwnedPrivilegePartialState::new(original);
+        manager_result.change_by_manager = Some(original);
+        let mut holder_result = OwnedPrivilegePartialState::new(original);
+        holder_result.hand_over_by_self(30);
+
+        assert_eq!(
+            merge_and_confirm(original, &[&manager_result, &holder_result]),
+            30
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owned_privilege_hand_over_by_self_after_manager_change() -> Result<(), Box<dyn Error>> {
+        // The manager hands over the manager role and then, as the holder, the privileged service.
+        // Its `change_by_manager` follows, so the union still sees the manager's final value.
+        let original = 10;
+        let mut manager_result = OwnedPrivilegePartialState::new(original);
+        manager_result.change_by_manager = Some(original);
+        manager_result.hand_over_by_self(30);
+
+        assert_eq!(manager_result.current(), 30);
+        assert_eq!(merge_and_confirm(original, &[&manager_result]), 30);
         Ok(())
     }
 }

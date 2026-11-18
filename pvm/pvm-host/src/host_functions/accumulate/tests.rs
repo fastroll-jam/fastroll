@@ -64,7 +64,25 @@ fn assert_account_sandbox_clean(
 
 mod bless_tests {
     use super::*;
-    use crate::context::AccumulateHostContext;
+    use crate::{
+        context::AccumulateHostContext,
+        host_functions::accumulate::{BLESS_KEEP_CURRENT, BLESS_KEEP_CURRENT_ASSIGN_SERVICE},
+    };
+
+    /// Smallest register value that is not a service id, other than `BLESS_KEEP_CURRENT`.
+    const INVALID_SERVICE_ID: RegValue = 1 << 32;
+
+    /// Returns the current privileges of the partial state, including the changes of this invocation.
+    fn current_privileges(x: &AccumulateHostContext<MockStateManager>) -> PrivilegedServices {
+        let partial_state = &x.partial_state;
+        PrivilegedServices {
+            manager_service: partial_state.manager_service,
+            assign_services: partial_state.assign_services.current(),
+            designate_service: partial_state.designate_service.current(),
+            registrar_service: partial_state.registrar_service.current(),
+            always_accumulate_services: partial_state.always_accumulate_services.clone(),
+        }
+    }
 
     struct BlessTestFixture {
         accumulate_host: ServiceId,
@@ -80,8 +98,6 @@ mod bless_tests {
         always_accumulate_services: AlwaysAccumulateServices,
         assign_offset: MemAddress,
         always_accumulate_offset: MemAddress,
-        mem_readable_range_assign: Range<MemAddress>,
-        mem_readable_range_always_accumulate: Range<MemAddress>,
     }
 
     impl Default for BlessTestFixture {
@@ -99,10 +115,6 @@ mod bless_tests {
             let mut always_accumulate_services = AlwaysAccumulateServices::new();
             always_accumulate_services.insert(100, 1000);
             always_accumulate_services.insert(101, 2000);
-            let mem_readable_range_assign =
-                assign_offset..assign_offset + (4 * CORE_COUNT) as MemAddress;
-            let mem_readable_range_always_accumulate = always_accumulate_offset
-                ..always_accumulate_offset + (12 * always_accumulate_services.len()) as MemAddress;
 
             Self {
                 accumulate_host: 5,
@@ -118,13 +130,35 @@ mod bless_tests {
                 always_accumulate_services,
                 assign_offset,
                 always_accumulate_offset,
-                mem_readable_range_assign,
-                mem_readable_range_always_accumulate,
             }
         }
     }
 
     impl BlessTestFixture {
+        /// Builds a fixture whose `BLESS` arguments repeat the prior privileges, for `accumulate_host` to change some of them.
+        fn keeping_prev_privileges(accumulate_host: ServiceId) -> Self {
+            let fixture = Self::default();
+            Self {
+                accumulate_host,
+                manager: fixture.prev_manager as RegValue,
+                designate: fixture.prev_designate as RegValue,
+                registrar: fixture.prev_registrar as RegValue,
+                assign_services: fixture.prev_assign_services.clone(),
+                always_accumulate_services: fixture.prev_always_accumulate_services.clone(),
+                ..fixture
+            }
+        }
+
+        fn mem_readable_range_assign(&self) -> Range<MemAddress> {
+            self.assign_offset..self.assign_offset + (4 * CORE_COUNT) as MemAddress
+        }
+
+        fn mem_readable_range_always_accumulate(&self) -> Range<MemAddress> {
+            self.always_accumulate_offset
+                ..self.always_accumulate_offset
+                    + (12 * self.always_accumulate_services.len()) as MemAddress
+        }
+
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             let mut assign_services_buf = Vec::with_capacity(4 * CORE_COUNT);
             for assign_service in &self.assign_services {
@@ -153,6 +187,28 @@ mod bless_tests {
                 )
         }
 
+        /// Builds a VM whose `BLESS` registers all keep the current privileges, with no readable memory.
+        fn keep_current_vm_builder() -> VMStateBuilder {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, BLESS_KEEP_CURRENT)
+                .with_reg(8, BLESS_KEEP_CURRENT)
+                .with_reg(9, BLESS_KEEP_CURRENT)
+                .with_reg(10, BLESS_KEEP_CURRENT)
+                .with_reg(11, BLESS_KEEP_CURRENT)
+                .with_reg(12, BLESS_KEEP_CURRENT)
+        }
+
+        /// Builds a VM whose assign services and always-accumulate services are readable.
+        fn prepare_vm(&self) -> Result<VMState, Box<dyn Error>> {
+            Ok(self
+                .prepare_vm_builder()?
+                .with_mem_readable_range(self.mem_readable_range_assign())?
+                .with_mem_readable_range(self.mem_readable_range_always_accumulate())?
+                .build())
+        }
+
         fn prepare_state_provider(&self) -> MockStateManager {
             MockStateManager::builder().with_empty_account(self.accumulate_host)
         }
@@ -167,23 +223,38 @@ mod bless_tests {
                     self.accumulate_host,
                 )
                 .await?
-                .with_privileged_services(PrivilegedServices {
-                    manager_service: self.prev_manager,
-                    assign_services: self.prev_assign_services.clone(),
-                    designate_service: self.prev_designate,
-                    registrar_service: self.prev_registrar,
-                    always_accumulate_services: self.prev_always_accumulate_services.clone(),
-                })
+                .with_privileged_services(self.prev_privileges())
                 .build(),
             )
         }
 
-        fn host_call_result_successful() -> HostCallResult {
+        fn prev_privileges(&self) -> PrivilegedServices {
+            PrivilegedServices {
+                manager_service: self.prev_manager,
+                assign_services: self.prev_assign_services.clone(),
+                designate_service: self.prev_designate,
+                registrar_service: self.prev_registrar,
+                always_accumulate_services: self.prev_always_accumulate_services.clone(),
+            }
+        }
+
+        /// Invokes `BLESS` of the fixture's accumulate host on `vm`.
+        async fn invoke_bless(
+            &self,
+            vm: &VMState,
+        ) -> Result<(HostCallResult, InvocationContext<MockStateManager>), Box<dyn Error>> {
+            let state_provider = Arc::new(self.prepare_state_provider());
+            let mut context = self.prepare_invocation_context(state_provider).await?;
+            let res = AccumulateHostFunction::<MockStateManager>::host_bless(vm, &mut context)?;
+            Ok((res, context))
+        }
+
+        fn host_call_result_continue(return_code: HostCallReturnCode) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
                     gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r7_write: Some(return_code as RegValue),
                     r8_write: None,
                     memory_write: None,
                 },
@@ -202,43 +273,19 @@ mod bless_tests {
             }
         }
 
-        fn host_call_result_huh() -> HostCallResult {
-            HostCallResult {
-                exit_reason: ExitReason::Continue,
-                vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
-                    r8_write: None,
-                    memory_write: None,
-                },
-            }
-        }
-
-        fn host_call_result_who() -> HostCallResult {
-            HostCallResult {
-                exit_reason: ExitReason::Continue,
-                vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-                    r7_write: Some(HostCallReturnCode::WHO as RegValue),
-                    r8_write: None,
-                    memory_write: None,
-                },
-            }
-        }
-
         fn assert_privileges_blessed(&self, x: &AccumulateHostContext<MockStateManager>) {
             let partial_state = &x.partial_state;
             assert_eq!(partial_state.manager_service, self.manager as ServiceId);
             assert_eq!(
-                partial_state.assign_services.change_by_bless,
+                partial_state.assign_services.change_by_manager,
                 Some(self.assign_services.clone())
             );
             assert_eq!(
-                partial_state.designate_service.change_by_bless,
+                partial_state.designate_service.change_by_manager,
                 Some(self.designate as ServiceId)
             );
             assert_eq!(
-                partial_state.registrar_service.change_by_bless,
+                partial_state.registrar_service.change_by_manager,
                 Some(self.registrar as ServiceId)
             );
             assert_eq!(
@@ -250,9 +297,12 @@ mod bless_tests {
         fn assert_privileges_unchanged(&self, x: &AccumulateHostContext<MockStateManager>) {
             let partial_state = &x.partial_state;
             assert_eq!(partial_state.manager_service, self.prev_manager);
-            assert!(partial_state.assign_services.change_by_bless.is_none());
-            assert!(partial_state.designate_service.change_by_bless.is_none());
-            assert!(partial_state.registrar_service.change_by_bless.is_none());
+            assert!(partial_state.assign_services.change_by_manager.is_none());
+            assert!(partial_state.assign_services.change_by_self.is_empty());
+            assert!(partial_state.designate_service.change_by_manager.is_none());
+            assert!(partial_state.designate_service.change_by_self.is_none());
+            assert!(partial_state.registrar_service.change_by_manager.is_none());
+            assert!(partial_state.registrar_service.change_by_self.is_none());
             assert_eq!(
                 partial_state.always_accumulate_services,
                 self.prev_always_accumulate_services
@@ -264,51 +314,325 @@ mod bless_tests {
     async fn test_bless_successful() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = BlessTestFixture::default();
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
-            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
+        let vm = fixture.prepare_vm()?;
 
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_successful());
+        let (res, context) = fixture.invoke_bless(&vm).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+        );
         fixture.assert_privileges_blessed(context.get_accumulate_x().unwrap());
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_bless_accumulate_host_not_manager() -> Result<(), Box<dyn Error>> {
+    async fn test_bless_keep_current_registers() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let default_fixture = BlessTestFixture::default();
-        // Privileged services other than the manager cannot hand over their roles via `BLESS`
-        let non_manager_privileged_services = [
-            default_fixture.prev_designate,
-            default_fixture.prev_registrar,
-            default_fixture.prev_assign_services[0],
-        ];
-        for accumulate_host in non_manager_privileged_services {
+        // Both the manager and a service other than the manager may keep all privileges
+        for accumulate_host in [default_fixture.prev_manager, default_fixture.prev_designate] {
             let fixture = BlessTestFixture {
                 accumulate_host,
                 ..Default::default()
             };
-            let vm = fixture
-                .prepare_vm_builder()?
-                .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
-                .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
-                .build();
-            let state_provider = Arc::new(fixture.prepare_state_provider());
-            let mut context = fixture
-                .prepare_invocation_context(state_provider.clone())
-                .await?;
+            // The sentinels skip the memory reads, so no memory needs to be readable
+            let vm = BlessTestFixture::keep_current_vm_builder().build();
 
-            let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-            assert_eq!(res, BlessTestFixture::host_call_result_huh());
+            let (res, context) = fixture.invoke_bless(&vm).await?;
+            assert_eq!(
+                res,
+                BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+            );
+            assert_eq!(
+                current_privileges(context.get_accumulate_x().unwrap()),
+                fixture.prev_privileges()
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_keep_current_assign_service_entry() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let mut fixture = BlessTestFixture::default();
+        fixture.assign_services[0] = BLESS_KEEP_CURRENT_ASSIGN_SERVICE;
+        let vm = fixture.prepare_vm()?;
+
+        let (res, context) = fixture.invoke_bless(&vm).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+        );
+        let mut expected_assign_services = fixture.assign_services.clone();
+        expected_assign_services[0] = fixture.prev_assign_services[0];
+        assert_eq!(
+            context
+                .get_accumulate_x()
+                .unwrap()
+                .partial_state
+                .assign_services
+                .change_by_manager,
+            Some(expected_assign_services)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_non_manager_hands_over_held_role() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let default_fixture = BlessTestFixture::default();
+        let new_holder: ServiceId = 50;
+
+        // The designate service hands its role over
+        let fixture = BlessTestFixture {
+            designate: new_holder as RegValue,
+            ..BlessTestFixture::keeping_prev_privileges(default_fixture.prev_designate)
+        };
+        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+        );
+        let partial_state = &context.get_accumulate_x().unwrap().partial_state;
+        assert_eq!(
+            partial_state.designate_service.change_by_self,
+            Some(new_holder)
+        );
+        assert!(partial_state.designate_service.change_by_manager.is_none());
+        assert!(partial_state.registrar_service.change_by_self.is_none());
+
+        // The registrar service hands its role over
+        let fixture = BlessTestFixture {
+            registrar: new_holder as RegValue,
+            ..BlessTestFixture::keeping_prev_privileges(default_fixture.prev_registrar)
+        };
+        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+        );
+        let partial_state = &context.get_accumulate_x().unwrap().partial_state;
+        assert_eq!(
+            partial_state.registrar_service.change_by_self,
+            Some(new_holder)
+        );
+        assert!(partial_state.registrar_service.change_by_manager.is_none());
+        assert!(partial_state.designate_service.change_by_self.is_none());
+
+        // The assign service of core 0 hands the core over
+        let mut fixture =
+            BlessTestFixture::keeping_prev_privileges(default_fixture.prev_assign_services[0]);
+        fixture.assign_services[0] = new_holder;
+        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+        );
+        let partial_state = &context.get_accumulate_x().unwrap().partial_state;
+        assert_eq!(
+            partial_state.assign_services.change_by_self,
+            HashMap::from([(0, new_holder)])
+        );
+        assert!(partial_state.assign_services.change_by_manager.is_none());
+
+        // Only the `BLESS` of the manager changes the manager and always-accumulate services
+        assert_eq!(partial_state.manager_service, fixture.prev_manager);
+        assert_eq!(
+            partial_state.always_accumulate_services,
+            fixture.prev_always_accumulate_services
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_non_manager_hands_over_held_role_keeping_others(
+    ) -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture =
+            BlessTestFixture::keeping_prev_privileges(BlessTestFixture::default().prev_designate);
+        let new_designate: ServiceId = 50;
+        // The designate service names only the new designate service and keeps the rest with the sentinels
+        let vm = BlessTestFixture::keep_current_vm_builder()
+            .with_reg(9, new_designate)
+            .build();
+
+        let (res, context) = fixture.invoke_bless(&vm).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+        );
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(
+            current_privileges(x),
+            PrivilegedServices {
+                designate_service: new_designate,
+                ..fixture.prev_privileges()
+            }
+        );
+        assert_eq!(
+            x.partial_state.designate_service.change_by_self,
+            Some(new_designate)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_non_manager_keep_current_assign_service_entries(
+    ) -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let default_fixture = BlessTestFixture::default();
+        let new_assign_service: ServiceId = 50;
+        // The assign service of core 0 hands the core over and keeps the other cores, which it does not hold
+        let mut fixture =
+            BlessTestFixture::keeping_prev_privileges(default_fixture.prev_assign_services[0]);
+        for assign_service in fixture.assign_services.iter_mut() {
+            *assign_service = BLESS_KEEP_CURRENT_ASSIGN_SERVICE;
+        }
+        fixture.assign_services[0] = new_assign_service;
+
+        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+        );
+        let assign_services = &context
+            .get_accumulate_x()
+            .unwrap()
+            .partial_state
+            .assign_services;
+        assert_eq!(
+            assign_services.change_by_self,
+            HashMap::from([(0, new_assign_service)])
+        );
+        let mut expected_assign_services = fixture.prev_assign_services.clone();
+        expected_assign_services[0] = new_assign_service;
+        assert_eq!(assign_services.current(), expected_assign_services);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_old_holder_after_hand_over() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture =
+            BlessTestFixture::keeping_prev_privileges(BlessTestFixture::default().prev_designate);
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture.prepare_invocation_context(state_provider).await?;
+
+        let validator_count = 6;
+        let validator_keys_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
+        let mut validator_keys_data = Vec::new();
+        for _ in 0..validator_count {
+            ValidatorKey::default().encode_to(&mut validator_keys_data)?;
+        }
+        let designate_vm = VMStateBuilder::builder()
+            .with_pc(0)
+            .with_gas_counter(100)
+            .with_reg(7, validator_keys_offset)
+            .with_reg(8, validator_count as RegValue)
+            .with_mem_data(validator_keys_offset, validator_keys_data.as_slice())?
+            .with_mem_readable_range(
+                validator_keys_offset
+                    ..validator_keys_offset + validator_keys_data.len() as MemAddress,
+            )?
+            .build();
+        let host_call_result_ok =
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK);
+        let host_call_result_huh =
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH);
+
+        // The designate service designates before the hand-over
+        let res = AccumulateHostFunction::<MockStateManager>::host_designate(
+            &designate_vm,
+            &mut context,
+        )?;
+        assert_eq!(res, host_call_result_ok);
+
+        // The designate service hands its role over to service 50
+        let hand_over_vm = BlessTestFixture::keep_current_vm_builder()
+            .with_reg(9, 50u64)
+            .build();
+        let res =
+            AccumulateHostFunction::<MockStateManager>::host_bless(&hand_over_vm, &mut context)?;
+        assert_eq!(res, host_call_result_ok);
+
+        // The old designate service can neither hand the role over again nor designate
+        let hand_over_again_vm = BlessTestFixture::keep_current_vm_builder()
+            .with_reg(9, 60u64)
+            .build();
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(
+            &hand_over_again_vm,
+            &mut context,
+        )?;
+        assert_eq!(res, host_call_result_huh);
+        let res = AccumulateHostFunction::<MockStateManager>::host_designate(
+            &designate_vm,
+            &mut context,
+        )?;
+        assert_eq!(res, host_call_result_huh);
+        assert_eq!(
+            context
+                .get_accumulate_x()
+                .unwrap()
+                .partial_state
+                .designate_service
+                .current(),
+            50
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_non_manager_changes_role_not_held() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let default_fixture = BlessTestFixture::default();
+        let designate_holder = default_fixture.prev_designate;
+        let new_service: ServiceId = 50;
+
+        let mut changing_assign_service =
+            BlessTestFixture::keeping_prev_privileges(designate_holder);
+        changing_assign_service.assign_services[0] = new_service;
+        let mut changing_always_accumulate_services =
+            BlessTestFixture::keeping_prev_privileges(designate_holder);
+        changing_always_accumulate_services
+            .always_accumulate_services
+            .insert(new_service, 1000);
+        let fixtures = [
+            BlessTestFixture {
+                manager: new_service as RegValue,
+                ..BlessTestFixture::keeping_prev_privileges(designate_holder)
+            },
+            BlessTestFixture {
+                registrar: new_service as RegValue,
+                ..BlessTestFixture::keeping_prev_privileges(designate_holder)
+            },
+            changing_assign_service,
+            changing_always_accumulate_services,
+        ];
+        for fixture in fixtures {
+            let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+            assert_eq!(
+                res,
+                BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH)
+            );
             fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bless_accumulate_host_without_privilege() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        // A service that holds no privilege cannot change any of them
+        let fixture = BlessTestFixture {
+            accumulate_host: 1,
+            ..Default::default()
+        };
+        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH)
+        );
+        fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
 
@@ -316,23 +640,35 @@ mod bless_tests {
     async fn test_bless_accumulate_host_not_manager_after_handover() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = BlessTestFixture::default();
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
-            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
-            .build();
         let state_provider = Arc::new(fixture.prepare_state_provider());
         let mut context = fixture
             .prepare_invocation_context(state_provider.clone())
             .await?;
 
         // The first `BLESS` hands over the manager role to `fixture.manager`
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_successful());
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(
+            &fixture.prepare_vm()?,
+            &mut context,
+        )?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+        );
 
-        // The second `BLESS` checks the manager of the partial state, not of the prior state
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_huh());
+        // The second `BLESS` cannot take the manager role back,
+        // since it checks the manager of the partial state, not of the prior state
+        let taking_back_manager = BlessTestFixture {
+            manager: fixture.prev_manager as RegValue,
+            ..Default::default()
+        };
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(
+            &taking_back_manager.prepare_vm()?,
+            &mut context,
+        )?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH)
+        );
         fixture.assert_privileges_blessed(context.get_accumulate_x().unwrap());
         Ok(())
     }
@@ -344,21 +680,14 @@ mod bless_tests {
         // HUH takes precedence over WHO
         let fixture = BlessTestFixture {
             accumulate_host: 1,
-            manager: RegValue::MAX, // Invalid service id
+            manager: INVALID_SERVICE_ID,
             ..Default::default()
         };
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
-            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
-
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_huh());
+        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH)
+        );
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
@@ -367,21 +696,14 @@ mod bless_tests {
     async fn test_bless_invalid_service_id_manager() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = BlessTestFixture {
-            manager: RegValue::MAX, // Invalid service id
+            manager: INVALID_SERVICE_ID,
             ..Default::default()
         };
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
-            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
-
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_who());
+        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::WHO)
+        );
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
@@ -389,23 +711,26 @@ mod bless_tests {
     #[tokio::test]
     async fn test_bless_invalid_service_id_designate() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let fixture = BlessTestFixture {
-            designate: RegValue::MAX, // Invalid service id
-            ..Default::default()
-        };
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
-            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
-
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_who());
-        fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
+        let default_fixture = BlessTestFixture::default();
+        let fixtures = [
+            BlessTestFixture {
+                designate: INVALID_SERVICE_ID,
+                ..Default::default()
+            },
+            // The designate service may hand its role over, so the invalid service id returns WHO
+            BlessTestFixture {
+                designate: INVALID_SERVICE_ID,
+                ..BlessTestFixture::keeping_prev_privileges(default_fixture.prev_designate)
+            },
+        ];
+        for fixture in fixtures {
+            let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+            assert_eq!(
+                res,
+                BlessTestFixture::host_call_result_continue(HostCallReturnCode::WHO)
+            );
+            fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
+        }
         Ok(())
     }
 
@@ -413,21 +738,14 @@ mod bless_tests {
     async fn test_bless_invalid_service_id_registrar() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = BlessTestFixture {
-            registrar: RegValue::MAX, // Invalid service id
+            registrar: INVALID_SERVICE_ID,
             ..Default::default()
         };
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
-            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
-
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_who());
+        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(HostCallReturnCode::WHO)
+        );
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
@@ -442,14 +760,10 @@ mod bless_tests {
         };
         let vm = fixture
             .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
+            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate())?
             .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
 
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(res, BlessTestFixture::host_call_result_panic());
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
@@ -466,14 +780,10 @@ mod bless_tests {
         };
         let vm = fixture
             .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
+            .with_mem_readable_range(fixture.mem_readable_range_assign())?
             .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
 
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(res, BlessTestFixture::host_call_result_panic());
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
@@ -656,7 +966,7 @@ mod assign_tests {
         // Check partial state after host-call
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.auth_queue, fixture.updated_auth_queue);
-        assert!(x.partial_state.assign_services.change_by_bless.is_none());
+        assert!(x.partial_state.assign_services.change_by_manager.is_none());
         assert_eq!(
             x.partial_state
                 .assign_services

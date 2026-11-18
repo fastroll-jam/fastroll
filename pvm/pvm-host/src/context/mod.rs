@@ -7,8 +7,8 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    Balance, CodeHash, CoreIndex, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex,
-    UnsignedGas, MIN_PUBLIC_SERVICE_ID, SERVICE_ACCOUNT_VERSION,
+    Balance, CodeHash, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
+    MIN_PUBLIC_SERVICE_ID, SERVICE_ACCOUNT_VERSION,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::memory::Memory;
@@ -296,7 +296,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         self.deferred_transfers.push(transfer);
     }
 
-    /// Used by `BLESS` host call
+    /// Used by `BLESS` host call of the manager service
     pub fn assign_new_privileged_services(
         &mut self,
         manager_service: ServiceId,
@@ -306,24 +306,47 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
     ) {
         self.partial_state.manager_service = manager_service;
-        self.partial_state.assign_services.change_by_bless = Some(assign_services);
-        self.partial_state.designate_service.change_by_bless = Some(designate_service);
-        self.partial_state.registrar_service.change_by_bless = Some(registrar_service);
+        self.partial_state.assign_services.change_by_manager = Some(assign_services);
+        self.partial_state.designate_service.change_by_manager = Some(designate_service);
+        self.partial_state.registrar_service.change_by_manager = Some(registrar_service);
         self.partial_state.always_accumulate_services = always_accumulate_services;
     }
 
-    /// Used by `ASSIGN` host call
+    /// Used by `BLESS` host call of a service other than the manager, which hands over only the roles it holds.
+    /// Each of `assign_services`, `designate_service` and `registrar_service` that differs from the current partial state is handed over.
+    pub fn hand_over_held_privileged_services(
+        &mut self,
+        assign_services: &AssignServices,
+        designate_service: ServiceId,
+        registrar_service: ServiceId,
+    ) {
+        for (core_index, &assign_service) in assign_services.iter().enumerate() {
+            if assign_service
+                != self
+                    .partial_state
+                    .assign_services
+                    .current_of_core(core_index)
+            {
+                self.assign_new_core_assign_service(core_index, assign_service);
+            }
+        }
+        if designate_service != self.partial_state.designate_service.current() {
+            self.partial_state
+                .designate_service
+                .hand_over_by_self(designate_service);
+        }
+        if registrar_service != self.partial_state.registrar_service.current() {
+            self.partial_state
+                .registrar_service
+                .hand_over_by_self(registrar_service);
+        }
+    }
+
+    /// Used by `ASSIGN` host call, and by `BLESS` host call of an assign service
     pub fn assign_new_core_assign_service(&mut self, core_index: usize, assign_service: ServiceId) {
         self.partial_state
             .assign_services
-            .change_by_self
-            .insert(core_index as CoreIndex, assign_service);
-
-        if let Some(assigners) = self.partial_state.assign_services.change_by_bless.as_mut() {
-            if let Some(assigner) = assigners.get_mut(core_index) {
-                *assigner = assign_service;
-            }
-        }
+            .hand_over_by_self(core_index, assign_service);
     }
 
     /// Used by `ASSIGN` host call
