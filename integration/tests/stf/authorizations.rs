@@ -110,4 +110,12 @@ generate_typed_tests! {
     // Shift left authentications for core 0 pool.
     // Consume authentication for core 1 pool.
     progress_authorizations_3: "progress_authorizations-3.json",
+
+    // Guarantee for core 0. The pool holds the used authorizer twice, with another one in between.
+    // Only the left-most copy is consumed.
+    auth_pool_interleaved_duplicate_1: "auth_pool_interleaved_duplicate-1.json",
+
+    // Guarantee for core 0. Full pool alternating another authorizer with the used one.
+    // Only the left-most copy is consumed.
+    auth_pool_full_alternating_1: "auth_pool_full_alternating-1.json",
 }

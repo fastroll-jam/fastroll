@@ -21,10 +21,12 @@ pub enum SafroleErrorCode {
     bad_ticket_proof,
     /// Invalid ticket attempt value.
     bad_ticket_attempt,
-    /// Reserved.
-    reserved,
+    /// Submitted ticket not retained in the posterior accumulator.
+    useless_ticket,
     /// Found a ticket duplicate.
     duplicate_ticket,
+    /// Any other error.
+    reserved,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]

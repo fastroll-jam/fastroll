@@ -325,4 +325,20 @@ generate_typed_tests! {
     // Tickets accumulator is not full, so the sealing keys fall back to a selection from the smaller set.
     #[cfg(feature = "full")]
     enact_epoch_change_with_set_resize_4: "enact-epoch-change-with-set-resize-4.json",
+
+    // Success
+    // Ticket on epoch change. One of the new keys belongs to the posterior offenders and is zeroed out.
+    tickets_with_new_offender_nulled_1: "tickets-with-new-offender-nulled-1.json",
+
+    // Fail
+    // Same block. Ticket proof against the prior epoch ring commitment.
+    tickets_with_prior_ring_1: "tickets-with-prior-ring-1.json",
+
+    // Fail
+    // Ticket with a full accumulator, above all the accumulated ids, so it would be dropped.
+    ticket_not_retained_1: "ticket-not-retained-1.json",
+
+    // Success
+    // Same ticket. One accumulated id is above the ticket id and is removed to make space for it.
+    ticket_retained_1: "ticket-retained-1.json",
 }

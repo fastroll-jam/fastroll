@@ -17,6 +17,7 @@ pub fn map_error_to_custom_code(e: TransitionError) -> SafroleErrorCode {
             SafroleErrorCode::bad_ticket_attempt
         }
         TransitionError::XtError(XtError::DuplicateTicket) => SafroleErrorCode::duplicate_ticket,
+        TransitionError::XtError(XtError::UselessTickets) => SafroleErrorCode::useless_ticket,
         _ => SafroleErrorCode::reserved,
     }
 }

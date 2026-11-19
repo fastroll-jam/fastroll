@@ -269,4 +269,48 @@ generate_typed_tests! {
     // Same votes count signed by the current set, which is not its supermajority.
     #[cfg(feature = "full")]
     progress_with_verdicts_from_resized_previous_set_2: "progress_with_verdicts_from_resized_previous_set-2.json",
+
+    // Success
+    // One key as a culprit and as a fault in the same block.
+    progress_with_faults_8: "progress_with_faults-8.json",
+
+    // Fail
+    // Culprit relative to a report without any verdict.
+    culprit_not_in_bad_set_1: "culprit_not_in_bad_set-1.json",
+
+    // Success
+    // Culprit relative to a report with a bad verdict from a previous block.
+    culprit_in_prior_bad_set_1: "culprit_in_prior_bad_set-1.json",
+
+    // Fail
+    // Good verdict with one fault, plus a culprit relative to the same report.
+    culprit_on_good_report_1: "culprit_on_good_report-1.json",
+
+    // Fail
+    // Fault voting invalid, relative to a report without any verdict.
+    fault_on_unjudged_report_1: "fault_on_unjudged_report-1.json",
+
+    // Fail
+    // Fault voting invalid, relative to a report with a wonky verdict from a previous block.
+    fault_on_wonky_report_1: "fault_on_wonky_report-1.json",
+
+    // Fail
+    // Fault voting valid, relative to a report without any verdict.
+    fault_on_unjudged_report_2: "fault_on_unjudged_report-2.json",
+
+    // Fail
+    // Fault voting valid, relative to a report with a wonky verdict from a previous block.
+    fault_on_wonky_report_2: "fault_on_wonky_report-2.json",
+
+    // Success
+    // Fault voting invalid, relative to a report with a good verdict from a previous block.
+    fault_on_prior_good_report_1: "fault_on_prior_good_report-1.json",
+
+    // Fail
+    // Fault voting invalid, relative to a report with a bad verdict from a previous block.
+    fault_agrees_with_prior_bad_report_1: "fault_agrees_with_prior_bad_report-1.json",
+
+    // Success
+    // Fault voting valid, relative to a report with a bad verdict from a previous block.
+    fault_on_prior_bad_report_1: "fault_on_prior_bad_report-1.json",
 }
