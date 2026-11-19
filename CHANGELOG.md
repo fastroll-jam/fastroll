@@ -25,6 +25,7 @@ The migration to Graypaper 0.8.0 is in progress. `SPEC_VERSION` stays at 0.7.2 u
 - Apply the disputes extrinsic limits of Graypaper 0.8.0 ([`fc837f62`](https://github.com/fastroll-jam/fastroll/commit/fc837f62))
 - Add the lookup-anchor post state root and anchor slot to the refinement context ([`ec14db04`](https://github.com/fastroll-jam/fastroll/commit/ec14db04))
 - Keep full guarantees in availability assignments ([`8e30ace2`](https://github.com/fastroll-jam/fastroll/commit/8e30ace2))
+- Bound work reports by the work-package limits, a rule added after Graypaper 0.8.0 by [gavofyork/graypaper#563](https://github.com/gavofyork/graypaper/pull/563)
 - Count processed transfers in service statistics ([`09a41740`](https://github.com/fastroll-jam/fastroll/commit/09a41740))
 - Reserve transfer and always-accumulate gas in outer accumulation ([`713503ad`](https://github.com/fastroll-jam/fastroll/commit/713503ad))
 - Restrict `bless` to the manager, and merge assigners per core with `R` ([`83fa089b`](https://github.com/fastroll-jam/fastroll/commit/83fa089b), [`f6947533`](https://github.com/fastroll-jam/fastroll/commit/f6947533))

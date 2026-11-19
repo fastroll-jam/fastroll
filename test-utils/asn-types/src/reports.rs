@@ -33,11 +33,16 @@ pub enum ReportsErrorCode {
     segment_root_lookup_invalid,
     bad_signature,
     work_report_too_big,
-    reserved,
     banned_validator,
+    lookup_anchor_not_recent,
+    reserved,
     missing_work_results,
     bad_anchor_slot,
     bad_erasure_shards,
+    refine_load_too_high,
+    bad_exports_count,
+    bundle_too_big,
+    auth_gas_too_high,
 }
 
 /// Wrapper of `AccountMetadata` including service id.

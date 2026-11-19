@@ -111,11 +111,10 @@ pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 50_000_000;
 /// `W_A`: The maximum size of is-authorized code in octets.
 pub const MAX_IS_AUTHORIZED_CODE_SIZE: usize = 64_000;
 
-/// `W_B`: The maximum size of the concatenated variable-size blobs, extrinsics and imported segments of
-/// a work-package, in octets.
+/// `W_B`: The maximum size of a work-package bundle in octets.
 ///
-/// `W_B` = `W_M` * (`W_G` + 1 + (32 * ceil(log2(`W_T`)))) + 4096 + 1
-pub const MAX_PACKAGE_AND_DATA_SIZE: usize = 13_791_360;
+/// `W_B` = `W_I` + 214 + 32 * `J` + 62 * `I` + 35 * `W_M` + 36 * `T`
+pub const MAX_PACKAGE_BUNDLE_SIZE: usize = 13_904_950;
 
 /// `W_C`: The maximum size of service code in octets.
 pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
@@ -127,6 +126,12 @@ pub const AUDIT_DA_IMPORT_FOOTPRINT: usize = 4_488;
 
 /// `W_G`: The size of a segment in octets.
 pub const SEGMENT_SIZE: usize = 4_104;
+
+/// `W_I`: The maximum size of the input data of a work-package in octets.
+/// The input data is its concatenated variable-size blobs, extrinsics and imported segments.
+///
+/// `W_I` = `W_M` * `W_F` + 4096 + 64 + 64
+pub const MAX_PACKAGE_INPUT_SIZE: usize = 13_791_360;
 
 /// `W_M`: The maximum number of imports in a work-package.
 pub const MAX_IMPORTS_PER_PACKAGE: usize = 3_072;

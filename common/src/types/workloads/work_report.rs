@@ -503,6 +503,16 @@ impl WorkReport {
             .unwrap_or(UnsignedGas::MAX)
     }
 
+    /// Sums the refine gas used of the digests, saturating at `UnsignedGas::MAX` on overflow.
+    pub fn total_refine_gas_used(&self) -> UnsignedGas {
+        self.digests
+            .iter()
+            .try_fold(0u64, |acc, wd| {
+                acc.checked_add(wd.refine_stats.refine_gas_used)
+            })
+            .unwrap_or(UnsignedGas::MAX)
+    }
+
     pub fn extract_exports_manifest(&self) -> ReportedWorkPackage {
         ReportedWorkPackage {
             work_package_hash: self.specs.work_package_hash.clone(),

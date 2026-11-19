@@ -396,4 +396,68 @@ generate_typed_tests! {
     // Guarantors assigned under the permutation of the shrunk set.
     #[cfg(feature = "full")]
     report_with_shrunken_val_set_2: "report_with_shrunken_val_set-2.json",
+
+    // Fail
+    // Context lookup anchor slot is one slot older than the maximum lookup anchor age `L`.
+    lookup_anchor_not_recent_1: "lookup_anchor_not_recent-1.json",
+
+    // Fail
+    // Work report gas of two digests adds up past the 64-bit maximum.
+    work_report_gas_overflow_1: "work_report_gas_overflow-1.json",
+
+    // Success
+    // Two reports. In each report every refine-load sum is at its work-package limit.
+    refine_load_at_report_limits_1: "refine_load_at_report_limits-1.json",
+
+    // Fail
+    // Refine gas of two digests is one above `G_R`.
+    too_high_refine_load_1: "too_high_refine_load-1.json",
+
+    // Fail
+    // Imports of two digests are one above `W_M`.
+    too_high_refine_load_2: "too_high_refine_load-2.json",
+
+    // Fail
+    // Extrinsic count of two digests is one above `T`.
+    too_high_refine_load_3: "too_high_refine_load-3.json",
+
+    // Fail
+    // Extrinsic size of two digests is one above `W_I`.
+    too_high_refine_load_4: "too_high_refine_load-4.json",
+
+    // Fail
+    // Exports of two digests are one above `W_X`.
+    too_high_refine_load_5: "too_high_refine_load-5.json",
+
+    // Fail
+    // Imports at `W_M` in one digest and extrinsic size in the other add up to one above `W_I`.
+    too_high_refine_load_6: "too_high_refine_load-6.json",
+
+    // Fail
+    // Refine gas of two digests adds up past the 64-bit maximum.
+    too_high_refine_load_7: "too_high_refine_load-7.json",
+
+    // Success
+    // Bundle length at `W_B` and authorizer gas used at `G_I`.
+    big_bundle_high_auth_gas_1: "big_bundle_high_auth_gas-1.json",
+
+    // Fail
+    // Bundle length is one above `W_B`.
+    too_big_bundle_1: "too_big_bundle-1.json",
+
+    // Fail
+    // Authorizer gas used is one above `G_I`.
+    too_high_auth_gas_1: "too_high_auth_gas-1.json",
+
+    // Success
+    // The segment count is the sum of the digest exports.
+    exports_count_sums_digests_1: "exports_count_sums_digests-1.json",
+
+    // Fail
+    // Segment count is one below the sum of the digest exports.
+    bad_exports_count_1: "bad_exports_count-1.json",
+
+    // Fail
+    // Segment count is one above the sum of the digest exports.
+    bad_exports_count_2: "bad_exports_count-2.json",
 }

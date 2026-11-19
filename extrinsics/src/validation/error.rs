@@ -161,6 +161,22 @@ pub enum XtError {
     WorkReportOutputSizeLimitExceeded,
     #[error("Work report's total gas allotted for accumulation exceeds its limit")]
     WorkReportTotalGasTooHigh,
+    #[error("Work report's total refine gas used exceeds the work-package limit G_R")]
+    WorkReportRefineGasTooHigh,
+    #[error("Work report's total imports exceed the work-package limit W_M")]
+    WorkReportTooManyImports,
+    #[error("Work report's total exports exceed the work-package limit W_X")]
+    WorkReportTooManyExports,
+    #[error("Work report's segment count is not the total exports of its digests")]
+    WorkReportSegmentCountMismatch,
+    #[error("Work report's total extrinsics exceed the work-package limit T")]
+    WorkReportTooManyExtrinsics,
+    #[error("Work report's total input size exceeds the work-package limit W_I")]
+    WorkReportInputSizeTooLarge,
+    #[error("Work report's bundle length exceeds the work-package bundle limit W_B")]
+    WorkReportBundleTooLarge,
+    #[error("Work report's authorizer gas used exceeds the work-package limit G_I")]
+    WorkReportAuthGasTooHigh,
     #[error("Service account's accumulate gas limit is too low to process work digest")]
     ServiceAccountGasLimitTooLow,
     #[error("Guarantor's Ed25519 public key is in the offenders set. Guarantor: {0}")]
