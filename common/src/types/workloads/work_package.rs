@@ -2,7 +2,7 @@ use crate::{
     constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, CodeHash, Hash32,
     Octets, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash, ACCUMULATION_GAS_PER_CORE,
     AUDIT_DA_IMPORT_FOOTPRINT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, MAX_EXTRINSICS_PER_PACKAGE,
-    MAX_IMPORTS_PER_PACKAGE, MAX_PACKAGE_AND_DATA_SIZE, REFINE_GAS_PER_WORK_PACKAGE,
+    MAX_IMPORTS_PER_PACKAGE, MAX_PACKAGE_INPUT_SIZE, REFINE_GAS_PER_WORK_PACKAGE,
 };
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
@@ -256,8 +256,8 @@ impl WorkPackage {
                 <= MAX_EXTRINSICS_PER_PACKAGE
     }
 
-    /// Validates total size of imported/exported segments and extrinsic data items are under limit.
-    pub fn validate_work_bundle_size(&self) -> bool {
+    /// Validates that the input data of the work package, its blobs, extrinsics and imported segments, fits in `W_I`.
+    pub fn validate_input_size(&self) -> bool {
         let total_data_references_octets = self
             .work_items
             .iter()
@@ -271,7 +271,7 @@ impl WorkPackage {
             })
             .sum::<usize>();
         self.auth_token.len() + self.config_blob.len() + total_data_references_octets
-            <= MAX_PACKAGE_AND_DATA_SIZE
+            <= MAX_PACKAGE_INPUT_SIZE
     }
 
     /// Validates gas limit fields for accumulate/refine invocations.
@@ -280,12 +280,12 @@ impl WorkPackage {
             .iter()
             .map(|wi| wi.accumulate_gas_limit)
             .sum::<UnsignedGas>()
-            < ACCUMULATION_GAS_PER_CORE as UnsignedGas
+            <= ACCUMULATION_GAS_PER_CORE as UnsignedGas
             && self
                 .work_items
                 .iter()
                 .map(|wi| wi.refine_gas_limit)
                 .sum::<UnsignedGas>()
-                < REFINE_GAS_PER_WORK_PACKAGE as UnsignedGas
+                <= REFINE_GAS_PER_WORK_PACKAGE as UnsignedGas
     }
 }

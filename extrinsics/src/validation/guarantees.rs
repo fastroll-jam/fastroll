@@ -8,10 +8,13 @@ use fr_codec::prelude::*;
 use fr_common::{
     workloads::{
         common::RefinementContext,
-        work_report::{ReportedWorkPackage, WorkReport},
+        work_report::{RefineStats, ReportedWorkPackage, WorkReport},
     },
-    CoreIndex, Hash32, TimeslotIndex, ACCUMULATION_GAS_PER_CORE, GUARANTOR_ROTATION_PERIOD,
-    MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    CoreIndex, Hash32, TimeslotIndex, ACCUMULATION_GAS_PER_CORE, AUDIT_DA_IMPORT_FOOTPRINT,
+    GUARANTOR_ROTATION_PERIOD, IS_AUTHORIZED_GAS_PER_WORK_PACKAGE, MAX_EXPORTS_PER_PACKAGE,
+    MAX_EXTRINSICS_PER_PACKAGE, MAX_IMPORTS_PER_PACKAGE, MAX_LOOKUP_ANCHOR_AGE,
+    MAX_PACKAGE_BUNDLE_SIZE, MAX_PACKAGE_INPUT_SIZE, MAX_REPORT_DEPENDENCIES,
+    REFINE_GAS_PER_WORK_PACKAGE, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use fr_crypto::{
     hash,
@@ -41,6 +44,9 @@ use std::{collections::HashSet, sync::Arc};
 ///     one work-report per extrinsic.
 ///   - The `core_index` must be below `|κ'|/3`, the number of active cores.
 ///   - The `erasure_shards` of the availability spec must equal `|κ'|`.
+///   - The values a work-report gives must be within the work-package limits.
+///     The sums of its digests' refine gas, imports, exports, extrinsic count and input size must not exceed `G_R`, `W_M`, `W_X`, `T` and `W_I`.
+///     Its segment count must equal the total exports, its bundle length must not exceed `W_B` and its authorizer gas used must not exceed `G_I`.
 ///   - A new work-report must not be introduced for a core if a previous work-report is still
 ///     pending on that core, unless the pending report has timed out.
 ///   - A new work-report must have its `authorizer_hash` present in the current authorizer pool
@@ -245,6 +251,9 @@ impl GuaranteesXtValidator {
             return Err(XtError::WorkReportTotalGasTooHigh);
         }
 
+        // Check the values of the work report against the work-package limits
+        Self::validate_work_package_limits(work_report)?;
+
         // Check accumulate gas limit of each work digest
         for digest in &work_report.digests {
             let Some(target_service_account_metadata) = self
@@ -348,6 +357,57 @@ impl GuaranteesXtValidator {
 
         // Validate work digests' code hashes
         self.validate_work_digests(work_report).await?;
+        Ok(())
+    }
+
+    /// Checks that the values a work report gives are within the work-package limits.
+    ///
+    /// The work-package is not on-chain, so only the refine load of the digests, the bundle length and the authorizer gas used are bounded.
+    /// The input size counts only the extrinsic sizes and imports, since the report gives no payload or authorizer data sizes.
+    fn validate_work_package_limits(work_report: &WorkReport) -> Result<(), XtError> {
+        let total = |refine_stats_value: fn(&RefineStats) -> usize| -> usize {
+            work_report
+                .digests
+                .iter()
+                .map(|digest| refine_stats_value(&digest.refine_stats))
+                .sum()
+        };
+
+        if work_report.total_refine_gas_used() > REFINE_GAS_PER_WORK_PACKAGE {
+            return Err(XtError::WorkReportRefineGasTooHigh);
+        }
+
+        if total(|stats| stats.imports_count as usize) > MAX_IMPORTS_PER_PACKAGE {
+            return Err(XtError::WorkReportTooManyImports);
+        }
+
+        let exports_count = total(|stats| stats.exports_count as usize);
+        if exports_count > MAX_EXPORTS_PER_PACKAGE {
+            return Err(XtError::WorkReportTooManyExports);
+        }
+        if work_report.specs.segment_count as usize != exports_count {
+            return Err(XtError::WorkReportSegmentCountMismatch);
+        }
+
+        if total(|stats| stats.extrinsics_count as usize) > MAX_EXTRINSICS_PER_PACKAGE {
+            return Err(XtError::WorkReportTooManyExtrinsics);
+        }
+
+        let input_size = total(|stats| {
+            stats.extrinsics_octets as usize
+                + stats.imports_count as usize * AUDIT_DA_IMPORT_FOOTPRINT
+        });
+        if input_size > MAX_PACKAGE_INPUT_SIZE {
+            return Err(XtError::WorkReportInputSizeTooLarge);
+        }
+
+        if work_report.specs.work_bundle_length as usize > MAX_PACKAGE_BUNDLE_SIZE {
+            return Err(XtError::WorkReportBundleTooLarge);
+        }
+
+        if work_report.auth_gas_used > IS_AUTHORIZED_GAS_PER_WORK_PACKAGE {
+            return Err(XtError::WorkReportAuthGasTooHigh);
+        }
         Ok(())
     }
 
@@ -665,5 +725,177 @@ impl GuaranteesXtValidator {
         } else {
             GuarantorAssignment::previous_guarantor_assignments(self.state_manager.as_ref()).await?
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fr_common::workloads::work_report::{WorkDigest, WorkDigests, WorkExecutionResult};
+    use std::error::Error;
+
+    /// Builds a work report whose values are all at the work-package limits.
+    ///
+    /// Each refine load is split across two digests, so the checks must sum them.
+    /// The imports take `W_M * W_F` of the input size and the extrinsic size takes the rest of `W_I`.
+    fn work_report_at_limits() -> Result<WorkReport, Box<dyn Error>> {
+        let first_refine_stats = RefineStats {
+            refine_gas_used: REFINE_GAS_PER_WORK_PACKAGE / 2,
+            imports_count: MAX_IMPORTS_PER_PACKAGE as u16,
+            extrinsics_count: (MAX_EXTRINSICS_PER_PACKAGE / 2) as u16,
+            extrinsics_octets: 0,
+            exports_count: (MAX_EXPORTS_PER_PACKAGE / 2) as u16,
+        };
+        let second_refine_stats = RefineStats {
+            refine_gas_used: REFINE_GAS_PER_WORK_PACKAGE - REFINE_GAS_PER_WORK_PACKAGE / 2,
+            imports_count: 0,
+            extrinsics_count: (MAX_EXTRINSICS_PER_PACKAGE - MAX_EXTRINSICS_PER_PACKAGE / 2) as u16,
+            extrinsics_octets: (MAX_PACKAGE_INPUT_SIZE
+                - MAX_IMPORTS_PER_PACKAGE * AUDIT_DA_IMPORT_FOOTPRINT)
+                as u32,
+            exports_count: (MAX_EXPORTS_PER_PACKAGE - MAX_EXPORTS_PER_PACKAGE / 2) as u16,
+        };
+        let digests = [first_refine_stats, second_refine_stats]
+            .into_iter()
+            .map(|refine_stats| WorkDigest {
+                service_id: 0,
+                service_code_hash: Default::default(),
+                payload_hash: Default::default(),
+                accumulate_gas_limit: 0,
+                refine_result: WorkExecutionResult::ok_empty(),
+                refine_stats,
+            })
+            .collect::<Vec<_>>();
+
+        let mut work_report = WorkReport {
+            auth_gas_used: IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
+            digests: WorkDigests::try_from(digests)?,
+            ..Default::default()
+        };
+        work_report.specs.segment_count = MAX_EXPORTS_PER_PACKAGE as u16;
+        work_report.specs.work_bundle_length = MAX_PACKAGE_BUNDLE_SIZE as u32;
+        Ok(work_report)
+    }
+
+    mod validate_work_package_limits_tests {
+        use super::*;
+        use fr_common::UnsignedGas;
+        use std::mem::discriminant;
+
+        /// A case of `test_work_report_beyond_a_limit_is_rejected`, given as a description, the change that takes the work report beyond one limit and the expected error.
+        type BeyondLimitCase = (&'static str, fn(&mut WorkReport), XtError);
+
+        #[test]
+        fn test_work_report_at_limits_is_valid() -> Result<(), Box<dyn Error>> {
+            GuaranteesXtValidator::validate_work_package_limits(&work_report_at_limits()?)?;
+            Ok(())
+        }
+
+        #[test]
+        fn test_work_report_beyond_a_limit_is_rejected() -> Result<(), Box<dyn Error>> {
+            let cases: [BeyondLimitCase; 10] = [
+                (
+                    "refine gas one above G_R",
+                    |report| report.digests[1].refine_stats.refine_gas_used += 1,
+                    XtError::WorkReportRefineGasTooHigh,
+                ),
+                (
+                    "refine gas past the 64-bit maximum",
+                    |report| report.digests[0].refine_stats.refine_gas_used = UnsignedGas::MAX,
+                    XtError::WorkReportRefineGasTooHigh,
+                ),
+                (
+                    "imports one above W_M",
+                    |report| report.digests[1].refine_stats.imports_count += 1,
+                    XtError::WorkReportTooManyImports,
+                ),
+                (
+                    "exports one above W_X",
+                    |report| {
+                        report.digests[1].refine_stats.exports_count += 1;
+                        report.specs.segment_count += 1;
+                    },
+                    XtError::WorkReportTooManyExports,
+                ),
+                (
+                    "segment count one below the total exports",
+                    |report| report.specs.segment_count -= 1,
+                    XtError::WorkReportSegmentCountMismatch,
+                ),
+                (
+                    "segment count one above the total exports",
+                    |report| report.specs.segment_count += 1,
+                    XtError::WorkReportSegmentCountMismatch,
+                ),
+                (
+                    "extrinsics one above T",
+                    |report| report.digests[1].refine_stats.extrinsics_count += 1,
+                    XtError::WorkReportTooManyExtrinsics,
+                ),
+                (
+                    "input size one above W_I",
+                    |report| report.digests[1].refine_stats.extrinsics_octets += 1,
+                    XtError::WorkReportInputSizeTooLarge,
+                ),
+                (
+                    "bundle length one above W_B",
+                    |report| report.specs.work_bundle_length += 1,
+                    XtError::WorkReportBundleTooLarge,
+                ),
+                (
+                    "authorizer gas one above G_I",
+                    |report| report.auth_gas_used += 1,
+                    XtError::WorkReportAuthGasTooHigh,
+                ),
+            ];
+
+            for (case, exceed_limit, expected_error) in cases {
+                let mut work_report = work_report_at_limits()?;
+                exceed_limit(&mut work_report);
+                let result = GuaranteesXtValidator::validate_work_package_limits(&work_report);
+                assert!(
+                    matches!(&result, Err(error) if discriminant(error) == discriminant(&expected_error)),
+                    "{case}: expected {expected_error:?}, got {result:?}"
+                );
+            }
+            Ok(())
+        }
+    }
+
+    mod validate_work_report_tests {
+        use super::*;
+        use fr_state::test_utils::init_db_and_manager;
+        use tempfile::tempdir;
+
+        #[tokio::test]
+        async fn test_work_report_beyond_a_limit_is_rejected() -> Result<(), Box<dyn Error>> {
+            // The work-package limits are checked before any state is read, so an empty state suffices.
+            let temp_dir = tempdir()?;
+            let (header_db, state_manager) = init_db_and_manager(temp_dir.path().join("db"));
+            let validator =
+                GuaranteesXtValidator::new(Arc::new(state_manager), Arc::new(header_db), false);
+            let mut work_report = work_report_at_limits()?;
+            work_report.specs.work_bundle_length += 1;
+
+            let result = validator
+                .validate_work_report(
+                    &work_report,
+                    &[],
+                    &PendingReports::default(),
+                    &PendingReports::default(),
+                    &AuthPool::default(),
+                    &BlockHistory::default(),
+                    &AccumulateQueue::default(),
+                    &AccumulateHistory::default(),
+                    &HashSet::new(),
+                    0,
+                )
+                .await;
+            assert!(
+                matches!(result, Err(XtError::WorkReportBundleTooLarge)),
+                "{result:?}"
+            );
+            Ok(())
+        }
     }
 }

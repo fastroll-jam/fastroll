@@ -88,6 +88,22 @@ pub fn map_error_to_custom_code(e: TransitionError) -> ReportsErrorCode {
         TransitionError::XtError(XtError::WorkReportWithoutDigests) => {
             ReportsErrorCode::missing_work_results
         }
+        TransitionError::XtError(XtError::WorkReportRefineGasTooHigh)
+        | TransitionError::XtError(XtError::WorkReportTooManyImports)
+        | TransitionError::XtError(XtError::WorkReportTooManyExports)
+        | TransitionError::XtError(XtError::WorkReportTooManyExtrinsics)
+        | TransitionError::XtError(XtError::WorkReportInputSizeTooLarge) => {
+            ReportsErrorCode::refine_load_too_high
+        }
+        TransitionError::XtError(XtError::WorkReportSegmentCountMismatch) => {
+            ReportsErrorCode::bad_exports_count
+        }
+        TransitionError::XtError(XtError::WorkReportBundleTooLarge) => {
+            ReportsErrorCode::bundle_too_big
+        }
+        TransitionError::XtError(XtError::WorkReportAuthGasTooHigh) => {
+            ReportsErrorCode::auth_gas_too_high
+        }
         _ => ReportsErrorCode::reserved,
     }
 }

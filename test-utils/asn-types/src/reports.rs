@@ -38,6 +38,10 @@ pub enum ReportsErrorCode {
     missing_work_results,
     bad_anchor_slot,
     bad_erasure_shards,
+    refine_load_too_high,
+    bad_exports_count,
+    bundle_too_big,
+    auth_gas_too_high,
 }
 
 /// Wrapper of `AccountMetadata` including service id.
