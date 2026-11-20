@@ -1382,23 +1382,12 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
         service_id: ServiceId,
         amount: Balance,
     ) -> Result<(), PartialStateError> {
-        let account_metadata = self
-            .accounts_sandbox
-            .get_mut_account_metadata(state_provider.clone(), service_id)
-            .await?
-            .ok_or(PartialStateError::AccumulatorAccountNotInitialized(
-                service_id,
-            ))?;
-
-        let subtracted_amount = account_metadata
-            .balance
-            .checked_sub(amount)
-            .ok_or(PartialStateError::AccountBalanceUnderflow(service_id))?;
-        account_metadata.balance = subtracted_amount;
-        self.accounts_sandbox
-            .mark_account_metadata_updated(state_provider, service_id)
-            .await?;
-        Ok(())
+        self.update_account_balance(state_provider, service_id, |balance| {
+            balance
+                .checked_sub(amount)
+                .ok_or(PartialStateError::AccountBalanceUnderflow(service_id))
+        })
+        .await
     }
 
     pub async fn add_account_balance(
@@ -1406,6 +1395,36 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
         state_provider: Arc<S>,
         service_id: ServiceId,
         amount: Balance,
+    ) -> Result<(), PartialStateError> {
+        self.update_account_balance(state_provider, service_id, |balance| {
+            balance
+                .checked_add(amount)
+                .ok_or(PartialStateError::AccountBalanceOverflow(service_id))
+        })
+        .await
+    }
+
+    /// Adds `amount` to the balance of `service_id`, capping it at `2^64-1` instead of failing.
+    ///
+    /// Note: GP gives no balance when the deferred transfers received in one accumulation take it above `2^64-1`.
+    pub async fn saturating_add_account_balance(
+        &mut self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+        amount: Balance,
+    ) -> Result<(), PartialStateError> {
+        self.update_account_balance(state_provider, service_id, |balance| {
+            Ok(balance.saturating_add(amount))
+        })
+        .await
+    }
+
+    /// Replaces the balance of `service_id` with the result of `next_balance` and marks its metadata updated.
+    async fn update_account_balance(
+        &mut self,
+        state_provider: Arc<S>,
+        service_id: ServiceId,
+        next_balance: impl FnOnce(Balance) -> Result<Balance, PartialStateError>,
     ) -> Result<(), PartialStateError> {
         let account_metadata = self
             .accounts_sandbox
@@ -1415,11 +1434,7 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
                 service_id,
             ))?;
 
-        let added_amount = account_metadata
-            .balance
-            .checked_add(amount)
-            .ok_or(PartialStateError::AccountBalanceOverflow(service_id))?;
-        account_metadata.balance = added_amount;
+        account_metadata.balance = next_balance(account_metadata.balance)?;
         self.accounts_sandbox
             .mark_account_metadata_updated(state_provider, service_id)
             .await?;
@@ -1442,6 +1457,7 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::host_functions::test_utils::MockStateManager;
     use std::error::Error;
 
     /// Builds assigners with consecutive service ids from `first_service_id`, e.g. `[10, 11, ...]`.
@@ -1572,6 +1588,56 @@ mod tests {
 
         assert_eq!(manager_result.current(), 30);
         assert_eq!(merge_and_confirm(original, &[&manager_result]), 30);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_saturating_add_account_balance() -> Result<(), Box<dyn Error>> {
+        let service_id = 1;
+        let state_provider = Arc::new(
+            MockStateManager::builder()
+                .with_empty_account(service_id)
+                .with_balance(service_id, Balance::MAX - 10),
+        );
+        let mut partial_state = AccumulatePartialState::default();
+
+        partial_state
+            .saturating_add_account_balance(state_provider.clone(), service_id, 20)
+            .await?;
+
+        let balance = partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_provider, service_id)
+            .await?
+            .map(|metadata| metadata.balance);
+        assert_eq!(balance, Some(Balance::MAX));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_add_account_balance_overflow() -> Result<(), Box<dyn Error>> {
+        let service_id = 1;
+        let state_provider = Arc::new(
+            MockStateManager::builder()
+                .with_empty_account(service_id)
+                .with_balance(service_id, Balance::MAX - 10),
+        );
+        let mut partial_state = AccumulatePartialState::default();
+
+        let result = partial_state
+            .add_account_balance(state_provider.clone(), service_id, 20)
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(PartialStateError::AccountBalanceOverflow(id)) if id == service_id
+        ));
+        let balance = partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_provider, service_id)
+            .await?
+            .map(|metadata| metadata.balance);
+        assert_eq!(balance, Some(Balance::MAX - 10));
         Ok(())
     }
 }

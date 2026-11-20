@@ -92,6 +92,7 @@ impl JamEncode for AccumulateInput {
 #[derive(Clone, Default)]
 pub struct AccumulateInputs {
     inputs: Vec<AccumulateInput>,
+    /// Sum of the deferred transfer amounts, capped at `2^64-1` since the receiving balance saturates there
     deferred_transfers_amount: Balance,
 }
 
@@ -100,7 +101,10 @@ impl AccumulateInputs {
         deferred_transfers: Vec<DeferredTransfer>,
         operands: Vec<AccumulateOperand>,
     ) -> Self {
-        let deferred_transfers_amount = deferred_transfers.iter().map(|t| t.amount).sum();
+        let deferred_transfers_amount =
+            deferred_transfers.iter().fold(0, |sum: Balance, transfer| {
+                sum.saturating_add(transfer.amount)
+            });
         Self {
             inputs: deferred_transfers
                 .into_iter()
@@ -166,4 +170,26 @@ pub struct RefineInvokeArgs {
     /// A mapping form `ExtrinsicInfo` to its corresponding extrinsic data blob.
     /// This is expected to be known by guarantors.
     pub extrinsic_data_map: ExtrinsicDataMap,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error;
+
+    #[test]
+    fn test_deferred_transfers_amount_saturates() -> Result<(), Box<dyn Error>> {
+        let transfer_of = |amount| DeferredTransfer {
+            from: 1,
+            to: 0,
+            amount,
+            memo: TransferMemo::default(),
+            gas_limit: 0,
+        };
+        let inputs =
+            AccumulateInputs::new(vec![transfer_of(Balance::MAX - 1), transfer_of(5)], vec![]);
+
+        assert_eq!(inputs.deferred_transfers_amount(), Balance::MAX);
+        Ok(())
+    }
 }

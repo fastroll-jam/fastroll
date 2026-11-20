@@ -28,6 +28,7 @@ The migration to Graypaper 0.8.0 is in progress. `SPEC_VERSION` stays at 0.7.2 u
 - Bound work reports by the work-package limits, a rule added after Graypaper 0.8.0 by [gavofyork/graypaper#563](https://github.com/gavofyork/graypaper/pull/563)
 - Count processed transfers in service statistics ([`09a41740`](https://github.com/fastroll-jam/fastroll/commit/09a41740))
 - Reserve transfer and always-accumulate gas in outer accumulation ([`713503ad`](https://github.com/fastroll-jam/fastroll/commit/713503ad))
+- Saturate balances at `2^64-1` on incoming deferred transfers, a rule of the Graypaper 0.8.0 fuzz campaign that no Graypaper version defines ([jam-conformance/jam-fuzzing#212](https://github.com/jam-conformance/jam-fuzzing/pull/212))
 - Restrict `bless` to the manager, and merge assigners per core with `R` ([`83fa089b`](https://github.com/fastroll-jam/fastroll/commit/83fa089b), [`f6947533`](https://github.com/fastroll-jam/fastroll/commit/f6947533))
 - Let privilege holders hand over their role via `bless`, a rule added after Graypaper 0.8.0 by [gavofyork/graypaper#558](https://github.com/gavofyork/graypaper/pull/558) ([#375](https://github.com/fastroll-jam/fastroll/pull/375))
 - Return `HUH` for preimage sizes of `2^32` or more ([`34869a40`](https://github.com/fastroll-jam/fastroll/commit/34869a40))

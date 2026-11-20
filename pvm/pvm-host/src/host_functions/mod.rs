@@ -9,7 +9,7 @@ pub mod debug;
 pub mod general;
 pub mod refine;
 #[cfg(test)]
-mod test_utils;
+pub(crate) mod test_utils;
 
 #[repr(u64)]
 #[derive(Debug)]
