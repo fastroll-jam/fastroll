@@ -8,6 +8,9 @@ pub const MAX_SKIP_DISTANCE: usize = 24;
 /// Maximum length of a single instruction in octets.
 pub const MAX_INST_BLOB_LENGTH: usize = 16;
 
+/// Maximum size `z` of a dynamic jump table entry in a PVM program blob, in octets.
+pub const MAX_JUMP_TABLE_ENTRY_SIZE: usize = 4;
+
 /// Base gas charge for host function execution.
 pub const HOSTCALL_BASE_GAS_CHARGE: UnsignedGas = 10;
 
@@ -29,8 +32,14 @@ pub const MAX_INNER_PVM_INSTANCES: usize = 63;
 /// `Z_A`: The PVM dynamic address alignment factor.
 pub const JUMP_ALIGNMENT: usize = 2;
 
+/// `Z_C`: The maximum size of the instruction data `c` of a PVM program blob, in octets.
+pub const MAX_INSTRUCTION_DATA_SIZE: usize = 1 << 25;
+
 /// `Z_I`: The standard PVM program initialization input data size in octets.
 pub const INIT_INPUT_SIZE: usize = 1 << 24;
+
+/// `Z_J`: The maximum number of entries in the dynamic jump table `j` of a PVM program blob.
+pub const MAX_JUMP_TABLE_ENTRY_COUNT: usize = 1 << 24;
 
 /// `Z_P`: PVM memory page size.
 pub const PAGE_SIZE: usize = 1 << 12;
