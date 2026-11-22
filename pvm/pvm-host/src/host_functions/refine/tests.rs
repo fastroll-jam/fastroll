@@ -29,19 +29,22 @@ mod machine_tests {
 
     impl Default for MachineTestFixture {
         fn default() -> Self {
-            let program_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
-            let program = vec![0, 0, 1, 0, 1];
-            let mem_readable_range = program_offset..program_offset + program.len() as MemAddress;
-            Self {
-                program_offset,
-                program,
-                initial_pc: 0,
-                mem_readable_range,
-            }
+            Self::new(vec![0, 0, 1, 0, 1], 0)
         }
     }
 
     impl MachineTestFixture {
+        fn new(program: Vec<u8>, initial_pc: RegValue) -> Self {
+            let program_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
+            let mem_readable_range = program_offset..program_offset + program.len() as MemAddress;
+            Self {
+                program_offset,
+                program,
+                initial_pc,
+                mem_readable_range,
+            }
+        }
+
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_gas_counter(100)
@@ -68,6 +71,18 @@ mod machine_tests {
                 vm_change: HostCallVMStateChange {
                     gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                     r7_write: Some(inner_pvm_id as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
                 },
@@ -180,6 +195,71 @@ mod machine_tests {
         // Check inner VMs after host-call
         let x = context.get_refine_x().unwrap();
         assert_eq!(x.pvm_instances.len(), MAX_INNER_PVM_INSTANCES);
+        Ok(())
+    }
+
+    #[test]
+    fn test_machine_huh_on_initial_pc_without_instruction() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        // The single `trap` is at 0, so 1 is past the instruction data
+        let fixture = MachineTestFixture::new(vec![0, 0, 1, 0, 1], 1);
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let mut context = fixture.prepare_invocation_context(0);
+
+        let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
+        assert_eq!(res, MachineTestFixture::host_call_result_huh());
+        assert!(context.get_refine_x().unwrap().pvm_instances.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_machine_huh_on_invalid_instruction_sequence() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        // A single `unlikely`, which does not end a basic block
+        let fixture = MachineTestFixture::new(vec![0, 0, 1, 2, 1], 0);
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let mut context = fixture.prepare_invocation_context(0);
+
+        let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
+        assert_eq!(res, MachineTestFixture::host_call_result_huh());
+        assert!(context.get_refine_x().unwrap().pvm_instances.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_machine_huh_on_initial_pc_at_argument_octet() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        // `trap` with an argument octet, so index 1 is inside `c` but not an opcode
+        let fixture = MachineTestFixture::new(vec![0, 0, 2, 0, 0, 1], 1);
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let mut context = fixture.prepare_invocation_context(0);
+
+        let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
+        assert_eq!(res, MachineTestFixture::host_call_result_huh());
+        Ok(())
+    }
+
+    #[test]
+    fn test_machine_full_precedes_huh() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = MachineTestFixture::new(vec![0, 0, 1, 0, 1], 1);
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES);
+
+        let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
+        assert_eq!(res, MachineTestFixture::host_call_result_full());
         Ok(())
     }
 }

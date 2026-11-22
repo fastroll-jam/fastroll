@@ -209,14 +209,25 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
 
         // --- Check Program Format (Err: HUH)
 
-        // Validate the program blob can be `deblob`ed properly
-        if ProgramLoader::deblob_program_code(&program).is_err() {
+        // `deblob(p, i)` validates the program blob and the initial pc `i`
+        let initial_pc = vm.read_reg(9);
+        let is_valid_program = ProgramLoader::deblob_program_code(&program).is_ok_and(
+            |(instruction_data, opcode_bitmask, _)| {
+                usize::try_from(initial_pc).is_ok_and(|initial_pc| {
+                    ProgramLoader::is_valid_instruction_start(
+                        &instruction_data,
+                        &opcode_bitmask,
+                        initial_pc,
+                    )
+                })
+            },
+        );
+        if !is_valid_program {
             continue_huh!()
         }
 
         // --- OK
 
-        let initial_pc = vm.read_reg(9);
         let inner_vm = InnerPVM::new(program, initial_pc);
         let inner_vm_id = x.add_pvm_instance(inner_vm); // n
 

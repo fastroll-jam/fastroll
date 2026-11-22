@@ -145,9 +145,10 @@ pub enum Opcode {
     MIN_U = 230,
 }
 
-impl From<u8> for Opcode {
-    fn from(value: u8) -> Self {
-        match value {
+impl Opcode {
+    /// Returns the opcode of an octet, or `None` outside the valid opcodes `U`.
+    pub fn from_u8(value: u8) -> Option<Self> {
+        let opcode = match value {
             0 => Opcode::TRAP,
             1 => Opcode::FALLTHROUGH,
             2 => Opcode::UNLIKELY,
@@ -287,15 +288,9 @@ impl From<u8> for Opcode {
             228 => Opcode::MAX_U,
             229 => Opcode::MIN,
             230 => Opcode::MIN_U,
-            _ => Opcode::TRAP, // Unknown opcode is interpreted as TRAP
-        }
-    }
-}
-
-impl Opcode {
-    #[inline(always)]
-    pub fn from_u8(value: u8) -> Self {
-        Self::from(value)
+            _ => return None,
+        };
+        Some(opcode)
     }
 
     #[inline(always)]

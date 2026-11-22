@@ -36,11 +36,9 @@ impl ProgramState {
         self.instructions
             .iter()
             .zip(self.opcode_bitmask.iter())
-            .for_each(|(byte, opcode)| {
-                if *opcode {
-                    tracing::trace!("Op: {:?}", Opcode::from_u8(*byte));
-                }
-            })
+            .filter(|(_, is_opcode)| **is_opcode)
+            .filter_map(|(byte, _)| Opcode::from_u8(*byte))
+            .for_each(|opcode| tracing::trace!("Op: {opcode:?}"))
     }
 
     pub fn skip_distance(&self, pc: usize) -> Option<usize> {
