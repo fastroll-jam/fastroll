@@ -150,7 +150,7 @@ impl ProgramLoader {
     }
 
     /// Checks `v_inst` of the GP, whether `index` (0-based, in octets) is the opcode of an instruction with a valid opcode.
-    pub fn is_valid_instruction_start(
+    fn is_valid_instruction_start(
         instruction_data: &[u8],
         opcode_bitmask: &OpcodeBitmask,
         index: usize,

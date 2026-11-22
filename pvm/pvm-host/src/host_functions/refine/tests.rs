@@ -57,12 +57,13 @@ mod machine_tests {
         fn prepare_invocation_context(
             &self,
             existing_inner_pvm_count: usize,
-        ) -> InvocationContext<MockStateManager> {
-            let existing_inner_pvms =
-                vec![InnerPVM::new(self.program.clone(), 0); existing_inner_pvm_count];
-            InvocationContextBuilder::refine_context_builder()
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            let existing_inner_pvms = (0..existing_inner_pvm_count)
+                .map(|_| InnerPVM::load(&self.program, 0))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(InvocationContextBuilder::refine_context_builder()
                 .with_inner_pvm_instances(existing_inner_pvms)
-                .build()
+                .build())
         }
 
         fn host_call_result_successful(inner_pvm_id: usize) -> HostCallResult {
@@ -110,7 +111,7 @@ mod machine_tests {
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range.clone())?
             .build();
-        let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES - 1);
+        let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES - 1)?;
 
         // Check host-call result
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
@@ -124,7 +125,8 @@ mod machine_tests {
         let x = context.get_refine_x().unwrap();
         assert_eq!(x.pvm_instances.len(), MAX_INNER_PVM_INSTANCES);
         let new_inner_pvm = x.pvm_instances.get(&new_inner_pvm_id).unwrap();
-        assert_eq!(new_inner_pvm.program_code, fixture.program);
+        // The fixture program is a single `trap`
+        assert_eq!(new_inner_pvm.program_state.instructions, vec![0]);
         assert_eq!(new_inner_pvm.pc, fixture.initial_pc);
         Ok(())
     }
@@ -138,7 +140,7 @@ mod machine_tests {
             .with_mem_readable_range(fixture.mem_readable_range.clone())?
             .build();
         // Inner VMs of ids 0, 1, 2 and 3
-        let mut context = fixture.prepare_invocation_context(4);
+        let mut context = fixture.prepare_invocation_context(4)?;
 
         // Free ids 2 and 0, in that order
         for expunged_inner_pvm_id in [2, 0] {
@@ -169,7 +171,7 @@ mod machine_tests {
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range.clone())?
             .build();
-        let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES);
+        let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES)?;
 
         // Check host-call result
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
@@ -186,7 +188,7 @@ mod machine_tests {
         setup_tracing();
         let fixture = MachineTestFixture::default();
         let vm = fixture.prepare_vm_builder()?.build();
-        let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES);
+        let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES)?;
 
         // Check host-call result
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
@@ -207,7 +209,7 @@ mod machine_tests {
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range.clone())?
             .build();
-        let mut context = fixture.prepare_invocation_context(0);
+        let mut context = fixture.prepare_invocation_context(0)?;
 
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
         assert_eq!(res, MachineTestFixture::host_call_result_huh());
@@ -224,7 +226,7 @@ mod machine_tests {
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range.clone())?
             .build();
-        let mut context = fixture.prepare_invocation_context(0);
+        let mut context = fixture.prepare_invocation_context(0)?;
 
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
         assert_eq!(res, MachineTestFixture::host_call_result_huh());
@@ -241,7 +243,7 @@ mod machine_tests {
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range.clone())?
             .build();
-        let mut context = fixture.prepare_invocation_context(0);
+        let mut context = fixture.prepare_invocation_context(0)?;
 
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
         assert_eq!(res, MachineTestFixture::host_call_result_huh());
@@ -256,7 +258,7 @@ mod machine_tests {
             .prepare_vm_builder()?
             .with_mem_readable_range(fixture.mem_readable_range.clone())?
             .build();
-        let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES);
+        let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES)?;
 
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
         assert_eq!(res, MachineTestFixture::host_call_result_full());
@@ -268,10 +270,7 @@ mod invoke_tests {
     use super::*;
     use crate::host_functions::InnerPVMResultConstant;
     use fr_common::UnsignedGas;
-    use fr_pvm_core::{
-        program::{loader::ProgramLoader, types::program_state::ProgramState},
-        state::memory::{AccessType, Memory},
-    };
+    use fr_pvm_core::state::memory::{AccessType, Memory};
 
     /// Offset of the 112-octet `invoke` argument, holding the encoded gas limit and registers
     const INVOKE_ARGUMENT_OFFSET: MemAddress = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
@@ -288,14 +287,13 @@ mod invoke_tests {
     const LOAD_THEN_TRAP: [u8; 11] = [0, 0, 7, 52, 0, 0, 0, 2, 0, 0, 0b1000001];
 
     fn inner_pvm(program_code: &[u8]) -> Result<InnerPVM, Box<dyn Error>> {
-        Ok(InnerPVM::new(program_code.to_vec(), 0))
+        Ok(InnerPVM::load(program_code, 0)?)
     }
 
     /// Returns the gas cost of the block that starts at 0.
     fn first_block_gas_cost(program_code: &[u8]) -> Result<UnsignedGas, Box<dyn Error>> {
-        let mut program_state = ProgramState::default();
-        ProgramLoader::load_program(program_code, &mut program_state)?;
-        Ok(program_state
+        Ok(inner_pvm(program_code)?
+            .program_state
             .basic_block_gas_cost_at(0)
             .ok_or("no block at 0")?)
     }

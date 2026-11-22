@@ -15,7 +15,6 @@ use fr_common::{
 };
 use fr_pvm_core::{
     interpreter::Interpreter,
-    program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
         memory::AccessType,
         state_change::HostCallVMStateChange,
@@ -211,24 +210,12 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
 
         // `deblob(p, i)` validates the program blob and the initial pc `i`
         let initial_pc = vm.read_reg(9);
-        let is_valid_program = ProgramLoader::deblob_program_code(&program).is_ok_and(
-            |(instruction_data, opcode_bitmask, _)| {
-                usize::try_from(initial_pc).is_ok_and(|initial_pc| {
-                    ProgramLoader::is_valid_instruction_start(
-                        &instruction_data,
-                        &opcode_bitmask,
-                        initial_pc,
-                    )
-                })
-            },
-        );
-        if !is_valid_program {
+        let Ok(inner_vm) = InnerPVM::load(&program, initial_pc) else {
             continue_huh!()
-        }
+        };
 
         // --- OK
 
-        let inner_vm = InnerPVM::new(program, initial_pc);
         let inner_vm_id = x.add_pvm_instance(inner_vm); // n
 
         tracing::debug!("MACHINE instance_id={inner_vm_id}");
@@ -464,7 +451,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
 
         // --- PVM Invocation
 
-        // Construct a new `VMState` and `ProgramState` for the general invocation function.
+        // Construct a new `VMState` for the general invocation function.
         let mut inner_vm_state_copy = VMState {
             regs,
             memory: inner_vm_mut.memory.clone(),
@@ -475,10 +462,8 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             is_basic_block_gas_charged: inner_vm_mut.is_basic_block_gas_charged,
         };
 
-        // Load program and invoke the PVM.
-        let inner_vm_program_code = &inner_vm_mut.program_code;
-        let mut inner_vm_program_state = ProgramState::default();
-        ProgramLoader::load_program(inner_vm_program_code, &mut inner_vm_program_state)?;
+        // Invoke the PVM on the program loaded by `machine`
+        let inner_vm_program_state = inner_vm_mut.program_state.clone();
         let inner_vm_exit_reason =
             Interpreter::invoke_general(&mut inner_vm_state_copy, &inner_vm_program_state)?
                 .exit_reason;
