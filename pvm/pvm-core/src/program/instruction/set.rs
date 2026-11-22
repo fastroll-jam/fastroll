@@ -2337,12 +2337,9 @@ impl InstructionSet {
 mod jump_tests {
     use crate::{
         interpreter::Interpreter,
-        program::{
-            instruction::opcode::Opcode, loader::ProgramLoader, types::program_state::ProgramState,
-        },
+        program::{instruction::opcode::Opcode, loader::test_program_blobs::load_program_state},
         state::vm_state::VMState,
     };
-    use fr_codec::prelude::*;
     use fr_pvm_types::exit_reason::ExitReason;
     use std::error::Error;
 
@@ -2351,15 +2348,7 @@ mod jump_tests {
         instruction_data: &[u8],
         opcode_bitmask: &[bool],
     ) -> Result<(ExitReason, u64), Box<dyn Error>> {
-        let mut blob = 0usize.encode()?;
-        blob.extend(0u8.encode_fixed(1)?);
-        blob.extend(instruction_data.len().encode()?);
-        blob.extend(instruction_data);
-        let opcode_bitmask: bitvec::vec::BitVec<u8> = opcode_bitmask.iter().collect();
-        blob.extend(opcode_bitmask.encode_fixed(instruction_data.len())?);
-
-        let mut program_state = ProgramState::default();
-        ProgramLoader::load_program(&blob, &mut program_state)?;
+        let program_state = load_program_state(instruction_data, opcode_bitmask)?;
         let mut vm_state = VMState {
             gas_counter: 100,
             ..Default::default()

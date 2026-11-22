@@ -257,14 +257,14 @@ impl ProgramLoader {
     }
 }
 
+/// Program blobs for the tests of PVM core.
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_program_blobs {
     use super::*;
-    use crate::program::instruction::opcode::Opcode;
     use std::error::Error;
 
     /// Encodes the length fields `E(|j|) ⌢ E_1(z) ⌢ E(|c|)` that open a program blob.
-    fn blob_header(
+    pub(crate) fn blob_header(
         jump_table_entry_count: usize,
         jump_table_entry_size: u8,
         instruction_data_size: usize,
@@ -275,18 +275,8 @@ mod tests {
         Ok(header)
     }
 
-    /// Appends instruction data (c) of `trap_count` `trap` instructions and its opcode bitmask (k).
-    ///
-    /// Each octet starts a `trap`, which also ends a basic block, so the program stays valid under the `v_blob` check of GP #508.
-    fn append_traps(blob: &mut Vec<u8>, trap_count: usize) -> Result<(), Box<dyn Error>> {
-        blob.resize(blob.len() + trap_count, Opcode::TRAP as u8);
-        let opcode_bitmask: OpcodeBitmask = BitVec::repeat(true, trap_count);
-        blob.extend(opcode_bitmask.encode_fixed(trap_count)?);
-        Ok(())
-    }
-
     /// Encodes a program blob with an empty jump table, the instruction data `c` and the opcode bitmask `k`.
-    fn program_blob(
+    pub(crate) fn program_blob(
         instruction_data: &[u8],
         opcode_bitmask: &[bool],
     ) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -295,6 +285,36 @@ mod tests {
         let opcode_bitmask: OpcodeBitmask = opcode_bitmask.iter().collect();
         blob.extend(opcode_bitmask.encode_fixed(instruction_data.len())?);
         Ok(blob)
+    }
+
+    /// Loads the blob of `program_blob`.
+    pub(crate) fn load_program_state(
+        instruction_data: &[u8],
+        opcode_bitmask: &[bool],
+    ) -> Result<ProgramState, Box<dyn Error>> {
+        let mut program_state = ProgramState::default();
+        ProgramLoader::load_program(
+            &program_blob(instruction_data, opcode_bitmask)?,
+            &mut program_state,
+        )?;
+        Ok(program_state)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{test_program_blobs::*, *};
+    use crate::program::instruction::opcode::Opcode;
+    use std::error::Error;
+
+    /// Appends instruction data (c) of `trap_count` `trap` instructions and its opcode bitmask (k).
+    ///
+    /// Each octet starts a `trap`, which also ends a basic block, so the program stays valid under the `v_blob` check of GP #508.
+    fn append_traps(blob: &mut Vec<u8>, trap_count: usize) -> Result<(), Box<dyn Error>> {
+        blob.resize(blob.len() + trap_count, Opcode::TRAP as u8);
+        let opcode_bitmask: OpcodeBitmask = BitVec::repeat(true, trap_count);
+        blob.extend(opcode_bitmask.encode_fixed(trap_count)?);
+        Ok(())
     }
 
     #[test]
@@ -469,9 +489,7 @@ mod tests {
         #[test]
         fn test_basic_block_starts_follow_terminations() -> Result<(), Box<dyn Error>> {
             // `trap` at 0 starts the block at 1. `trap` at 2 ends the code, which is not a block start.
-            let blob = program_blob(&[TRAP, UNLIKELY, TRAP], &[true, true, true])?;
-            let mut program_state = ProgramState::default();
-            ProgramLoader::load_program(&blob, &mut program_state)?;
+            let program_state = load_program_state(&[TRAP, UNLIKELY, TRAP], &[true, true, true])?;
             let basic_block_starts: Vec<usize> = program_state
                 .basic_block_start_indices
                 .iter_ones()
@@ -490,9 +508,7 @@ mod tests {
             0,
             Opcode::TRAP as u8,
         ];
-        let blob = program_blob(&instruction_data, &[true, true, false, true])?;
-        let mut program_state = ProgramState::default();
-        ProgramLoader::load_program(&blob, &mut program_state)?;
+        let program_state = load_program_state(&instruction_data, &[true, true, false, true])?;
         let load_imm = program_state
             .instruction_at(0)
             .ok_or("no instruction at 0")?;
@@ -509,9 +525,7 @@ mod tests {
             Opcode::UNLIKELY as u8,
             Opcode::TRAP as u8,
         ];
-        let blob = program_blob(&instruction_data, &[true, true, true])?;
-        let mut program_state = ProgramState::default();
-        ProgramLoader::load_program(&blob, &mut program_state)?;
+        let program_state = load_program_state(&instruction_data, &[true, true, true])?;
         let first_block_gas_cost = basic_block_gas_cost(&program_state, 0)?;
         let second_block_gas_cost = basic_block_gas_cost(&program_state, 1)?;
         assert_ne!(first_block_gas_cost, second_block_gas_cost);

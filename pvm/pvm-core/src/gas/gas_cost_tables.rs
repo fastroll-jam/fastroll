@@ -271,8 +271,7 @@ impl InstructionCost {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::program::{loader::ProgramLoader, types::program_state::OpcodeBitmask};
-    use fr_codec::prelude::*;
+    use crate::program::loader::test_program_blobs::load_program_state;
     use std::error::Error;
 
     const BRANCH_EQ: u8 = Opcode::BRANCH_EQ as u8;
@@ -280,29 +279,13 @@ mod tests {
     const FALLTHROUGH: u8 = Opcode::FALLTHROUGH as u8;
     const TRAP: u8 = Opcode::TRAP as u8;
 
-    /// Loads a blob with an empty jump table, the instruction data `c` and the opcode bitmask `k`.
-    fn load(
-        instruction_data: &[u8],
-        opcode_bitmask: &[bool],
-    ) -> Result<ProgramState, Box<dyn Error>> {
-        let mut blob = 0usize.encode()?;
-        blob.extend(0u8.encode_fixed(1)?);
-        blob.extend(instruction_data.len().encode()?);
-        blob.extend(instruction_data);
-        let opcode_bitmask: OpcodeBitmask = opcode_bitmask.iter().collect();
-        blob.extend(opcode_bitmask.encode_fixed(instruction_data.len())?);
-        let mut program_state = ProgramState::default();
-        ProgramLoader::load_program(&blob, &mut program_state)?;
-        Ok(program_state)
-    }
-
     /// Returns the branch latency of the `branch_eq r0, r0` at 0 with the 1-octet offset `target_offset`, followed by `fallthrough` and `tail`.
     fn branch_cycles(target_offset: u8, tail: &[u8]) -> Result<u32, Box<dyn Error>> {
         let mut instruction_data = vec![BRANCH_EQ, 0, target_offset, FALLTHROUGH];
         instruction_data.extend(tail);
         let mut opcode_bitmask = vec![true, false, false, true];
         opcode_bitmask.extend(tail.iter().map(|_| true));
-        let program_state = load(&instruction_data, &opcode_bitmask)?;
+        let program_state = load_program_state(&instruction_data, &opcode_bitmask)?;
         let branch = program_state.instruction_at(0).ok_or("no branch")?;
         Ok(InstructionCost::of(&program_state, 0, branch, branch.register_usage()).cycles)
     }
