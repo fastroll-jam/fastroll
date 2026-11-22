@@ -53,29 +53,46 @@ impl InstructionSet {
     // Group 0: Helper functions
     //
 
-    /// Determines the next instruction counter based on a branch condition.
+    /// Determines the next instruction counter of a conditional jump, `branch(b, C)` of the GP.
     ///
-    /// If the condition is true, attempts to jump to the target address.
-    /// The target address must be the beginning of a basic block.
+    /// Returns a PVM panic unless both the target `b` and the next instruction start basic blocks, whether or not the branch is taken.
     fn branch(
         vm_state: &VMState,
         program_state: &ProgramState,
-        target: MemAddress,
+        target: RegValue,
         condition: bool,
-    ) -> Result<(ExitReason, RegValue), VMCoreError> {
-        let is_basic_block_start = program_state
-            .basic_block_start_indices
-            .get(target as usize)
-            .map(|bit| *bit)
-            .unwrap_or(false);
-        match (condition, is_basic_block_start) {
-            (false, _) => Ok((
-                ExitReason::Continue,
-                Interpreter::next_pc(vm_state.pc, program_state),
-            )),
-            (true, true) => Ok((ExitReason::Continue, target as RegValue)),
-            (true, false) => Ok((ExitReason::Panic, vm_state.pc)),
+    ) -> (ExitReason, RegValue) {
+        let next_pc = Interpreter::next_pc(vm_state.pc, program_state);
+        if !Self::is_basic_block_start(program_state, target)
+            || !Self::is_basic_block_start(program_state, next_pc)
+        {
+            return (ExitReason::Panic, vm_state.pc);
         }
+        if condition {
+            (ExitReason::Continue, target)
+        } else {
+            (ExitReason::Continue, next_pc)
+        }
+    }
+
+    /// Determines the next instruction counter of an unconditional static jump, `sjump(b)` of the GP.
+    ///
+    /// Returns a PVM panic unless the target `b` starts a basic block.
+    fn static_jump(
+        vm_state: &VMState,
+        program_state: &ProgramState,
+        target: RegValue,
+    ) -> (ExitReason, RegValue) {
+        if Self::is_basic_block_start(program_state, target) {
+            (ExitReason::Continue, target)
+        } else {
+            (ExitReason::Panic, vm_state.pc)
+        }
+    }
+
+    /// Checks whether a full 64-bit jump target starts a basic block, so a target past `usize` does not.
+    fn is_basic_block_start(program_state: &ProgramState, target: RegValue) -> bool {
+        usize::try_from(target).is_ok_and(|target| program_state.is_basic_block_start(target))
     }
 
     /// Performs a dynamic jump operation.
@@ -110,12 +127,7 @@ impl InstructionSet {
             .get(aligned_index)
             .ok_or(VMCoreError::JumpTableOutOfBounds(aligned_index))?;
 
-        if program_state
-            .basic_block_start_indices
-            .get(target as usize)
-            .map(|bit| *bit)
-            .unwrap_or(false)
-        {
+        if program_state.is_basic_block_start(target as usize) {
             Ok((ExitReason::Continue, target as RegValue))
         } else {
             Ok((ExitReason::Panic, vm_state.pc))
@@ -142,20 +154,16 @@ impl InstructionSet {
         })
     }
 
-    /// Continue program with no mutation to the VM state
+    /// Jump to the next instruction, which must start a basic block
     ///
     /// Opcode: 1
     pub fn fallthrough(
         vm_state: &VMState,
         program_state: &ProgramState,
     ) -> Result<SingleStepResult, VMCoreError> {
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                new_pc: Interpreter::next_pc(vm_state.pc, program_state),
-                ..Default::default()
-            },
-        })
+        let next_pc = Interpreter::next_pc(vm_state.pc, program_state);
+        let (exit_reason, target) = Self::static_jump(vm_state, program_state, next_pc);
+        jump_result!(exit_reason, target)
     }
 
     /// Continue program with no mutation to the VM state
@@ -294,9 +302,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm1()?);
+        let target = ins.imm1()?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
+        let (exit_reason, target) = Self::static_jump(vm_state, program_state, target);
         jump_result!(exit_reason, target)
     }
 
@@ -620,9 +628,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
+        let (exit_reason, target) = Self::static_jump(vm_state, program_state, target);
         jump_result_with_reg_write!(exit_reason, target, ins.rs1()?, ins.imm1()?)
     }
 
@@ -634,9 +642,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let condition = vm_state.read_rs1(ins)? == ins.imm1()?;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -649,9 +657,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let condition = vm_state.read_rs1(ins)? != ins.imm1()?;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -664,9 +672,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let condition = vm_state.read_rs1(ins)? < ins.imm1()?;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -679,9 +687,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let condition = vm_state.read_rs1(ins)? <= ins.imm1()?;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -694,9 +702,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let condition = vm_state.read_rs1(ins)? >= ins.imm1()?;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -709,9 +717,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let condition = vm_state.read_rs1(ins)? > ins.imm1()?;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -724,11 +732,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
         let condition = rs1_val < imm_val;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -741,11 +749,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
         let condition = rs1_val <= imm_val;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -758,11 +766,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
         let condition = rs1_val >= imm_val;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -775,11 +783,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm2()?);
+        let target = ins.imm2()?;
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
         let condition = rs1_val > imm_val;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -1593,11 +1601,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm1()?);
+        let target = ins.imm1()?;
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let condition = rs1_val == rs2_val;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -1610,11 +1618,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm1()?);
+        let target = ins.imm1()?;
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let condition = rs1_val != rs2_val;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -1627,11 +1635,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm1()?);
+        let target = ins.imm1()?;
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let condition = rs1_val < rs2_val;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -1644,11 +1652,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm1()?);
+        let target = ins.imm1()?;
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let condition = rs1_val_s < rs2_val_s;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -1661,11 +1669,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm1()?);
+        let target = ins.imm1()?;
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let condition = rs1_val >= rs2_val;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -1678,11 +1686,11 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let target = reg_to_mem_address(ins.imm1()?);
+        let target = ins.imm1()?;
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let condition = rs1_val_s >= rs2_val_s;
-        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         jump_result!(exit_reason, target)
     }
@@ -2322,5 +2330,60 @@ impl InstructionSet {
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = rs1_val.min(rs2_val);
         continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, result)
+    }
+}
+
+#[cfg(test)]
+mod jump_tests {
+    use crate::{
+        interpreter::Interpreter,
+        program::{
+            instruction::opcode::Opcode, loader::ProgramLoader, types::program_state::ProgramState,
+        },
+        state::vm_state::VMState,
+    };
+    use fr_codec::prelude::*;
+    use fr_pvm_types::exit_reason::ExitReason;
+    use std::error::Error;
+
+    /// Runs `Ψ` from index 0 on a blob with an empty jump table, the instruction data `c` and the opcode bitmask `k`.
+    fn run_from_start(
+        instruction_data: &[u8],
+        opcode_bitmask: &[bool],
+    ) -> Result<(ExitReason, u64), Box<dyn Error>> {
+        let mut blob = 0usize.encode()?;
+        blob.extend(0u8.encode_fixed(1)?);
+        blob.extend(instruction_data.len().encode()?);
+        blob.extend(instruction_data);
+        let opcode_bitmask: bitvec::vec::BitVec<u8> = opcode_bitmask.iter().collect();
+        blob.extend(opcode_bitmask.encode_fixed(instruction_data.len())?);
+
+        let mut program_state = ProgramState::default();
+        ProgramLoader::load_program(&blob, &mut program_state)?;
+        let mut vm_state = VMState {
+            gas_counter: 100,
+            ..Default::default()
+        };
+        let result = Interpreter::invoke_general(&mut vm_state, &program_state)?;
+        Ok((result.exit_reason, result.exiting_instruction_pc))
+    }
+
+    #[test]
+    fn test_branch_not_taken_panics_when_next_is_not_block_start() -> Result<(), Box<dyn Error>> {
+        // `branch_ne_imm r0, 0, +0` is not taken, and its next index 3 is the end of `c`
+        let instruction_data = [Opcode::BRANCH_NE_IMM as u8, 0, 0];
+        let (exit_reason, exiting_pc) = run_from_start(&instruction_data, &[true, false, false])?;
+        assert_eq!(exit_reason, ExitReason::Panic);
+        assert_eq!(exiting_pc, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_fallthrough_panics_at_end_of_code() -> Result<(), Box<dyn Error>> {
+        // `sjump` to index 1, the end of `c`, which is not a block start
+        let (exit_reason, exiting_pc) = run_from_start(&[Opcode::FALLTHROUGH as u8], &[true])?;
+        assert_eq!(exit_reason, ExitReason::Panic);
+        assert_eq!(exiting_pc, 0);
+        Ok(())
     }
 }

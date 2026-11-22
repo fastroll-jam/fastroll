@@ -47,6 +47,13 @@ impl ProgramState {
             .map(|&distance| distance as usize)
     }
 
+    /// Checks whether `index` (0-based, in octets) starts a basic block.
+    pub fn is_basic_block_start(&self, index: usize) -> bool {
+        self.basic_block_start_indices
+            .get(index)
+            .is_some_and(|bit| *bit)
+    }
+
     pub fn instruction_at(&self, pc: usize) -> Option<&Instruction> {
         let idx = *self.instruction_lookup.get(pc)?;
         if idx == NOT_INSTRUCTION_INDEX {

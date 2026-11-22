@@ -38,6 +38,7 @@ The migration to Graypaper 0.8.0 is in progress. `SPEC_VERSION` stays at 0.7.2 u
 - [GP v0.8.0] Remove the `sbrk` instruction
 - [GP v0.8.0] Renumber the PVM opcodes and add `unlikely`
 - [GP v0.8.0] Validate program blobs in `deblob` by `v_blob` and zero padding bits of `k`, and return `HUH` from `machine` for an initial pc that is not an instruction
+- [GP v0.8.0] Panic on a branch unless both its target and its next instruction start basic blocks, and make `fallthrough` a static jump
 
 ### Fixed
 
@@ -45,6 +46,7 @@ The migration to Graypaper 0.8.0 is in progress. `SPEC_VERSION` stays at 0.7.2 u
 - Report the page address of a page fault on a memory read, not the faulting address
 - Mark the block after a terminating instruction at index 0 as a basic block start, and never the end of the code
 - Decode instruction arguments from `ζ`, which reads past the next opcode, instead of crashing on an instruction shorter than its arguments
+- Check jump and branch targets in full 64 bits against the basic block starts, not only their low 32 bits
 - Panic in `Ψ_M` instead of rejecting the block when the program fails to load ([#374](https://github.com/fastroll-jam/fastroll/pull/374))
 - Check culprits and faults against the posterior good and bad sets ([`f3ed7039`](https://github.com/fastroll-jam/fastroll/commit/f3ed7039))
 - Remove duplicate offender keys from `ψ'_O` ([`e255e745`](https://github.com/fastroll-jam/fastroll/commit/e255e745))
