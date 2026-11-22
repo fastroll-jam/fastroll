@@ -36,11 +36,12 @@ macro_rules! mem_panic {
     };
 }
 
+/// Returns a page fault at the page of the lowest inaccessible address `$addr`.
 #[macro_export]
 macro_rules! mem_page_fault {
     ($addr:expr) => {
         Ok(SingleStepResult {
-            exit_reason: ExitReason::PageFault($addr),
+            exit_reason: ExitReason::PageFault($crate::utils::VMUtils::page_start_address($addr)),
             state_change: VMStateChange::default(),
         })
     };

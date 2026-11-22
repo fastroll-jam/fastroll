@@ -79,7 +79,7 @@ Avoid `git submodule update --remote`, because upstream branches may target newe
 | Suite | Vectors | Test cases | Harness |
 |---|---|---|---|
 | STF | [jam-test-vectors](https://github.com/jam-conformance/jam-test-vectors) `stf` | [stf](integration/tests/stf) | [stf_harness.rs](test-utils/src/stf_harness.rs) |
-| PVM | [jamtestvectors](https://github.com/koute/jamtestvectors/tree/master_pvm_initial/pvm) `pvm/programs` | [pvm.rs](integration/tests/pvm.rs) | [pvm_harness.rs](test-utils/src/pvm_harness.rs) |
+| PVM | [jamtestvectors](https://github.com/koute/jamtestvectors/tree/6bf3768e5b37bbe4ca5d6e1306284ecb27c0198f/pvm) v0.5 `pvm/programs`, `pvm/gas-tests` | [pvm.rs](integration/tests/pvm.rs) | [pvm_harness.rs](test-utils/src/pvm_harness.rs) |
 | Block import | [jam-test-vectors](https://github.com/jam-conformance/jam-test-vectors) `traces` | [block_importer.rs](integration/tests/block_importer.rs) | [importer_harness.rs](test-utils/src/importer_harness.rs) |
 | Block import with simple forks | [jam-test-vectors](https://github.com/jam-conformance/jam-test-vectors) `traces/fuzzy*`, [jam-fuzzing](https://github.com/jam-conformance/jam-fuzzing) `fuzz-reports/<gp-version>/traces` | [block_importer.rs](integration/tests/block_importer.rs) | [fuzzer.rs](fuzz/src/fuzzer.rs) |
 | Codec, erasure, shuffle | [jam-test-vectors](https://github.com/jam-conformance/jam-test-vectors) `codec`, `erasure`, `shuffle` | [codec.rs](integration/tests/codec.rs), [erasure.rs](integration/tests/erasure.rs), [shuffle.rs](integration/tests/shuffle.rs) | |

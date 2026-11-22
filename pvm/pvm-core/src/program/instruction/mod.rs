@@ -122,7 +122,7 @@ impl Instruction {
 
         match op {
             // Group 1: no arguments
-            TRAP | FALLTHROUGH => Ok(Self::new(op, None, None, None, None, None)?),
+            TRAP | FALLTHROUGH | UNLIKELY => Ok(Self::new(op, None, None, None, None, None)?),
 
             // Group 2: one immediate
             ECALLI => {

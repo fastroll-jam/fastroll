@@ -468,7 +468,8 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         let mut inner_vm_program_state = ProgramState::default();
         ProgramLoader::load_program(inner_vm_program_code, &mut inner_vm_program_state)?;
         let inner_vm_exit_reason =
-            Interpreter::invoke_general(&mut inner_vm_state_copy, &inner_vm_program_state)?;
+            Interpreter::invoke_general(&mut inner_vm_state_copy, &inner_vm_program_state)?
+                .exit_reason;
 
         // Apply the mutation of the `VMState` to the InnerVM state of the refine context
         inner_vm_mut.pc = inner_vm_state_copy.pc;

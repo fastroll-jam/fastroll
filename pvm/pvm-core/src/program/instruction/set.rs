@@ -136,8 +136,6 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Panic,
             state_change: VMStateChange {
-                // TODO: PVM Revisit: (Test vectors assume `TRAP` doesn't alter pc values)
-                // new_pc: Interpreter::next_pc(vm_state.pc, program_state),
                 new_pc: vm_state.pc,
                 ..Default::default()
             },
@@ -148,6 +146,24 @@ impl InstructionSet {
     ///
     /// Opcode: 1
     pub fn fallthrough(
+        vm_state: &VMState,
+        program_state: &ProgramState,
+    ) -> Result<SingleStepResult, VMCoreError> {
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: VMStateChange {
+                new_pc: Interpreter::next_pc(vm_state.pc, program_state),
+                ..Default::default()
+            },
+        })
+    }
+
+    /// Continue program with no mutation to the VM state
+    ///
+    /// Marks the code starting at this instruction as unlikely to run, so a branch into it costs less gas (`𝔟`).
+    ///
+    /// Opcode: 2
+    pub fn unlikely(
         vm_state: &VMState,
         program_state: &ProgramState,
     ) -> Result<SingleStepResult, VMCoreError> {
@@ -786,7 +802,7 @@ impl InstructionSet {
 
     /// Count the number of set bits of a 64-bit value
     ///
-    /// Opcode: 102
+    /// Opcode: 101
     pub fn count_set_bits_64(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -799,7 +815,7 @@ impl InstructionSet {
 
     /// Count the number of set bits of a 64-bit value
     ///
-    /// Opcode: 103
+    /// Opcode: 102
     pub fn count_set_bits_32(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -812,7 +828,7 @@ impl InstructionSet {
 
     /// Count the number of leading zeroes of a 64-bit value
     ///
-    /// Opcode: 104
+    /// Opcode: 103
     pub fn leading_zero_bits_64(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -825,7 +841,7 @@ impl InstructionSet {
 
     /// Count the number of leading zeroes of a 32-bit value
     ///
-    /// Opcode: 105
+    /// Opcode: 104
     pub fn leading_zero_bits_32(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -838,7 +854,7 @@ impl InstructionSet {
 
     /// Count the number of trailing zeroes of a 64-bit value
     ///
-    /// Opcode: 106
+    /// Opcode: 105
     pub fn trailing_zero_bits_64(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -851,7 +867,7 @@ impl InstructionSet {
 
     /// Count the number of trailing zeroes of a 32-bit value
     ///
-    /// Opcode: 107
+    /// Opcode: 106
     pub fn trailing_zero_bits_32(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -864,7 +880,7 @@ impl InstructionSet {
 
     /// Sign extend a 8-bit value
     ///
-    /// Opcode: 108
+    /// Opcode: 107
     pub fn sign_extend_8(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -877,7 +893,7 @@ impl InstructionSet {
 
     /// Sign extend a 16-bit value
     ///
-    /// Opcode: 109
+    /// Opcode: 108
     pub fn sign_extend_16(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -890,7 +906,7 @@ impl InstructionSet {
 
     /// Zero extend a 16-bit value
     ///
-    /// Opcode: 110
+    /// Opcode: 109
     pub fn zero_extend_16(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -902,7 +918,7 @@ impl InstructionSet {
 
     /// Reverse bytes of a 64-bit value
     ///
-    /// Opcode: 111
+    /// Opcode: 110
     pub fn reverse_bytes(
         vm_state: &mut VMState,
         program_state: &ProgramState,

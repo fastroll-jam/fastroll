@@ -12,6 +12,14 @@ use crate::{
 use fr_pvm_types::{common::RegValue, constants::MAX_SKIP_DISTANCE, exit_reason::ExitReason};
 use tracing::Level;
 
+/// Result of the general invocation `Ψ`, returned to `Ψ_H` and the inner PVM `invoke` host call.
+#[derive(Debug)]
+pub struct GeneralInvocationResult {
+    pub exit_reason: ExitReason,
+    /// PC of the instruction that caused the exit, kept because `Ψ` resets the PC to 0 on halt or panic
+    pub exiting_instruction_pc: RegValue,
+}
+
 #[derive(Debug)]
 pub struct SingleStepResult {
     pub exit_reason: ExitReason,
@@ -34,84 +42,88 @@ impl Interpreter {
         curr_pc + 1 + Self::skip(curr_pc as usize, program_state) as RegValue
     }
 
-    /// General PVM invocation function.
-    ///
-    /// This function recursively calls single-step invocation functions following the instruction
-    /// sequence mutating the VM states.
+    /// Runs single-step invocations along the instruction sequence until one exits, mutating the VM states.
     ///
     /// # Input Program
     /// This function utilizes the program component of the `PVM` state. The program is decoded
     /// into instructions sequence, an opcode bitmask, and a dynamic jump table, which are then passed
     /// as arguments to the `invoke_single_step` function.
     ///
+    /// On halt or panic the posterior `ı` is 0. Otherwise it is the `ı` of the instruction that caused the exit.
+    ///
     /// Represents `Ψ` of the GP.
     pub fn invoke_general(
         vm_state: &mut VMState,
         program_state: &ProgramState,
-    ) -> Result<ExitReason, VMCoreError> {
+    ) -> Result<GeneralInvocationResult, VMCoreError> {
         loop {
             let curr_pc = vm_state.pc;
-            let program_state_ref: &ProgramState = program_state;
-            let Some(inst) = program_state_ref.instruction_at(curr_pc as usize) else {
-                tracing::warn!("Ψ Panic: Failed to extract instruction. PC={curr_pc}");
-                return Ok(ExitReason::Panic);
-            };
-
-            let single_invocation_result =
-                Self::invoke_single_step(vm_state, program_state_ref, inst)?;
-
-            let vm_state_should_change = matches!(
-                single_invocation_result.exit_reason,
-                ExitReason::Continue | ExitReason::Panic | ExitReason::RegularHalt
-            );
-
-            let post_gas = match VMStateMutator::apply_state_change(
-                vm_state,
-                &single_invocation_result.state_change,
-                vm_state_should_change,
-            ) {
-                Ok(post_gas) => post_gas,
-                Err(VMCoreError::ForbiddenMemZone(addr)) => {
-                    tracing::warn!(
-                        "Ψ Panic: Forbidden mem access while applying state change @{addr}"
-                    );
-                    return Ok(ExitReason::Panic);
-                }
-                Err(VMCoreError::PageFault(page_start_address)) => {
-                    vm_state.pc = 0; // TODO: PVM Revisit: (test vectors assume page-fault resets pc value but not in GP)
-                    return Ok(ExitReason::PageFault(page_start_address));
-                }
-                Err(e) => return Err(e),
-            };
-            if post_gas < 0 {
-                return Ok(ExitReason::OutOfGas);
+            let exit_reason = Self::invoke_single_step_and_apply(vm_state, program_state, curr_pc)?;
+            if exit_reason == ExitReason::Continue {
+                continue;
             }
-
-            if tracing::enabled!(Level::TRACE) {
-                tracing::trace!(
-                    "{:?}({}) pc={} gas={} regs={:?}",
-                    inst.op,
-                    inst.op as u8,
-                    vm_state.pc,
-                    vm_state.gas_counter,
-                    vm_state.regs
-                );
+            if matches!(exit_reason, ExitReason::Panic | ExitReason::RegularHalt) {
+                tracing::warn!("Ψ Terminated with exit reason {exit_reason:?}. PC={curr_pc}");
+                vm_state.pc = 0;
             }
-
-            match single_invocation_result.exit_reason {
-                ExitReason::Continue => continue,
-                termination @ (ExitReason::Panic | ExitReason::RegularHalt) => {
-                    tracing::warn!(
-                        "Ψ Terminated with exit reason {termination:?}. OP={:?}",
-                        inst.op
-                    );
-                    // Reset the program counter
-                    // vm_state.pc = 0; // TODO: PVM Revisit: (test vectors assume panic/halt doesn't reset pc value but not in GP)
-                    return Ok(termination);
-                }
-                other => return Ok(other), // This branch should not be taken
-            }
+            return Ok(GeneralInvocationResult {
+                exit_reason,
+                exiting_instruction_pc: curr_pc,
+            });
         }
+    }
+
+    /// Executes the instruction at `curr_pc` and applies its state change to `vm_state`.
+    ///
+    /// On a page fault, an out-of-gas or a host call, the VM state stays unchanged except the gas counter.
+    fn invoke_single_step_and_apply(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        curr_pc: RegValue,
+    ) -> Result<ExitReason, VMCoreError> {
+        let Some(inst) = program_state.instruction_at(curr_pc as usize) else {
+            tracing::warn!("Ψ Panic: Failed to extract instruction. PC={curr_pc}");
+            return Ok(ExitReason::Panic);
+        };
+
+        let single_invocation_result = Self::invoke_single_step(vm_state, program_state, inst)?;
+
+        let vm_state_should_change = matches!(
+            single_invocation_result.exit_reason,
+            ExitReason::Continue | ExitReason::Panic | ExitReason::RegularHalt
+        );
+
+        let post_gas = match VMStateMutator::apply_state_change(
+            vm_state,
+            &single_invocation_result.state_change,
+            vm_state_should_change,
+        ) {
+            Ok(post_gas) => post_gas,
+            Err(VMCoreError::ForbiddenMemZone(addr)) => {
+                tracing::warn!("Ψ Panic: Forbidden mem access while applying state change @{addr}");
+                return Ok(ExitReason::Panic);
+            }
+            Err(VMCoreError::PageFault(page_start_address)) => {
+                return Ok(ExitReason::PageFault(page_start_address));
+            }
+            Err(e) => return Err(e),
+        };
+        if post_gas < 0 {
+            return Ok(ExitReason::OutOfGas);
+        }
+
+        if tracing::enabled!(Level::TRACE) {
+            tracing::trace!(
+                "{:?}({}) pc={} gas={} regs={:?}",
+                inst.op,
+                inst.op as u8,
+                vm_state.pc,
+                vm_state.gas_counter,
+                vm_state.regs
+            );
+        }
+
+        Ok(single_invocation_result.exit_reason)
     }
 
     /// Single-step PVM state transition function.
@@ -128,6 +140,7 @@ impl Interpreter {
         match ins.op {
             OP::TRAP => IS::trap(vm_state, program_state),
             OP::FALLTHROUGH => IS::fallthrough(vm_state, program_state),
+            OP::UNLIKELY => IS::unlikely(vm_state, program_state),
             OP::ECALLI => IS::ecalli(vm_state, program_state, ins),
             OP::LOAD_IMM_64 => IS::load_imm_64(vm_state, program_state, ins),
             OP::STORE_IMM_U8 => IS::store_imm_u8(vm_state, program_state, ins),
