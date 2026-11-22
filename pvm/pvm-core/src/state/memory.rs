@@ -15,11 +15,6 @@ pub enum MemoryError {
     InvalidPageIndex(usize),
     #[error("Memory access violation: (address: {0})")]
     AccessViolation(MemAddress),
-    #[error("Heap stack collision occurred during SBRK. Break: {0}, Requested Size: {1}, Stack Start: {2}"
-    )]
-    SbrkHeapStackCollision(MemAddress, usize, MemAddress),
-    #[error("Tried to SBRK to already allocated memory. Heap End: {0}, Requested Size: {1}")]
-    InvalidSbrk(MemAddress, usize),
 }
 
 /// Memory Cell Access Types.
@@ -348,37 +343,6 @@ impl Memory {
         }
 
         self.data[start..end].copy_from_slice(bytes);
-        Ok(())
-    }
-
-    /// Get the break address (end of the heap) of current memory layout.
-    pub fn get_break(&self, expand_size: usize) -> MemAddress {
-        let mut break_address = self.heap_end;
-        loop {
-            // FIXME: SBRK: Current implementation is a workaround since address-level access control is limited
-            if self.is_address_range_readable(break_address, expand_size)
-                && !self.is_address_range_writable(break_address, expand_size)
-            {
-                break_address += 1;
-            } else {
-                break;
-            }
-        }
-        break_address
-    }
-
-    /// Expand the heap area for the `sbrk` instruction.
-    pub fn expand_heap(&mut self, start: MemAddress, size: usize) -> Result<(), MemoryError> {
-        let end = start + size as MemAddress;
-        if self.heap_start != 0 && end >= self.stack_start {
-            return Err(MemoryError::SbrkHeapStackCollision(
-                start,
-                size,
-                self.stack_start,
-            ));
-        }
-        self.set_address_range_access(start..end, AccessType::ReadWrite)?; // FIXME: SBRK: address-level access control
-        self.heap_end = end;
         Ok(())
     }
 }

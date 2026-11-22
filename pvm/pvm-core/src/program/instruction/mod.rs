@@ -215,7 +215,6 @@ impl Instruction {
 
             // Group 9: two registers
             MOVE_REG
-            | SBRK
             | COUNT_SET_BITS_64
             | COUNT_SET_BITS_32
             | LEADING_ZERO_BITS_64

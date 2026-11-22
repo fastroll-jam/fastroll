@@ -35,6 +35,7 @@ The migration to Graypaper 0.8.0 is in progress. `SPEC_VERSION` stays at 0.7.2 u
 - Limit `machine` to 63 inner VMs ([`86cb168b`](https://github.com/fastroll-jam/fastroll/commit/86cb168b))
 - Read `z` validator keys in `designate`, and drop the removed `fetch` constants ([`e5e90b9b`](https://github.com/fastroll-jam/fastroll/commit/e5e90b9b))
 - Limit the instruction data size and jump table entries in `deblob`, a rule added after Graypaper 0.8.0 by [gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559)
+- [GP v0.8.0] Remove the `sbrk` instruction
 
 ### Fixed
 

@@ -784,35 +784,6 @@ impl InstructionSet {
         continue_with_reg_write!(vm_state.pc, program_state, ins.rd()?, rs1_val)
     }
 
-    /// System break (allocate heap memory)
-    ///
-    /// Expands the heap memory by the requested size.
-    ///
-    /// Note: this instruction directly mutates the VM memory state unlike other instructions.
-    ///
-    /// Opcode: 101
-    pub fn sbrk(
-        vm_state: &mut VMState,
-        program_state: &ProgramState,
-        ins: &Instruction,
-    ) -> Result<SingleStepResult, VMCoreError> {
-        let expand_size = vm_state.read_rs1(ins)? as usize;
-
-        // find the first sequence of inaccessible memory cells that can satisfy the requested size
-        let alloc_start = vm_state.memory.get_break(expand_size);
-
-        // try expanding the heap area
-        vm_state.memory.expand_heap(alloc_start, expand_size)?;
-
-        // returns the start of the newly allocated heap memory
-        continue_with_reg_write!(
-            vm_state.pc,
-            program_state,
-            ins.rd()?,
-            alloc_start as RegValue
-        )
-    }
-
     /// Count the number of set bits of a 64-bit value
     ///
     /// Opcode: 102

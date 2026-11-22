@@ -119,8 +119,6 @@ impl Interpreter {
     /// Refers to the VM states e.g. `pc`, `memory`, `instructions` from the `PVMCore` state
     /// and returns the VM state change as an output.
     ///
-    /// Instruction `SBRK` is the only instruction that directly mutates the VM state, for a heap expansion.
-    ///
     /// Represents `Ψ_1` of the GP.
     fn invoke_single_step(
         vm_state: &mut VMState,
@@ -166,7 +164,6 @@ impl Interpreter {
             OP::BRANCH_GE_S_IMM => IS::branch_ge_s_imm(vm_state, program_state, ins),
             OP::BRANCH_GT_S_IMM => IS::branch_gt_s_imm(vm_state, program_state, ins),
             OP::MOVE_REG => IS::move_reg(vm_state, program_state, ins),
-            OP::SBRK => IS::sbrk(vm_state, program_state, ins),
             OP::COUNT_SET_BITS_64 => IS::count_set_bits_64(vm_state, program_state, ins),
             OP::COUNT_SET_BITS_32 => IS::count_set_bits_32(vm_state, program_state, ins),
             OP::LEADING_ZERO_BITS_64 => IS::leading_zero_bits_64(vm_state, program_state, ins),
