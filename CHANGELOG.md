@@ -40,6 +40,7 @@ Notable changes to FastRoll, per release. The format is based on [Keep a Changel
 - [GP v0.8.1] Limit the instruction data size and jump table entries in `deblob` ([gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559))
 - [GP v0.8.1] Count the destination of `cmov` as a source register in the gas cost model ([gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559))
 - [GP v0.8.1] Clear the gas-charged flag when `Ψ` halts or panics ([gavofyork/graypaper#588](https://github.com/gavofyork/graypaper/pull/588))
+- [GP v0.8.1] Mask the third register of three-register instructions to 4 bits ([gavofyork/graypaper#554](https://github.com/gavofyork/graypaper/pull/554))
 - Saturate balances at `2^64-1` on incoming deferred transfers, a rule of the Graypaper 0.8.0 fuzz campaign that no Graypaper version defines ([jam-conformance/jam-fuzzing#212](https://github.com/jam-conformance/jam-fuzzing/pull/212))
 
 ### Fixed

@@ -544,4 +544,16 @@ mod tests {
         assert_eq!(program_state.basic_block_gas_cost_at(3), None);
         Ok(())
     }
+
+    #[test]
+    fn test_decode_masks_third_register() -> Result<(), Box<dyn Error>> {
+        // The third register octet 0x13 gives `r_D = 3`, where the unmasked value would clamp to 12
+        let instruction_data = [Opcode::ADD_64 as u8, 0, 0x13, Opcode::TRAP as u8];
+        let program_state = load_program_state(&instruction_data, &[true, false, false, true])?;
+        let add_64 = program_state
+            .instruction_at(0)
+            .ok_or("no instruction at 0")?;
+        assert_eq!(add_64.rd, Some(3));
+        Ok(())
+    }
 }
