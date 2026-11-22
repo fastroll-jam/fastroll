@@ -10,8 +10,8 @@ use fr_codec::prelude::*;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{
-        MAX_INSTRUCTION_DATA_SIZE, MAX_JUMP_TABLE_ENTRY_COUNT, MAX_JUMP_TABLE_ENTRY_SIZE,
-        MAX_SKIP_DISTANCE,
+        MAX_INSTRUCTION_DATA_SIZE, MAX_INST_BLOB_LENGTH, MAX_JUMP_TABLE_ENTRY_COUNT,
+        MAX_JUMP_TABLE_ENTRY_SIZE, MAX_SKIP_DISTANCE,
     },
 };
 use tracing::Level;
@@ -214,12 +214,12 @@ impl ProgramLoader {
                 .get(idx)
                 .copied()
                 .unwrap_or(MAX_SKIP_DISTANCE as u8) as usize;
-            let next_index = idx + 1 + skip;
-            let inst = if next_index > instructions.len() {
-                Instruction::trap()
-            } else {
-                Instruction::from_inst_blob(&instructions[idx..next_index], idx as RegValue, skip)?
-            };
+            // Octets past `c` read as zero
+            let mut instruction_octets = [0u8; MAX_INST_BLOB_LENGTH];
+            let available_octets =
+                &instructions[idx..(idx + MAX_INST_BLOB_LENGTH).min(instructions.len())];
+            instruction_octets[..available_octets.len()].copy_from_slice(available_octets);
+            let inst = Instruction::from_inst_blob(&instruction_octets, idx as RegValue, skip)?;
             decoded_instructions.push(inst);
             let decoded_index = decoded_instructions.len() as u32;
             instruction_lookup[idx] = decoded_index - 1;
@@ -451,5 +451,25 @@ mod tests {
             assert_eq!(basic_block_starts, vec![0, 1]);
             Ok(())
         }
+    }
+
+    #[test]
+    fn test_decode_reads_arguments_past_next_opcode() -> Result<(), Box<dyn Error>> {
+        // `load_imm` has `skip` 0, so its `r_A` is the next opcode `move_reg` (100) mod 16
+        let instruction_data = [
+            Opcode::LOAD_IMM as u8,
+            Opcode::MOVE_REG as u8,
+            0,
+            Opcode::TRAP as u8,
+        ];
+        let blob = program_blob(&instruction_data, &[true, true, false, true])?;
+        let mut program_state = ProgramState::default();
+        ProgramLoader::load_program(&blob, &mut program_state)?;
+        let load_imm = program_state
+            .instruction_at(0)
+            .ok_or("no instruction at 0")?;
+        assert_eq!(load_imm.rs1, Some(4));
+        assert_eq!(load_imm.imm1, Some(0));
+        Ok(())
     }
 }
