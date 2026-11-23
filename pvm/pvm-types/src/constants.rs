@@ -14,9 +14,6 @@ pub const MAX_JUMP_TABLE_ENTRY_SIZE: usize = 4;
 /// Base gas charge for host function execution.
 pub const HOSTCALL_BASE_GAS_CHARGE: UnsignedGas = 10;
 
-/// Base gas charge for a single instruction.
-pub const INST_BASE_GAS_CHARGE: UnsignedGas = 1;
-
 /// The number of PVM registers.
 pub const REGISTERS_COUNT: usize = 13;
 

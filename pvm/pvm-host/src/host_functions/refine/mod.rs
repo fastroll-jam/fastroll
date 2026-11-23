@@ -472,6 +472,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             gas_counter: gas_limit
                 .try_into()
                 .map_err(|_| HostCallError::GasLimitOverflow(gas_limit))?,
+            is_basic_block_gas_charged: inner_vm_mut.is_basic_block_gas_charged,
         };
 
         // Load program and invoke the PVM.
@@ -485,6 +486,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         // Apply the mutation of the `VMState` to the InnerVM state of the refine context
         inner_vm_mut.pc = inner_vm_state_copy.pc;
         inner_vm_mut.memory = inner_vm_state_copy.memory;
+        inner_vm_mut.is_basic_block_gas_charged = inner_vm_state_copy.is_basic_block_gas_charged;
 
         // 112-byte mem write
         let mut host_buf = vec![];

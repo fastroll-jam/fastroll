@@ -98,6 +98,7 @@ struct ExpectedState {
     pc: Option<u32>,
     /// All non-zero bytes of the mapped memory
     memory: Option<Vec<MemoryChunk>>,
+    gas: Option<i64>,
     page_fault_address: Option<u32>,
     #[serde(rename = "hostcall")]
     host_call_id: Option<u32>,
@@ -189,6 +190,7 @@ impl TestVM {
                 memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
                 pc: test_case.initial_pc as RegValue,
                 gas_counter: test_case.initial_gas,
+                is_basic_block_gas_charged: false,
             },
             program_state,
             page_maps: Vec::new(),
@@ -259,6 +261,9 @@ impl TestVM {
                 invocation_result.exiting_instruction_pc, expected_pc as RegValue,
                 "{test_name}: pc"
             );
+        }
+        if let Some(expected_gas) = expected_state.gas {
+            assert_eq!(self.vm_state.gas_counter, expected_gas, "{test_name}: gas");
         }
         if let Some(expected_memory) = &expected_state.memory {
             self.assert_mapped_memory(expected_memory, test_name);

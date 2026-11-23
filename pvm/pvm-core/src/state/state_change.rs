@@ -10,7 +10,7 @@ use crate::{
 use fr_common::{SignedGas, UnsignedGas};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, INST_BASE_GAS_CHARGE, REGISTERS_COUNT},
+    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, REGISTERS_COUNT},
 };
 
 /// Stores small writes inline to avoid heap allocations for <=8 bytes.
@@ -78,23 +78,11 @@ impl MemWrite {
 }
 
 /// VM state change set resulting from a single instruction execution.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct VMStateChange {
     pub register_write: Option<(RegIndex, RegValue)>,
     pub memory_write: Option<MemWrite>,
     pub new_pc: RegValue,
-    pub gas_charge: UnsignedGas,
-}
-
-impl Default for VMStateChange {
-    fn default() -> Self {
-        Self {
-            register_write: None,
-            memory_write: None,
-            new_pc: 0,
-            gas_charge: INST_BASE_GAS_CHARGE,
-        }
-    }
 }
 
 /// VM state change set resulting from a single host function execution.
@@ -121,25 +109,18 @@ pub struct VMStateMutator;
 impl VMStateMutator {
     /// Mutate the VM states from the change set produced by single-step instruction execution functions
     ///
-    /// # Returns
-    ///
-    /// The amount of remaining gas allocation after applying the state change.
-    /// This might be negative, which will trigger the out-of-gas exit reason of the general invocation.
+    /// The gas of an instruction is charged with its basic block, so this does not touch the gas counter.
     pub fn apply_state_change(
         vm_state: &mut VMState,
         change: &VMStateChange,
         vm_state_should_change: bool,
-    ) -> Result<SignedGas, VMCoreError> {
-        // Check gas counter and apply gas change
-        let post_gas = GasCharger::apply_gas_cost(vm_state, change.gas_charge)?;
-
-        // Early return on OOG or unknown exit reasons without modification in PVM state
-        if post_gas < 0 || !vm_state_should_change {
-            return Ok(post_gas);
+    ) -> Result<(), VMCoreError> {
+        if !vm_state_should_change {
+            return Ok(());
         }
 
         // Apply memory change first.
-        // If this results in Panic or PageFault, VM state should remain unchanged except the gas counter.
+        // If this results in Panic or PageFault, VM state should remain unchanged.
         if let Some(MemWrite {
             buf_offset,
             write_data,
@@ -172,7 +153,7 @@ impl VMStateMutator {
             vm_state.regs[reg_index] = new_val;
         }
 
-        Ok(post_gas)
+        Ok(())
     }
 
     pub fn apply_host_call_state_change(

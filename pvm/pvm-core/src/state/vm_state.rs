@@ -17,8 +17,10 @@ pub struct VMState {
     pub memory: Memory,
     /// `ı`: Program counter
     pub pc: RegValue,
-    /// `ρ`: Gas counter
+    /// `ϱ`: Gas counter
     pub gas_counter: SignedGas,
+    /// `ϱ̃`: Whether the gas of the current basic block is charged, so the next instruction runs without a charge
+    pub is_basic_block_gas_charged: bool,
 }
 
 impl VMState {

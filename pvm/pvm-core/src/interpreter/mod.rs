@@ -1,5 +1,6 @@
 use crate::{
     error::VMCoreError,
+    gas::GasCharger,
     program::{
         instruction::{opcode::Opcode as OP, set::InstructionSet as IS, Instruction},
         types::program_state::ProgramState,
@@ -44,12 +45,7 @@ impl Interpreter {
 
     /// Runs single-step invocations along the instruction sequence until one exits, mutating the VM states.
     ///
-    /// # Input Program
-    /// This function utilizes the program component of the `PVM` state. The program is decoded
-    /// into instructions sequence, an opcode bitmask, and a dynamic jump table, which are then passed
-    /// as arguments to the `invoke_single_step` function.
-    ///
-    /// On halt or panic the posterior `ı` is 0. Otherwise it is the `ı` of the instruction that caused the exit.
+    /// On halt or panic the posterior PC is 0 and the gas-charged flag is off. Otherwise the PC is that of the instruction that caused the exit.
     ///
     /// Represents `Ψ` of the GP.
     pub fn invoke_general(
@@ -65,6 +61,8 @@ impl Interpreter {
             if matches!(exit_reason, ExitReason::Panic | ExitReason::RegularHalt) {
                 tracing::warn!("Ψ Terminated with exit reason {exit_reason:?}. PC={curr_pc}");
                 vm_state.pc = 0;
+                // Graypaper #588
+                vm_state.is_basic_block_gas_charged = false;
             }
             return Ok(GeneralInvocationResult {
                 exit_reason,
@@ -73,9 +71,9 @@ impl Interpreter {
         }
     }
 
-    /// Executes the instruction at `curr_pc` and applies its state change to `vm_state`.
+    /// Charges the basic block gas, then executes the instruction at `curr_pc` and applies its state change to `vm_state`.
     ///
-    /// On a page fault, an out-of-gas or a host call, the VM state stays unchanged except the gas counter.
+    /// On out-of-gas the VM state stays unchanged. On a page fault or a host call only the gas counter and the gas-charged flag of the block charge change.
     fn invoke_single_step_and_apply(
         vm_state: &mut VMState,
         program_state: &ProgramState,
@@ -86,6 +84,10 @@ impl Interpreter {
             return Ok(ExitReason::Panic);
         };
 
+        if !GasCharger::charge_basic_block_gas(vm_state, program_state, curr_pc as usize)? {
+            return Ok(ExitReason::OutOfGas);
+        }
+
         let single_invocation_result = Self::invoke_single_step(vm_state, program_state, inst)?;
 
         let vm_state_should_change = matches!(
@@ -93,12 +95,12 @@ impl Interpreter {
             ExitReason::Continue | ExitReason::Panic | ExitReason::RegularHalt
         );
 
-        let post_gas = match VMStateMutator::apply_state_change(
+        match VMStateMutator::apply_state_change(
             vm_state,
             &single_invocation_result.state_change,
             vm_state_should_change,
         ) {
-            Ok(post_gas) => post_gas,
+            Ok(()) => {}
             Err(VMCoreError::ForbiddenMemZone(addr)) => {
                 tracing::warn!("Ψ Panic: Forbidden mem access while applying state change @{addr}");
                 return Ok(ExitReason::Panic);
@@ -108,9 +110,6 @@ impl Interpreter {
             }
             Err(e) => return Err(e),
         };
-        if post_gas < 0 {
-            return Ok(ExitReason::OutOfGas);
-        }
 
         if tracing::enabled!(Level::TRACE) {
             tracing::trace!(
@@ -123,15 +122,19 @@ impl Interpreter {
             );
         }
 
-        Ok(single_invocation_result.exit_reason)
+        // Leaving a basic block forces a charge on the next step
+        let exit_reason = single_invocation_result.exit_reason;
+        if inst.op.is_termination_opcode()
+            && matches!(exit_reason, ExitReason::Continue | ExitReason::HostCall(_))
+        {
+            vm_state.is_basic_block_gas_charged = false;
+        }
+        Ok(exit_reason)
     }
 
-    /// Single-step PVM state transition function.
+    /// Executes one instruction and returns its VM state change, the regular mutation of `Ψ_1`.
     ///
-    /// Refers to the VM states e.g. `pc`, `memory`, `instructions` from the `PVMCore` state
-    /// and returns the VM state change as an output.
-    ///
-    /// Represents `Ψ_1` of the GP.
+    /// The gas charge and the gas-charged flag rule of `Ψ_1` are in `invoke_single_step_and_apply`.
     fn invoke_single_step(
         vm_state: &mut VMState,
         program_state: &ProgramState,

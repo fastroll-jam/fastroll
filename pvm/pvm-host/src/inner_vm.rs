@@ -9,6 +9,8 @@ pub(crate) struct InnerPVM {
     pub(crate) memory: Memory,
     /// `i`: Program counter
     pub(crate) pc: RegValue,
+    /// `g̃`: Gas-charged flag, kept between `invoke` calls so that resuming inside a basic block charges no gas again
+    pub(crate) is_basic_block_gas_charged: bool,
 }
 
 impl InnerPVM {
@@ -17,6 +19,7 @@ impl InnerPVM {
             program_code,
             memory: Memory::default(),
             pc,
+            is_basic_block_gas_charged: false,
         }
     }
 }

@@ -286,6 +286,7 @@ impl VMStateBuilder {
             memory: self.memory,
             pc: self.pc,
             gas_counter: self.gas_counter,
+            is_basic_block_gas_charged: false,
         }
     }
 }

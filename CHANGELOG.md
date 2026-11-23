@@ -41,6 +41,8 @@ The migration to Graypaper 0.8.0 is in progress. `SPEC_VERSION` stays at 0.7.2 u
 - [GP v0.8.0] Panic on a branch unless both its target and its next instruction start basic blocks, and make `fallthrough` a static jump
 - [GP v0.8.0] Add the gas cost model, which simulates each basic block once when a program loads
 - [GP v0.8.1] Count the destination of `cmov` as a source register in the gas cost model ([gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559))
+- [GP v0.8.0] Charge gas per basic block with a gas-charged flag instead of per instruction
+- [GP v0.8.1] Clear the gas-charged flag when `Ψ` halts or panics ([gavofyork/graypaper#588](https://github.com/gavofyork/graypaper/pull/588))
 
 ### Fixed
 
