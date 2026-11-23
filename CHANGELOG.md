@@ -14,35 +14,33 @@ Notable changes to FastRoll, per release. The format is based on [Keep a Changel
 
 ## [Unreleased]
 
-The migration to Graypaper 0.8.0 is in progress. `SPEC_VERSION` stays at 0.7.2 until it is released.
-
 ### Changed
 
-- Make validator sets variable-length, and scale reports, assurances, statistics and ticket entries with the set size ([`2e83e362`](https://github.com/fastroll-jam/fastroll/commit/2e83e362), [`0670821b`](https://github.com/fastroll-jam/fastroll/commit/0670821b), [`c4d57fd9`](https://github.com/fastroll-jam/fastroll/commit/c4d57fd9))
-- Derive the erasure coding rate from the validator count, and add erasure shards to the availability spec ([`9c0efea5`](https://github.com/fastroll-jam/fastroll/commit/9c0efea5), [`af16de0a`](https://github.com/fastroll-jam/fastroll/commit/af16de0a))
-- Encode ticket attempts in one octet ([`fee0d558`](https://github.com/fastroll-jam/fastroll/commit/fee0d558))
-- Commit to preimage hashes in the extrinsic hash ([`f786d235`](https://github.com/fastroll-jam/fastroll/commit/f786d235))
-- Apply the disputes extrinsic limits of Graypaper 0.8.0 ([`fc837f62`](https://github.com/fastroll-jam/fastroll/commit/fc837f62))
-- Add the lookup-anchor post state root and anchor slot to the refinement context ([`ec14db04`](https://github.com/fastroll-jam/fastroll/commit/ec14db04))
-- Keep full guarantees in availability assignments ([`8e30ace2`](https://github.com/fastroll-jam/fastroll/commit/8e30ace2))
-- Bound work reports by the work-package limits, a rule added after Graypaper 0.8.0 by [gavofyork/graypaper#563](https://github.com/gavofyork/graypaper/pull/563)
-- Count processed transfers in service statistics ([`09a41740`](https://github.com/fastroll-jam/fastroll/commit/09a41740))
-- Reserve transfer and always-accumulate gas in outer accumulation ([`713503ad`](https://github.com/fastroll-jam/fastroll/commit/713503ad))
-- Saturate balances at `2^64-1` on incoming deferred transfers, a rule of the Graypaper 0.8.0 fuzz campaign that no Graypaper version defines ([jam-conformance/jam-fuzzing#212](https://github.com/jam-conformance/jam-fuzzing/pull/212))
-- Restrict `bless` to the manager, and merge assigners per core with `R` ([`83fa089b`](https://github.com/fastroll-jam/fastroll/commit/83fa089b), [`f6947533`](https://github.com/fastroll-jam/fastroll/commit/f6947533))
-- Let privilege holders hand over their role via `bless`, a rule added after Graypaper 0.8.0 by [gavofyork/graypaper#558](https://github.com/gavofyork/graypaper/pull/558) ([#375](https://github.com/fastroll-jam/fastroll/pull/375))
-- Return `HUH` for preimage sizes of `2^32` or more ([`34869a40`](https://github.com/fastroll-jam/fastroll/commit/34869a40))
-- Limit `machine` to 63 inner VMs ([`86cb168b`](https://github.com/fastroll-jam/fastroll/commit/86cb168b))
-- Read `z` validator keys in `designate`, and drop the removed `fetch` constants ([`e5e90b9b`](https://github.com/fastroll-jam/fastroll/commit/e5e90b9b))
-- Limit the instruction data size and jump table entries in `deblob`, a rule added after Graypaper 0.8.0 by [gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559)
+- [GP v0.8.0] Make validator sets variable-length, and scale reports, assurances, statistics and ticket entries with the set size ([`2e83e362`](https://github.com/fastroll-jam/fastroll/commit/2e83e362), [`0670821b`](https://github.com/fastroll-jam/fastroll/commit/0670821b), [`c4d57fd9`](https://github.com/fastroll-jam/fastroll/commit/c4d57fd9))
+- [GP v0.8.0] Derive the erasure coding rate from the validator count, and add erasure shards to the availability spec ([`9c0efea5`](https://github.com/fastroll-jam/fastroll/commit/9c0efea5), [`af16de0a`](https://github.com/fastroll-jam/fastroll/commit/af16de0a))
+- [GP v0.8.0] Encode ticket attempts in one octet ([`fee0d558`](https://github.com/fastroll-jam/fastroll/commit/fee0d558))
+- [GP v0.8.0] Commit to preimage hashes in the extrinsic hash ([`f786d235`](https://github.com/fastroll-jam/fastroll/commit/f786d235))
+- [GP v0.8.0] Apply the disputes extrinsic limits ([`fc837f62`](https://github.com/fastroll-jam/fastroll/commit/fc837f62))
+- [GP v0.8.0] Add the lookup-anchor post state root and anchor slot to the refinement context ([`ec14db04`](https://github.com/fastroll-jam/fastroll/commit/ec14db04))
+- [GP v0.8.0] Keep full guarantees in availability assignments ([`8e30ace2`](https://github.com/fastroll-jam/fastroll/commit/8e30ace2))
+- [GP v0.8.0] Count processed transfers in service statistics ([`09a41740`](https://github.com/fastroll-jam/fastroll/commit/09a41740))
+- [GP v0.8.0] Reserve transfer and always-accumulate gas in outer accumulation ([`713503ad`](https://github.com/fastroll-jam/fastroll/commit/713503ad))
+- [GP v0.8.0] Restrict `bless` to the manager, and merge assigners per core with `R` ([`83fa089b`](https://github.com/fastroll-jam/fastroll/commit/83fa089b), [`f6947533`](https://github.com/fastroll-jam/fastroll/commit/f6947533))
+- [GP v0.8.0] Return `HUH` for preimage sizes of `2^32` or more ([`34869a40`](https://github.com/fastroll-jam/fastroll/commit/34869a40))
+- [GP v0.8.0] Limit `machine` to 63 inner VMs ([`86cb168b`](https://github.com/fastroll-jam/fastroll/commit/86cb168b))
+- [GP v0.8.0] Read `z` validator keys in `designate`, and drop the removed `fetch` constants ([`e5e90b9b`](https://github.com/fastroll-jam/fastroll/commit/e5e90b9b))
 - [GP v0.8.0] Remove the `sbrk` instruction
 - [GP v0.8.0] Renumber the PVM opcodes and add `unlikely`
 - [GP v0.8.0] Validate program blobs in `deblob` by `v_blob` and zero padding bits of `k`, and return `HUH` from `machine` for an initial pc that is not an instruction
 - [GP v0.8.0] Panic on a branch unless both its target and its next instruction start basic blocks, and make `fallthrough` a static jump
 - [GP v0.8.0] Add the gas cost model, which simulates each basic block once when a program loads
-- [GP v0.8.1] Count the destination of `cmov` as a source register in the gas cost model ([gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559))
 - [GP v0.8.0] Charge gas per basic block with a gas-charged flag instead of per instruction
+- [GP v0.8.1] Bound work reports by the work-package limits ([gavofyork/graypaper#563](https://github.com/gavofyork/graypaper/pull/563))
+- [GP v0.8.1] Let privilege holders hand over their role via `bless` ([gavofyork/graypaper#558](https://github.com/gavofyork/graypaper/pull/558), [#375](https://github.com/fastroll-jam/fastroll/pull/375))
+- [GP v0.8.1] Limit the instruction data size and jump table entries in `deblob` ([gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559))
+- [GP v0.8.1] Count the destination of `cmov` as a source register in the gas cost model ([gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559))
 - [GP v0.8.1] Clear the gas-charged flag when `Ψ` halts or panics ([gavofyork/graypaper#588](https://github.com/gavofyork/graypaper/pull/588))
+- Saturate balances at `2^64-1` on incoming deferred transfers, a rule of the Graypaper 0.8.0 fuzz campaign that no Graypaper version defines ([jam-conformance/jam-fuzzing#212](https://github.com/jam-conformance/jam-fuzzing/pull/212))
 
 ### Fixed
 
