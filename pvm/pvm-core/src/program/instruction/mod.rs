@@ -288,7 +288,8 @@ impl Instruction {
             | MIN | MIN_U => {
                 let r_a = 12.min(instruction_octets[1] % 16) as RegIndex;
                 let r_b = 12.min(instruction_octets[1] / 16) as RegIndex;
-                let r_d = 12.min(instruction_octets[2]) as RegIndex;
+                // `r_D` takes the low 4 bits (Graypaper #554)
+                let r_d = 12.min(instruction_octets[2] % 16) as RegIndex;
 
                 Ok(Self::new(op, Some(r_a), Some(r_b), Some(r_d), None, None)?)
             }
