@@ -1,11 +1,12 @@
 /// PVM Opcodes
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 pub enum Opcode {
     #[default]
     TRAP = 0,
     FALLTHROUGH = 1,
+    UNLIKELY = 2,
     ECALLI = 10,
     LOAD_IMM_64 = 20,
     STORE_IMM_U8 = 30,
@@ -42,17 +43,16 @@ pub enum Opcode {
     BRANCH_GE_S_IMM = 89,
     BRANCH_GT_S_IMM = 90,
     MOVE_REG = 100,
-    SBRK = 101,
-    COUNT_SET_BITS_64 = 102,
-    COUNT_SET_BITS_32 = 103,
-    LEADING_ZERO_BITS_64 = 104,
-    LEADING_ZERO_BITS_32 = 105,
-    TRAILING_ZERO_BITS_64 = 106,
-    TRAILING_ZERO_BITS_32 = 107,
-    SIGN_EXTEND_8 = 108,
-    SIGN_EXTEND_16 = 109,
-    ZERO_EXTEND_16 = 110,
-    REVERSE_BYTES = 111,
+    COUNT_SET_BITS_64 = 101,
+    COUNT_SET_BITS_32 = 102,
+    LEADING_ZERO_BITS_64 = 103,
+    LEADING_ZERO_BITS_32 = 104,
+    TRAILING_ZERO_BITS_64 = 105,
+    TRAILING_ZERO_BITS_32 = 106,
+    SIGN_EXTEND_8 = 107,
+    SIGN_EXTEND_16 = 108,
+    ZERO_EXTEND_16 = 109,
+    REVERSE_BYTES = 110,
     STORE_IND_U8 = 120,
     STORE_IND_U16 = 121,
     STORE_IND_U32 = 122,
@@ -145,11 +145,13 @@ pub enum Opcode {
     MIN_U = 230,
 }
 
-impl From<u8> for Opcode {
-    fn from(value: u8) -> Self {
-        match value {
+impl Opcode {
+    /// Returns the opcode of an octet, or `None` outside the valid opcodes `U`.
+    pub fn from_u8(value: u8) -> Option<Self> {
+        let opcode = match value {
             0 => Opcode::TRAP,
             1 => Opcode::FALLTHROUGH,
+            2 => Opcode::UNLIKELY,
             10 => Opcode::ECALLI,
             20 => Opcode::LOAD_IMM_64,
             30 => Opcode::STORE_IMM_U8,
@@ -186,17 +188,16 @@ impl From<u8> for Opcode {
             89 => Opcode::BRANCH_GE_S_IMM,
             90 => Opcode::BRANCH_GT_S_IMM,
             100 => Opcode::MOVE_REG,
-            101 => Opcode::SBRK,
-            102 => Opcode::COUNT_SET_BITS_64,
-            103 => Opcode::COUNT_SET_BITS_32,
-            104 => Opcode::LEADING_ZERO_BITS_64,
-            105 => Opcode::LEADING_ZERO_BITS_32,
-            106 => Opcode::TRAILING_ZERO_BITS_64,
-            107 => Opcode::TRAILING_ZERO_BITS_32,
-            108 => Opcode::SIGN_EXTEND_8,
-            109 => Opcode::SIGN_EXTEND_16,
-            110 => Opcode::ZERO_EXTEND_16,
-            111 => Opcode::REVERSE_BYTES,
+            101 => Opcode::COUNT_SET_BITS_64,
+            102 => Opcode::COUNT_SET_BITS_32,
+            103 => Opcode::LEADING_ZERO_BITS_64,
+            104 => Opcode::LEADING_ZERO_BITS_32,
+            105 => Opcode::TRAILING_ZERO_BITS_64,
+            106 => Opcode::TRAILING_ZERO_BITS_32,
+            107 => Opcode::SIGN_EXTEND_8,
+            108 => Opcode::SIGN_EXTEND_16,
+            109 => Opcode::ZERO_EXTEND_16,
+            110 => Opcode::REVERSE_BYTES,
             120 => Opcode::STORE_IND_U8,
             121 => Opcode::STORE_IND_U16,
             122 => Opcode::STORE_IND_U32,
@@ -287,15 +288,9 @@ impl From<u8> for Opcode {
             228 => Opcode::MAX_U,
             229 => Opcode::MIN,
             230 => Opcode::MIN_U,
-            _ => Opcode::TRAP, // Unknown opcode is interpreted as TRAP
-        }
-    }
-}
-
-impl Opcode {
-    #[inline(always)]
-    pub fn from_u8(value: u8) -> Self {
-        Self::from(value)
+            _ => return None,
+        };
+        Some(opcode)
     }
 
     #[inline(always)]

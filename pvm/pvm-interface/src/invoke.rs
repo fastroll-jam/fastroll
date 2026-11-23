@@ -299,7 +299,8 @@ impl PVMInterface {
     ) -> Result<ExtendedInvocationResult, PVMError> {
         tracing::info!("Ψ_H invoked. s={service_id}");
         loop {
-            let exit_reason = Interpreter::invoke_general(&mut pvm.state, &pvm.program_state)?;
+            let exit_reason =
+                Interpreter::invoke_general(&mut pvm.state, &pvm.program_state)?.exit_reason;
 
             let host_call_result = match exit_reason {
                 ExitReason::HostCall(h) => {

@@ -1,8 +1,11 @@
 use crate::{
     error::VMCoreError,
+    gas::gas_cost_model::basic_block_gas_cost,
     program::{
-        instruction::Instruction,
-        types::program_state::{OpcodeBitmask, ProgramState, NOT_INSTRUCTION_INDEX},
+        instruction::{opcode::Opcode, Instruction},
+        types::program_state::{
+            BasicBlockIndex, OpcodeBitmask, ProgramState, NOT_INSTRUCTION_INDEX,
+        },
     },
 };
 use bitvec::prelude::*;
@@ -10,16 +13,17 @@ use fr_codec::prelude::*;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{
-        MAX_INSTRUCTION_DATA_SIZE, MAX_JUMP_TABLE_ENTRY_COUNT, MAX_JUMP_TABLE_ENTRY_SIZE,
-        MAX_SKIP_DISTANCE,
+        MAX_INSTRUCTION_DATA_SIZE, MAX_INST_BLOB_LENGTH, MAX_JUMP_TABLE_ENTRY_COUNT,
+        MAX_JUMP_TABLE_ENTRY_SIZE, MAX_SKIP_DISTANCE,
     },
 };
 use tracing::Level;
 
 pub struct ProgramLoader;
 impl ProgramLoader {
-    /// Decodes a program code blob and loads it into the PVM program state components:
-    /// instructions, an opcode bitmask, a dynamic jump table and a basic block bitmask.
+    /// Decodes a program code blob and loads it into the `ProgramState`.
+    ///
+    /// Besides `c`, `k` and `j`, it precomputes the decoded instructions, `skip`, the basic block starts and the gas cost of every basic block.
     pub fn load_program(
         program_code: &[u8],
         program_state: &mut ProgramState,
@@ -32,10 +36,7 @@ impl ProgramLoader {
         program_state.instructions = instructions;
         program_state.opcode_bitmask = opcode_bitmask;
         program_state.jump_table = jump_table;
-        program_state.skip_distances = Self::compute_skip_distances(
-            &program_state.opcode_bitmask,
-            program_state.instructions.len(),
-        );
+        program_state.skip_distances = Self::compute_skip_distances(&program_state.opcode_bitmask);
         let (decoded_instructions, instruction_lookup) = Self::decode_instructions(
             &program_state.instructions,
             &program_state.opcode_bitmask,
@@ -43,9 +44,8 @@ impl ProgramLoader {
         )?;
         program_state.decoded_instructions = decoded_instructions;
         program_state.instruction_lookup = instruction_lookup;
-        program_state.basic_block_start_indices =
-            bitvec![u8, Lsb0; 0; program_state.instructions.len() + 1];
-        Self::set_basic_block_start_indices(program_state)?;
+        Self::set_basic_block_start_indices(program_state);
+        Self::set_basic_block_gas_costs(program_state)?;
         tracing::info!("Program loaded.");
         if tracing::enabled!(Level::TRACE) {
             program_state.print_all_opcodes();
@@ -56,8 +56,10 @@ impl ProgramLoader {
     /// Decodes code element of the formatted program code into instruction data (c), opcode bitmask (k) and dynamic jump table (j).
     /// Used by `Ψ` and the `machine` host call.
     ///
-    /// Fails when `|j|` exceeds `Z_J`, `z` exceeds `MAX_JUMP_TABLE_ENTRY_SIZE`, `|c|` exceeds `Z_C`, or the rest of the blob is not exactly `j`, `c` and `k`.
+    /// Fails when `|j|` exceeds `Z_J`, `z` exceeds `MAX_JUMP_TABLE_ENTRY_SIZE`, `|c|` exceeds `Z_C`, or the rest of the blob is not exactly `j`, `c` and `k` with zero padding bits.
     /// All sizes are checked before any data is read, so a truncated blob cannot reserve the sizes its header claims.
+    /// Also fails when the instruction sequence is invalid by `v_blob`.
+    /// The check of the start PC by `v_inst` is left to the caller, e.g. `instruction_at` in `Ψ`.
     pub fn deblob_program_code(
         mut code: &[u8],
     ) -> Result<(Vec<u8>, OpcodeBitmask, Vec<MemAddress>), VMCoreError> {
@@ -107,59 +109,120 @@ impl ProgramLoader {
         // Decode the instruction data (c)
         let instruction_data = Vec::<u8>::decode_fixed(input, instruction_data_size)?;
 
-        // Decode the opcode bitmask (k)
+        // Decode the opcode bitmask (k). Its padding bits must be zero, since only then the blob encodes `k`.
+        let padding_bit_count = opcode_bitmask_size * 8 - instruction_data_size;
+        if padding_bit_count > 0 && input[opcode_bitmask_size - 1] >> (8 - padding_bit_count) != 0 {
+            return Err(VMCoreError::InvalidProgram);
+        }
         let opcode_bitmask = BitVec::decode_fixed(input, instruction_data_size)?;
+
+        if !Self::is_valid_instruction_sequence(&instruction_data, &opcode_bitmask) {
+            return Err(VMCoreError::InvalidInstructionSequence);
+        }
 
         Ok((instruction_data, opcode_bitmask, jump_table))
     }
 
-    /// Collects opcode indices that indicate beginning of basic blocks and sets the
-    /// `basic_block_start_indices` of the `ProgramState`.
-    fn set_basic_block_start_indices(program: &mut ProgramState) -> Result<(), VMCoreError> {
-        program.basic_block_start_indices.set(0, true);
-        let instructions_len = program.instructions.len();
-        for n in 1..instructions_len {
-            if program
-                .opcode_bitmask
-                .get(n)
-                .map(|bit| *bit)
-                .unwrap_or(false)
-            {
-                if let Some(inst) = program.instruction_at(n) {
-                    if inst.op.is_termination_opcode() {
-                        let skip = program.skip_distance(n).unwrap_or(MAX_SKIP_DISTANCE);
-                        let next_op_index = n + 1 + skip;
-                        if next_op_index < program.basic_block_start_indices.len() {
-                            program.basic_block_start_indices.set(next_op_index, true);
-                        }
-                    }
-                }
+    /// Checks `v_blob` of the GP. Walking from index 0, every instruction has a valid opcode and the last one ends a basic block.
+    ///
+    /// An empty `c` or a gap of more than `MAX_SKIP_DISTANCE` octets between opcodes is invalid.
+    fn is_valid_instruction_sequence(
+        instruction_data: &[u8],
+        opcode_bitmask: &OpcodeBitmask,
+    ) -> bool {
+        let instruction_data_size = instruction_data.len();
+        let mut index = 0;
+        loop {
+            if index > 0 && index == instruction_data_size {
+                return true;
+            }
+            if !Self::is_valid_instruction_start(instruction_data, opcode_bitmask, index) {
+                return false;
+            }
+            let next_index = index + 1 + Self::skip_distance(opcode_bitmask, index);
+            let is_termination = Opcode::from_u8(instruction_data[index])
+                .is_some_and(|opcode| opcode.is_termination_opcode());
+            if next_index == instruction_data_size && !is_termination {
+                return false;
+            }
+            index = next_index;
+        }
+    }
+
+    /// Checks `v_inst` of the GP, whether `index` (0-based, in octets) is the opcode of an instruction with a valid opcode.
+    fn is_valid_instruction_start(
+        instruction_data: &[u8],
+        opcode_bitmask: &OpcodeBitmask,
+        index: usize,
+    ) -> bool {
+        opcode_bitmask.len() == instruction_data.len()
+            && opcode_bitmask.get(index).is_some_and(|bit| *bit)
+            && Opcode::from_u8(instruction_data[index]).is_some()
+    }
+
+    /// Computes `skip(index)` of the GP from `k` extended with set bits.
+    fn skip_distance(opcode_bitmask: &OpcodeBitmask, index: usize) -> usize {
+        (0..MAX_SKIP_DISTANCE)
+            .find(|distance| {
+                opcode_bitmask
+                    .get(index + 1 + distance)
+                    .is_none_or(|bit| *bit)
+            })
+            .unwrap_or(MAX_SKIP_DISTANCE)
+    }
+
+    /// Marks the basic block starts (`ϖ`) in `basic_block_start_indices` of the `ProgramState`.
+    ///
+    /// They are index 0 and each instruction that follows a block-terminating instruction, as 0-based octet indices.
+    fn set_basic_block_start_indices(program: &mut ProgramState) {
+        let instruction_data_size = program.instructions.len();
+        program.basic_block_start_indices = bitvec![u8, Lsb0; 0; instruction_data_size];
+        if program.instruction_at(0).is_some() {
+            program.basic_block_start_indices.set(0, true);
+        }
+        for index in 0..instruction_data_size {
+            let Some(instruction) = program.instruction_at(index) else {
+                continue;
+            };
+            if !instruction.op.is_termination_opcode() {
+                continue;
+            }
+            let skip = program.skip_distance(index).unwrap_or(MAX_SKIP_DISTANCE);
+            let next_index = index + 1 + skip;
+            if program.instruction_at(next_index).is_some() {
+                program.basic_block_start_indices.set(next_index, true);
             }
         }
+    }
+
+    /// Simulates every basic block once and sets `basic_block_gas_costs` and `basic_block_index_by_instruction` of the `ProgramState`.
+    ///
+    /// A block cost depends only on the code, so each program computes it once.
+    fn set_basic_block_gas_costs(program: &mut ProgramState) -> Result<(), VMCoreError> {
+        let mut basic_block_gas_costs = Vec::new();
+        let mut basic_block_index_by_instruction =
+            Vec::with_capacity(program.decoded_instructions.len());
+        for pc in 0..program.instructions.len() {
+            if program.instruction_at(pc).is_none() {
+                continue;
+            }
+            if program.is_basic_block_start(pc) {
+                basic_block_gas_costs.push(basic_block_gas_cost(program, pc)?);
+            }
+            // Index 0 starts a block, so the first instruction always has a block
+            basic_block_index_by_instruction
+                .push(basic_block_gas_costs.len() as BasicBlockIndex - 1);
+        }
+        program.basic_block_gas_costs = basic_block_gas_costs;
+        program.basic_block_index_by_instruction = basic_block_index_by_instruction;
         Ok(())
     }
 
-    /// Precomputes the distance to the next opcode start for every byte in the instruction blob.
-    ///
-    /// The bitmask and instruction blob have the same lengths, so a PC value maps directly
-    /// to an index into both. Each entry stores how many bytes beyond `pc + 1`
-    /// the next instruction begins, capped at `MAX_SKIP_DISTANCE`.
-    fn compute_skip_distances(bitmask: &OpcodeBitmask, inst_len: usize) -> Vec<u8> {
-        let mut skip_distances = vec![0u8; inst_len];
-        // Keep the next instruction index here to compute the skip distances
-        let mut next_inst_idx: Option<usize> = None;
-        // Reverse iteration
-        for idx in (0..inst_len).rev() {
-            let distance = match next_inst_idx {
-                Some(next_idx) => next_idx.saturating_sub(idx + 1),
-                None => inst_len.saturating_sub(idx + 1), // skip until the end of the blob
-            };
-            skip_distances[idx] = distance.min(MAX_SKIP_DISTANCE) as u8;
-            if bitmask.get(idx).map(|bit| *bit).unwrap_or(false) {
-                next_inst_idx = Some(idx);
-            }
-        }
-        skip_distances
+    /// Precomputes `skip` for every octet index of the instruction data.
+    fn compute_skip_distances(opcode_bitmask: &OpcodeBitmask) -> Vec<u8> {
+        (0..opcode_bitmask.len())
+            .map(|index| Self::skip_distance(opcode_bitmask, index) as u8)
+            .collect()
     }
 
     /// Decodes instructions blob and populates a `Vec<Instruction>`.
@@ -179,12 +242,12 @@ impl ProgramLoader {
                 .get(idx)
                 .copied()
                 .unwrap_or(MAX_SKIP_DISTANCE as u8) as usize;
-            let next_index = idx + 1 + skip;
-            let inst = if next_index > instructions.len() {
-                Instruction::trap()
-            } else {
-                Instruction::from_inst_blob(&instructions[idx..next_index], idx as RegValue, skip)?
-            };
+            // Octets past `c` read as zero
+            let mut instruction_octets = [0u8; MAX_INST_BLOB_LENGTH];
+            let available_octets =
+                &instructions[idx..(idx + MAX_INST_BLOB_LENGTH).min(instructions.len())];
+            instruction_octets[..available_octets.len()].copy_from_slice(available_octets);
+            let inst = Instruction::from_inst_blob(&instruction_octets, idx as RegValue, skip)?;
             decoded_instructions.push(inst);
             let decoded_index = decoded_instructions.len() as u32;
             instruction_lookup[idx] = decoded_index - 1;
@@ -194,14 +257,14 @@ impl ProgramLoader {
     }
 }
 
+/// Program blobs for the tests of PVM core.
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_program_blobs {
     use super::*;
-    use crate::program::instruction::opcode::Opcode;
     use std::error::Error;
 
     /// Encodes the length fields `E(|j|) ⌢ E_1(z) ⌢ E(|c|)` that open a program blob.
-    fn blob_header(
+    pub(crate) fn blob_header(
         jump_table_entry_count: usize,
         jump_table_entry_size: u8,
         instruction_data_size: usize,
@@ -211,6 +274,38 @@ mod tests {
         header.extend(instruction_data_size.encode()?);
         Ok(header)
     }
+
+    /// Encodes a program blob with an empty jump table, the instruction data `c` and the opcode bitmask `k`.
+    pub(crate) fn program_blob(
+        instruction_data: &[u8],
+        opcode_bitmask: &[bool],
+    ) -> Result<Vec<u8>, Box<dyn Error>> {
+        let mut blob = blob_header(0, 0, instruction_data.len())?;
+        blob.extend(instruction_data);
+        let opcode_bitmask: OpcodeBitmask = opcode_bitmask.iter().collect();
+        blob.extend(opcode_bitmask.encode_fixed(instruction_data.len())?);
+        Ok(blob)
+    }
+
+    /// Loads the blob of `program_blob`.
+    pub(crate) fn load_program_state(
+        instruction_data: &[u8],
+        opcode_bitmask: &[bool],
+    ) -> Result<ProgramState, Box<dyn Error>> {
+        let mut program_state = ProgramState::default();
+        ProgramLoader::load_program(
+            &program_blob(instruction_data, opcode_bitmask)?,
+            &mut program_state,
+        )?;
+        Ok(program_state)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{test_program_blobs::*, *};
+    use crate::program::instruction::opcode::Opcode;
+    use std::error::Error;
 
     /// Appends instruction data (c) of `trap_count` `trap` instructions and its opcode bitmask (k).
     ///
@@ -297,6 +392,156 @@ mod tests {
             ProgramLoader::deblob_program_code(&blob),
             Err(VMCoreError::InvalidProgram)
         ));
+        Ok(())
+    }
+
+    mod instruction_sequence_tests {
+        use super::*;
+
+        const UNLIKELY: u8 = Opcode::UNLIKELY as u8;
+        const TRAP: u8 = Opcode::TRAP as u8;
+
+        fn assert_invalid_instruction_sequence(blob: &[u8]) {
+            assert!(matches!(
+                ProgramLoader::deblob_program_code(blob),
+                Err(VMCoreError::InvalidInstructionSequence)
+            ));
+        }
+
+        #[test]
+        fn test_deblob_accepts_sequence_ending_with_termination() -> Result<(), Box<dyn Error>> {
+            let blob = program_blob(&[UNLIKELY, TRAP], &[true, true])?;
+            ProgramLoader::deblob_program_code(&blob)?;
+            Ok(())
+        }
+
+        #[test]
+        fn test_deblob_accepts_opcode_gap_of_max_skip_distance() -> Result<(), Box<dyn Error>> {
+            // The next opcode is 25 octets after the first, which `skip` of 24 reaches
+            let mut instruction_data = vec![0; MAX_SKIP_DISTANCE + 2];
+            instruction_data[0] = UNLIKELY;
+            let mut opcode_bitmask = vec![false; instruction_data.len()];
+            opcode_bitmask[0] = true;
+            opcode_bitmask[MAX_SKIP_DISTANCE + 1] = true;
+            ProgramLoader::deblob_program_code(&program_blob(&instruction_data, &opcode_bitmask)?)?;
+            Ok(())
+        }
+
+        #[test]
+        fn test_deblob_accepts_argument_octets_after_last_instruction() -> Result<(), Box<dyn Error>>
+        {
+            // `skip` of the last `trap` reaches the end of `c` through `k` extended with set bits
+            let blob = program_blob(&[TRAP, 0, 0], &[true, false, false])?;
+            ProgramLoader::deblob_program_code(&blob)?;
+            Ok(())
+        }
+
+        #[test]
+        fn test_deblob_rejects_nonzero_bitmask_padding() -> Result<(), Box<dyn Error>> {
+            let mut blob = program_blob(&[TRAP], &[true])?;
+            // Bit 1 of the only `k` octet is padding past `|c| = 1`
+            *blob.last_mut().ok_or("empty blob")? |= 0b10;
+            assert!(matches!(
+                ProgramLoader::deblob_program_code(&blob),
+                Err(VMCoreError::InvalidProgram)
+            ));
+            Ok(())
+        }
+
+        #[test]
+        fn test_deblob_rejects_empty_instruction_data() -> Result<(), Box<dyn Error>> {
+            assert_invalid_instruction_sequence(&program_blob(&[], &[])?);
+            Ok(())
+        }
+
+        #[test]
+        fn test_deblob_rejects_last_instruction_without_termination() -> Result<(), Box<dyn Error>>
+        {
+            assert_invalid_instruction_sequence(&program_blob(&[UNLIKELY], &[true])?);
+            Ok(())
+        }
+
+        #[test]
+        fn test_deblob_rejects_unknown_opcode() -> Result<(), Box<dyn Error>> {
+            // Opcode 3 is outside `U`
+            assert_invalid_instruction_sequence(&program_blob(&[3, TRAP], &[true, true])?);
+            Ok(())
+        }
+
+        #[test]
+        fn test_deblob_rejects_first_octet_without_opcode() -> Result<(), Box<dyn Error>> {
+            assert_invalid_instruction_sequence(&program_blob(&[TRAP, TRAP], &[false, true])?);
+            Ok(())
+        }
+
+        #[test]
+        fn test_deblob_rejects_opcode_gap_beyond_max_skip_distance() -> Result<(), Box<dyn Error>> {
+            // The next opcode is 26 octets after the first, but `skip` stops at 24
+            let mut instruction_data = vec![0; MAX_SKIP_DISTANCE + 3];
+            instruction_data[0] = UNLIKELY;
+            let mut opcode_bitmask = vec![false; instruction_data.len()];
+            opcode_bitmask[0] = true;
+            opcode_bitmask[MAX_SKIP_DISTANCE + 2] = true;
+            assert_invalid_instruction_sequence(&program_blob(&instruction_data, &opcode_bitmask)?);
+            Ok(())
+        }
+
+        #[test]
+        fn test_basic_block_starts_follow_terminations() -> Result<(), Box<dyn Error>> {
+            // `trap` at 0 starts the block at 1. `trap` at 2 ends the code, which is not a block start.
+            let program_state = load_program_state(&[TRAP, UNLIKELY, TRAP], &[true, true, true])?;
+            let basic_block_starts: Vec<usize> = program_state
+                .basic_block_start_indices
+                .iter_ones()
+                .collect();
+            assert_eq!(basic_block_starts, vec![0, 1]);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_decode_reads_arguments_past_next_opcode() -> Result<(), Box<dyn Error>> {
+        // `load_imm` has `skip` 0, so its `r_A` is the next opcode `move_reg` (100) mod 16
+        let instruction_data = [
+            Opcode::LOAD_IMM as u8,
+            Opcode::MOVE_REG as u8,
+            0,
+            Opcode::TRAP as u8,
+        ];
+        let program_state = load_program_state(&instruction_data, &[true, true, false, true])?;
+        let load_imm = program_state
+            .instruction_at(0)
+            .ok_or("no instruction at 0")?;
+        assert_eq!(load_imm.rs1, Some(4));
+        assert_eq!(load_imm.imm1, Some(0));
+        Ok(())
+    }
+
+    #[test]
+    fn test_basic_block_gas_cost_at_follows_block_start() -> Result<(), Box<dyn Error>> {
+        // Blocks `[trap]` at 0 and `[unlikely, trap]` at 1, where `trap` at 2 is in the middle of the second block
+        let instruction_data = [
+            Opcode::TRAP as u8,
+            Opcode::UNLIKELY as u8,
+            Opcode::TRAP as u8,
+        ];
+        let program_state = load_program_state(&instruction_data, &[true, true, true])?;
+        let first_block_gas_cost = basic_block_gas_cost(&program_state, 0)?;
+        let second_block_gas_cost = basic_block_gas_cost(&program_state, 1)?;
+        assert_ne!(first_block_gas_cost, second_block_gas_cost);
+        assert_eq!(
+            program_state.basic_block_gas_cost_at(0),
+            Some(first_block_gas_cost)
+        );
+        assert_eq!(
+            program_state.basic_block_gas_cost_at(1),
+            Some(second_block_gas_cost)
+        );
+        assert_eq!(
+            program_state.basic_block_gas_cost_at(2),
+            Some(second_block_gas_cost)
+        );
+        assert_eq!(program_state.basic_block_gas_cost_at(3), None);
         Ok(())
     }
 }

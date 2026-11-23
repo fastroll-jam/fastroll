@@ -18,6 +18,8 @@ pub enum VMCoreError {
     GasCounterOverflow,
     #[error("Invalid program")]
     InvalidProgram,
+    #[error("Invalid instruction sequence by `v_blob`")]
+    InvalidInstructionSequence,
     #[error("Instruction data size limit exceeded ({0} octets)")]
     InstructionDataSizeLimitExceeded(usize),
     #[error("Jump table entry count limit exceeded ({0} entries)")]
