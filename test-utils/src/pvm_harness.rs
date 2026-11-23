@@ -1,4 +1,7 @@
-use fr_common::utils::{serde::FileReader, tracing::setup_timed_tracing};
+use fr_common::{
+    utils::{serde::FileReader, tracing::setup_timed_tracing},
+    UnsignedGas,
+};
 use fr_pvm_core::{
     interpreter::{GeneralInvocationResult, Interpreter},
     program::{loader::ProgramLoader, types::program_state::ProgramState},
@@ -12,8 +15,8 @@ use fr_pvm_types::{
     constants::{MEMORY_SIZE, PAGE_SIZE},
     exit_reason::ExitReason,
 };
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{collections::BTreeMap, path::PathBuf};
 
 // --- Types
 
@@ -114,6 +117,13 @@ enum TestStep {
     Assert(ExpectedState),
 }
 
+/// Gas cost of the basic block that starts at `pc` (0-based, in octets).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+struct BasicBlockGasCost {
+    pc: usize,
+    cost: UnsignedGas,
+}
+
 /// PVM test vector of the `programs` directory, which runs a program blob step by step.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
@@ -122,7 +132,42 @@ pub struct TestCase {
     initial_pc: u32,
     initial_gas: i64,
     program: Vec<u8>,
+    block_gas_costs: Vec<BasicBlockGasCost>,
     steps: Vec<TestStep>,
+}
+
+/// PVM test vector of the `gas-tests` directory, which checks only the gas cost of every basic block.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub struct BasicBlockGasCostTestCase {
+    name: String,
+    program: Vec<u8>,
+    /// Gas cost by basic block start, unlike the list of `TestCase`
+    block_gas_costs: BTreeMap<usize, UnsignedGas>,
+}
+
+/// Compares the basic block starts and their gas costs of a loaded program with the expected ones.
+fn assert_block_gas_costs(
+    program_state: &ProgramState,
+    expected_block_gas_costs: &[BasicBlockGasCost],
+    test_name: &str,
+) {
+    let mut expected_block_gas_costs = expected_block_gas_costs.to_vec();
+    expected_block_gas_costs.sort_by_key(|block_gas_cost| block_gas_cost.pc);
+    let actual_block_gas_costs: Vec<BasicBlockGasCost> = program_state
+        .basic_block_start_indices
+        .iter_ones()
+        .zip(&program_state.basic_block_gas_costs)
+        .map(|(pc, &cost)| BasicBlockGasCost { pc, cost })
+        .collect();
+    for (actual, expected) in actual_block_gas_costs.iter().zip(&expected_block_gas_costs) {
+        assert_eq!(actual, expected, "{test_name}: block gas cost");
+    }
+    assert_eq!(
+        actual_block_gas_costs.len(),
+        expected_block_gas_costs.len(),
+        "{test_name}: basic block count"
+    );
 }
 
 /// VM under test with the memory regions mapped so far, which `write` and `assert` steps need.
@@ -268,12 +313,14 @@ impl TestVM {
 
 pub struct PVMHarness;
 impl PVMHarness {
-    const PATH_PREFIX: &'static str = "jamtestvectors-pvm/pvm/programs";
+    const PATH_PREFIX: &'static str = "jamtestvectors-pvm/pvm";
 
-    pub fn load_test_case(filename: &str) -> TestCase {
+    /// Reads a test vector from `directory` (e.g. `programs`) of the PVM test vectors.
+    fn load_test_case<T: Serialize + DeserializeOwned>(directory: &str, filename: &str) -> T {
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../integration")
             .join(Self::PATH_PREFIX)
+            .join(directory)
             .join(filename);
         FileReader::read_json(&full_path).expect("Failed to read PVM test case")
     }
@@ -281,9 +328,28 @@ impl PVMHarness {
 
 pub fn run_test_case(filename: &str) {
     setup_timed_tracing();
-    let test_case = PVMHarness::load_test_case(filename);
+    let test_case: TestCase = PVMHarness::load_test_case("programs", filename);
     let mut test_vm = TestVM::new(&test_case);
+    assert_block_gas_costs(
+        &test_vm.program_state,
+        &test_case.block_gas_costs,
+        &test_case.name,
+    );
     for step in &test_case.steps {
         test_vm.run_step(step, &test_case.name);
     }
+}
+
+pub fn run_block_gas_cost_test_case(filename: &str) {
+    setup_timed_tracing();
+    let test_case: BasicBlockGasCostTestCase = PVMHarness::load_test_case("gas-tests", filename);
+    let mut program_state = ProgramState::default();
+    ProgramLoader::load_program(&test_case.program, &mut program_state)
+        .expect("Failed to load program");
+    let expected_block_gas_costs: Vec<BasicBlockGasCost> = test_case
+        .block_gas_costs
+        .into_iter()
+        .map(|(pc, cost)| BasicBlockGasCost { pc, cost })
+        .collect();
+    assert_block_gas_costs(&program_state, &expected_block_gas_costs, &test_case.name);
 }

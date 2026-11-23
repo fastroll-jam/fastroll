@@ -39,6 +39,8 @@ The migration to Graypaper 0.8.0 is in progress. `SPEC_VERSION` stays at 0.7.2 u
 - [GP v0.8.0] Renumber the PVM opcodes and add `unlikely`
 - [GP v0.8.0] Validate program blobs in `deblob` by `v_blob` and zero padding bits of `k`, and return `HUH` from `machine` for an initial pc that is not an instruction
 - [GP v0.8.0] Panic on a branch unless both its target and its next instruction start basic blocks, and make `fallthrough` a static jump
+- [GP v0.8.0] Add the gas cost model, which simulates each basic block once when a program loads
+- [GP v0.8.1] Count the destination of `cmov` as a source register in the gas cost model ([gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559))
 
 ### Fixed
 

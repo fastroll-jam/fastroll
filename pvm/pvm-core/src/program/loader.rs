@@ -1,8 +1,11 @@
 use crate::{
     error::VMCoreError,
+    gas::gas_cost_model::basic_block_gas_cost,
     program::{
         instruction::{opcode::Opcode, Instruction},
-        types::program_state::{OpcodeBitmask, ProgramState, NOT_INSTRUCTION_INDEX},
+        types::program_state::{
+            BasicBlockIndex, OpcodeBitmask, ProgramState, NOT_INSTRUCTION_INDEX,
+        },
     },
 };
 use bitvec::prelude::*;
@@ -18,8 +21,9 @@ use tracing::Level;
 
 pub struct ProgramLoader;
 impl ProgramLoader {
-    /// Decodes a program code blob and loads it into the PVM program state components:
-    /// instructions, an opcode bitmask, a dynamic jump table and a basic block bitmask.
+    /// Decodes a program code blob and loads it into the `ProgramState`.
+    ///
+    /// Besides `c`, `k` and `j`, it precomputes the decoded instructions, `skip`, the basic block starts and the gas cost of every basic block.
     pub fn load_program(
         program_code: &[u8],
         program_state: &mut ProgramState,
@@ -41,6 +45,7 @@ impl ProgramLoader {
         program_state.decoded_instructions = decoded_instructions;
         program_state.instruction_lookup = instruction_lookup;
         Self::set_basic_block_start_indices(program_state);
+        Self::set_basic_block_gas_costs(program_state)?;
         tracing::info!("Program loaded.");
         if tracing::enabled!(Level::TRACE) {
             program_state.print_all_opcodes();
@@ -188,6 +193,29 @@ impl ProgramLoader {
                 program.basic_block_start_indices.set(next_index, true);
             }
         }
+    }
+
+    /// Simulates every basic block once and sets `basic_block_gas_costs` and `basic_block_index_by_instruction` of the `ProgramState`.
+    ///
+    /// A block cost depends only on the code, so each program computes it once.
+    fn set_basic_block_gas_costs(program: &mut ProgramState) -> Result<(), VMCoreError> {
+        let mut basic_block_gas_costs = Vec::new();
+        let mut basic_block_index_by_instruction =
+            Vec::with_capacity(program.decoded_instructions.len());
+        for pc in 0..program.instructions.len() {
+            if program.instruction_at(pc).is_none() {
+                continue;
+            }
+            if program.is_basic_block_start(pc) {
+                basic_block_gas_costs.push(basic_block_gas_cost(program, pc)?);
+            }
+            // Index 0 starts a block, so the first instruction always has a block
+            basic_block_index_by_instruction
+                .push(basic_block_gas_costs.len() as BasicBlockIndex - 1);
+        }
+        program.basic_block_gas_costs = basic_block_gas_costs;
+        program.basic_block_index_by_instruction = basic_block_index_by_instruction;
+        Ok(())
     }
 
     /// Precomputes `skip` for every octet index of the instruction data.
@@ -470,6 +498,36 @@ mod tests {
             .ok_or("no instruction at 0")?;
         assert_eq!(load_imm.rs1, Some(4));
         assert_eq!(load_imm.imm1, Some(0));
+        Ok(())
+    }
+
+    #[test]
+    fn test_basic_block_gas_cost_at_follows_block_start() -> Result<(), Box<dyn Error>> {
+        // Blocks `[trap]` at 0 and `[unlikely, trap]` at 1, where `trap` at 2 is in the middle of the second block
+        let instruction_data = [
+            Opcode::TRAP as u8,
+            Opcode::UNLIKELY as u8,
+            Opcode::TRAP as u8,
+        ];
+        let blob = program_blob(&instruction_data, &[true, true, true])?;
+        let mut program_state = ProgramState::default();
+        ProgramLoader::load_program(&blob, &mut program_state)?;
+        let first_block_gas_cost = basic_block_gas_cost(&program_state, 0)?;
+        let second_block_gas_cost = basic_block_gas_cost(&program_state, 1)?;
+        assert_ne!(first_block_gas_cost, second_block_gas_cost);
+        assert_eq!(
+            program_state.basic_block_gas_cost_at(0),
+            Some(first_block_gas_cost)
+        );
+        assert_eq!(
+            program_state.basic_block_gas_cost_at(1),
+            Some(second_block_gas_cost)
+        );
+        assert_eq!(
+            program_state.basic_block_gas_cost_at(2),
+            Some(second_block_gas_cost)
+        );
+        assert_eq!(program_state.basic_block_gas_cost_at(3), None);
         Ok(())
     }
 }

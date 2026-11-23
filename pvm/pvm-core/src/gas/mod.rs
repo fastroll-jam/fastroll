@@ -1,3 +1,7 @@
+pub(crate) mod gas_cost_model;
+pub(crate) mod gas_cost_tables;
+pub(crate) mod register_usage;
+
 use crate::{error::VMCoreError, state::vm_state::VMState};
 use fr_common::{SignedGas, UnsignedGas};
 

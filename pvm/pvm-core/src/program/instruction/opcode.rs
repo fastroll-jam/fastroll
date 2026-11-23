@@ -1,6 +1,6 @@
 /// PVM Opcodes
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 pub enum Opcode {
     #[default]

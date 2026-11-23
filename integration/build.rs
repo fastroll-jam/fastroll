@@ -55,27 +55,47 @@ fn main() {
 }
 
 fn generate_pvm_tests() {
-    let test_vectors_dir = PathBuf::from("jamtestvectors-pvm/pvm/programs");
+    let mut test_case_contents = String::from(
+        "use fr_test_utils::pvm_harness::{run_block_gas_cost_test_case, run_test_case};",
+    );
+    write_pvm_test_cases("programs", "pvm", "run_test_case", &mut test_case_contents);
+    write_pvm_test_cases(
+        "gas-tests",
+        "pvm_gas",
+        "run_block_gas_cost_test_case",
+        &mut test_case_contents,
+    );
+    let dest_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_pvm_tests.rs");
+    fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
+}
+
+/// Appends one test per `.json` file in `directory` of the PVM test vectors, named `<test_name_prefix>_<file stem>` with `-` replaced by `_`.
+fn write_pvm_test_cases(
+    directory: &str,
+    test_name_prefix: &str,
+    harness_function: &str,
+    test_case_contents: &mut String,
+) {
+    let test_vectors_dir = PathBuf::from("jamtestvectors-pvm/pvm").join(directory);
     let full_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(test_vectors_dir);
     println!("cargo:rerun-if-changed={}", full_path.display());
-    let dest_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_pvm_tests.rs");
     let test_files = read_vector_dir(&full_path, "PVM test vectors");
-
-    let mut test_case_contents = String::from("use fr_test_utils::pvm_harness::run_test_case;");
 
     for test_file in test_files {
         let test_file_path = test_file.expect("Failed to get test file").path();
         let test_file_name = test_file_path.file_name().unwrap().to_str().unwrap();
-        let test_name = test_file_name.trim_end_matches(".json");
+        let Some(test_name) = test_file_name.strip_suffix(".json") else {
+            continue;
+        };
+        let test_name = test_name.replace('-', "_");
         test_case_contents.push_str(&format!(
             "\
             #[test]\
-            fn pvm_{test_name}() {{
-                run_test_case(\"{test_file_name}\")
+            fn {test_name_prefix}_{test_name}() {{
+                {harness_function}(\"{test_file_name}\")
             }}"
         ));
     }
-    fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
 }
 
 fn write_block_import_test_cases(
