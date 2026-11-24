@@ -641,7 +641,7 @@ impl StateManager {
     where
         T: StateComponent,
     {
-        self.cache.insert_entry(
+        self.cache.insert_clean_entry_unless_dirty(
             state_key.clone(),
             CacheEntry::new(T::into_entry_type(state_entry)),
         );

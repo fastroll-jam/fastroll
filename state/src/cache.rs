@@ -121,6 +121,18 @@ impl StateCache {
         self.inner.insert(key, entry);
     }
 
+    /// Inserts a clean entry read from the DB unless the key holds a dirty entry.
+    ///
+    /// Parallel STFs may read a key that another STF writes (e.g. the disputes STF reads the prior `κ` while the active set STF writes `κ'`).
+    /// A read that misses the cache must not overwrite the dirty entry written while it loaded from the DB.
+    /// Writers mark a key dirty before inserting its entry, so checking the dirty keys under their lock is enough.
+    pub(crate) fn insert_clean_entry_unless_dirty(&self, key: StateKey, entry: CacheEntry) {
+        let dirty_keys = self.dirty_keys_guard();
+        if !dirty_keys.contains(&key) {
+            self.inner.insert(key, entry);
+        }
+    }
+
     // Note: test-only
     pub(crate) fn invalidate_all(&self) {
         self.inner.invalidate_all();
@@ -268,6 +280,7 @@ mod tests {
     use super::*;
     use fr_common::{Octets, STATE_KEY_SIZE};
     use mini_moka::sync::ConcurrentCacheExt;
+    use std::error::Error;
 
     #[test]
     fn test_state_cache_eviction() {
@@ -300,5 +313,34 @@ mod tests {
             cache.inner.entry_count() as usize <= capacity,
             "Cache eviction must work and total entries should not exceed the max capacity"
         );
+    }
+
+    #[test]
+    fn test_clean_entry_from_db_keeps_dirty_entry() -> Result<(), Box<dyn Error>> {
+        let cache = StateCache::new(16);
+        let key = StateKey::new([8u8; STATE_KEY_SIZE]);
+        let prior_octets = Octets::from_vec(vec![0]);
+        let posterior_octets = Octets::from_vec(vec![1]);
+
+        // A write marks the entry dirty while a parallel read is loading the prior value from the DB
+        cache.insert_entry(
+            key.clone(),
+            CacheEntry {
+                clean_snapshot: Arc::new(StateEntryType::Raw(prior_octets.clone())),
+                value: Arc::new(StateEntryType::Raw(posterior_octets.clone())),
+                status: CacheEntryStatus::Dirty(StateMut::Update),
+            },
+        );
+        cache.insert_clean_entry_unless_dirty(
+            key.clone(),
+            CacheEntry::new(StateEntryType::Raw(prior_octets)),
+        );
+
+        let entry = cache.get_entry(&key).ok_or("cache entry must exist")?;
+        assert_eq!(entry.status, CacheEntryStatus::Dirty(StateMut::Update));
+        assert!(
+            matches!(entry.value.as_ref(), StateEntryType::Raw(octets) if octets == &posterior_octets)
+        );
+        Ok(())
     }
 }
