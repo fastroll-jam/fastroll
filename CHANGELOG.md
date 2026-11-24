@@ -57,6 +57,7 @@ Notable changes to FastRoll, per release. The format is based on [Keep a Changel
 - Reuse the smallest free inner VM id in `machine` ([`dd0211bd`](https://github.com/fastroll-jam/fastroll/commit/dd0211bd))
 - Reject an out-of-range author index in validator statistics instead of panicking ([`2916e53f`](https://github.com/fastroll-jam/fastroll/commit/2916e53f))
 - Fix swapped errors in `add_account_balance` ([`5c430173`](https://github.com/fastroll-jam/fastroll/commit/5c430173))
+- Keep a dirty state cache entry when a parallel read loads the same key from the DB, which lost `κ'` and rejected epoch-change blocks right after `Initialize`
 
 ## [0.1.38] - 2026-05-21
 
