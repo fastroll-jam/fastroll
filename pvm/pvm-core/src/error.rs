@@ -54,8 +54,6 @@ pub enum VMCoreError {
     InvalidOffset,
     #[error("Invalid pc value")]
     InvalidPC,
-    #[error("Invalid host call type")]
-    InvalidHostCallType,
     #[error("Data length mismatch in memory state changes")]
     MemoryStateChangeDataLengthMismatch,
     #[error("Page Fault at Address {0}")]

@@ -277,7 +277,7 @@ impl TestVM {
             "{test_name}: page fault address"
         );
         let host_call_id = match exit_reason {
-            ExitReason::HostCall(host_call_type) => Some(host_call_type.clone() as u32),
+            ExitReason::HostCall(host_call_id) => Some(*host_call_id as u32),
             _ => None,
         };
         assert_eq!(

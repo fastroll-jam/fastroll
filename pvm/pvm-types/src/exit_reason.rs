@@ -1,4 +1,4 @@
-use crate::{common::MemAddress, hostcall::HostCallType};
+use crate::common::{MemAddress, RegValue};
 
 /// PVM Invocation Exit Reasons
 #[derive(Default, Debug, PartialEq)]
@@ -9,5 +9,6 @@ pub enum ExitReason {
     Panic,
     OutOfGas, // Note: Not used in the single-step invocation.
     PageFault(MemAddress),
-    HostCall(HostCallType),
+    /// Host call with its id `h`, the full immediate of `ecalli`.
+    HostCall(RegValue),
 }

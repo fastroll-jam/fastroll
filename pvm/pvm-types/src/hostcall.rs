@@ -1,3 +1,5 @@
+use crate::common::RegValue;
+
 #[repr(u8)]
 #[derive(Clone, Debug, PartialEq)]
 #[allow(non_camel_case_types)]
@@ -38,46 +40,40 @@ pub enum HostCallType {
     INVALID = u8::MAX,
 }
 
-impl TryFrom<u8> for HostCallType {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(HostCallType::GAS),
-            1 => Ok(HostCallType::FETCH),
-            2 => Ok(HostCallType::LOOKUP),
-            3 => Ok(HostCallType::READ),
-            4 => Ok(HostCallType::WRITE),
-            5 => Ok(HostCallType::INFO),
-            6 => Ok(HostCallType::HISTORICAL_LOOKUP),
-            7 => Ok(HostCallType::EXPORT),
-            8 => Ok(HostCallType::MACHINE),
-            9 => Ok(HostCallType::PEEK),
-            10 => Ok(HostCallType::POKE),
-            11 => Ok(HostCallType::PAGES),
-            12 => Ok(HostCallType::INVOKE),
-            13 => Ok(HostCallType::EXPUNGE),
-            14 => Ok(HostCallType::BLESS),
-            15 => Ok(HostCallType::ASSIGN),
-            16 => Ok(HostCallType::DESIGNATE),
-            17 => Ok(HostCallType::CHECKPOINT),
-            18 => Ok(HostCallType::NEW),
-            19 => Ok(HostCallType::UPGRADE),
-            20 => Ok(HostCallType::TRANSFER),
-            21 => Ok(HostCallType::EJECT),
-            22 => Ok(HostCallType::QUERY),
-            23 => Ok(HostCallType::SOLICIT),
-            24 => Ok(HostCallType::FORGET),
-            25 => Ok(HostCallType::YIELD),
-            26 => Ok(HostCallType::PROVIDE),
-            100 => Ok(HostCallType::LOG),
-            _ => Ok(HostCallType::INVALID),
+impl From<RegValue> for HostCallType {
+    /// Maps a host-call id `h`, the full immediate of `ecalli`, to its host call.
+    /// An id that names no host call maps to `INVALID`.
+    fn from(id: RegValue) -> Self {
+        match id {
+            0 => HostCallType::GAS,
+            1 => HostCallType::FETCH,
+            2 => HostCallType::LOOKUP,
+            3 => HostCallType::READ,
+            4 => HostCallType::WRITE,
+            5 => HostCallType::INFO,
+            6 => HostCallType::HISTORICAL_LOOKUP,
+            7 => HostCallType::EXPORT,
+            8 => HostCallType::MACHINE,
+            9 => HostCallType::PEEK,
+            10 => HostCallType::POKE,
+            11 => HostCallType::PAGES,
+            12 => HostCallType::INVOKE,
+            13 => HostCallType::EXPUNGE,
+            14 => HostCallType::BLESS,
+            15 => HostCallType::ASSIGN,
+            16 => HostCallType::DESIGNATE,
+            17 => HostCallType::CHECKPOINT,
+            18 => HostCallType::NEW,
+            19 => HostCallType::UPGRADE,
+            20 => HostCallType::TRANSFER,
+            21 => HostCallType::EJECT,
+            22 => HostCallType::QUERY,
+            23 => HostCallType::SOLICIT,
+            24 => HostCallType::FORGET,
+            25 => HostCallType::YIELD,
+            26 => HostCallType::PROVIDE,
+            100 => HostCallType::LOG,
+            _ => HostCallType::INVALID,
         }
-    }
-}
-
-impl HostCallType {
-    pub fn from_u8(value: u8) -> Option<Self> {
-        Self::try_from(value).ok()
     }
 }

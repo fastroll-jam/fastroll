@@ -484,11 +484,11 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
 
         tracing::debug!("INVOKE instance_id={inner_vm_id} exit_reason={inner_vm_exit_reason:?}");
         match inner_vm_exit_reason {
-            ExitReason::HostCall(host_call_type) => {
+            ExitReason::HostCall(host_call_id) => {
                 inner_vm_mut.pc = Interpreter::next_pc(inner_vm_mut.pc, &inner_vm_program_state);
                 continue_with_vm_change!(
                     r7: HOST,
-                    r8: host_call_type.clone(),
+                    r8: host_call_id,
                     mem_offset: memory_offset,
                     mem_data: host_buf
                 )
