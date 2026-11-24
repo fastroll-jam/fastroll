@@ -18,7 +18,7 @@ use fr_pvm_host::{
     error::HostCallError::InvalidExitReason,
     host_functions::{
         accumulate::AccumulateHostFunction, debug::host_log, general::GeneralHostFunction,
-        refine::RefineHostFunction, HostCallResult, HostCallReturnCode,
+        host_unknown, refine::RefineHostFunction, HostCallResult,
     },
 };
 use fr_pvm_types::{common::RegValue, exit_reason::ExitReason, hostcall::HostCallType};
@@ -539,9 +539,7 @@ impl PVMInterface {
                 .await?
             }
             HostCallType::LOG => host_log(&pvm.state)?,
-            HostCallType::INVALID => {
-                HostCallResult::continue_with_return_code(HostCallReturnCode::WHAT)
-            }
+            HostCallType::INVALID => host_unknown(&pvm.state)?,
         };
 
         Ok(result)

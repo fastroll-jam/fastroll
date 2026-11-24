@@ -68,22 +68,12 @@ macro_rules! get_mut_refine_x {
 }
 
 #[macro_export]
-macro_rules! gas_or_default {
-    () => {
-        HOSTCALL_BASE_GAS_CHARGE
-    };
-    ($gas:expr) => {
-        $gas as UnsignedGas
-    };
-}
-
-#[macro_export]
 macro_rules! continue_with_vm_change {
-    ($(gas: $gas:expr,)? r7: $r7:expr) => {{
+    (gas: $gas:expr, r7: $r7:expr) => {{
         tracing::debug!("Hostcall result: VMChange(r7={})", $r7 as RegValue);
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
-                gas_charge: $crate::gas_or_default!($($gas)?),
+                gas_charge: $gas,
                 r7_write: Some($r7 as RegValue),
                 r8_write: None,
                 memory_write: None,
@@ -91,11 +81,15 @@ macro_rules! continue_with_vm_change {
             },
         ))
     }};
-    ($(gas: $gas:expr,)? r7: $r7:expr, r8: $r8:expr) => {{
-        tracing::debug!("Hostcall result: VMChange(r7={} r8={})", $r7 as RegValue, $r8 as RegValue);
+    (gas: $gas:expr, r7: $r7:expr, r8: $r8:expr) => {{
+        tracing::debug!(
+            "Hostcall result: VMChange(r7={} r8={})",
+            $r7 as RegValue,
+            $r8 as RegValue
+        );
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
-                gas_charge: $crate::gas_or_default!($($gas)?),
+                gas_charge: $gas,
                 r7_write: Some($r7 as RegValue),
                 r8_write: Some($r8 as RegValue),
                 memory_write: None,
@@ -103,11 +97,15 @@ macro_rules! continue_with_vm_change {
             },
         ))
     }};
-    ($(gas: $gas:expr,)? r7: $r7:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {{
-        tracing::debug!("Hostcall result: VMChange(r7={} moffset={})", $r7 as RegValue, $mem_offset);
+    (gas: $gas:expr, r7: $r7:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {{
+        tracing::debug!(
+            "Hostcall result: VMChange(r7={} moffset={})",
+            $r7 as RegValue,
+            $mem_offset
+        );
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
-                gas_charge: $crate::gas_or_default!($($gas)?),
+                gas_charge: $gas,
                 r7_write: Some($r7 as RegValue),
                 r8_write: None,
                 memory_write: Some($crate::MemWrite::new($mem_offset, $mem_data)),
@@ -115,11 +113,16 @@ macro_rules! continue_with_vm_change {
             },
         ))
     }};
-    ($(gas: $gas:expr,)? r7: $r7:expr, r8: $r8:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {{
-        tracing::debug!("Hostcall result: VMChange(r7={} r8={} moffset={})", $r7 as RegValue, $r8 as RegValue, $mem_offset);
+    (gas: $gas:expr, r7: $r7:expr, r8: $r8:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {{
+        tracing::debug!(
+            "Hostcall result: VMChange(r7={} r8={} moffset={})",
+            $r7 as RegValue,
+            $r8 as RegValue,
+            $mem_offset
+        );
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
-                gas_charge: $crate::gas_or_default!($($gas)?),
+                gas_charge: $gas,
                 r7_write: Some($r7 as RegValue),
                 r8_write: Some($r8 as RegValue),
                 memory_write: Some($crate::MemWrite::new($mem_offset, $mem_data)),
@@ -131,15 +134,6 @@ macro_rules! continue_with_vm_change {
 
 #[macro_export]
 macro_rules! continue_with_code {
-    ($code:ident) => {{
-        tracing::debug!(
-            "Hostcall result: {:?}",
-            $crate::host_functions::HostCallReturnCode::$code
-        );
-        return Ok(HostCallResult::continue_with_return_code(
-            $crate::host_functions::HostCallReturnCode::$code,
-        ));
-    }};
     ($code:ident, $gas:expr) => {{
         tracing::debug!(
             "Hostcall result: {:?}",
@@ -154,9 +148,6 @@ macro_rules! continue_with_code {
 
 #[macro_export]
 macro_rules! continue_none {
-    () => {
-        $crate::continue_with_code!(NONE)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(NONE, $gas)
     };
@@ -164,9 +155,6 @@ macro_rules! continue_none {
 
 #[macro_export]
 macro_rules! continue_oob {
-    () => {
-        $crate::continue_with_code!(OOB)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(OOB, $gas)
     };
@@ -174,9 +162,6 @@ macro_rules! continue_oob {
 
 #[macro_export]
 macro_rules! continue_who {
-    () => {
-        $crate::continue_with_code!(WHO)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(WHO, $gas)
     };
@@ -184,9 +169,6 @@ macro_rules! continue_who {
 
 #[macro_export]
 macro_rules! continue_full {
-    () => {
-        $crate::continue_with_code!(FULL)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(FULL, $gas)
     };
@@ -194,9 +176,6 @@ macro_rules! continue_full {
 
 #[macro_export]
 macro_rules! continue_core {
-    () => {
-        $crate::continue_with_code!(CORE)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(CORE, $gas)
     };
@@ -204,9 +183,6 @@ macro_rules! continue_core {
 
 #[macro_export]
 macro_rules! continue_cash {
-    () => {
-        $crate::continue_with_code!(CASH)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(CASH, $gas)
     };
@@ -214,9 +190,6 @@ macro_rules! continue_cash {
 
 #[macro_export]
 macro_rules! continue_low {
-    () => {
-        $crate::continue_with_code!(LOW)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(LOW, $gas)
     };
@@ -224,9 +197,6 @@ macro_rules! continue_low {
 
 #[macro_export]
 macro_rules! continue_what {
-    () => {
-        $crate::continue_with_code!(WHAT)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(WHAT, $gas)
     };
@@ -234,9 +204,6 @@ macro_rules! continue_what {
 
 #[macro_export]
 macro_rules! continue_huh {
-    () => {
-        $crate::continue_with_code!(HUH)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(HUH, $gas)
     };
@@ -244,9 +211,6 @@ macro_rules! continue_huh {
 
 #[macro_export]
 macro_rules! continue_ok {
-    () => {
-        $crate::continue_with_code!(OK)
-    };
     ($gas:expr) => {
         $crate::continue_with_code!(OK, $gas)
     };
@@ -254,9 +218,6 @@ macro_rules! continue_ok {
 
 #[macro_export]
 macro_rules! host_call_panic {
-    () => {
-        return Ok(HostCallResult::panic())
-    };
     ($gas:expr) => {
         return Ok(HostCallResult::panic_with_gas($gas))
     };
@@ -264,9 +225,6 @@ macro_rules! host_call_panic {
 
 #[macro_export]
 macro_rules! out_of_gas {
-    () => {
-        return Ok(HostCallResult::out_of_gas())
-    };
     ($gas:expr) => {
         return Ok(HostCallResult::out_of_gas_with_gas($gas))
     };
@@ -274,15 +232,11 @@ macro_rules! out_of_gas {
 
 #[macro_export]
 macro_rules! check_out_of_gas {
-    ($gas_counter:expr) => {
-        if $gas_counter < HOSTCALL_BASE_GAS_CHARGE as SignedGas {
-            $crate::out_of_gas!()
-        }
-    };
+    // Returns out-of-gas when the gas counter cannot cover the gas usage `g`, which consumes all the remaining gas
     ($gas_counter:expr, $gas:expr) => {
-        let gas_signed: SignedGas = $gas.try_into().unwrap_or(SignedGas::MAX);
-        if $gas_counter < gas_signed {
-            $crate::out_of_gas!($gas)
+        let remaining_gas = $gas_counter.max(0) as UnsignedGas;
+        if remaining_gas < $gas {
+            $crate::out_of_gas!(remaining_gas)
         }
     };
 }

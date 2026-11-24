@@ -10,7 +10,7 @@ use crate::{
 use fr_common::{SignedGas, UnsignedGas};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, REGISTERS_COUNT},
+    constants::{INIT_ZONE_SIZE, REGISTERS_COUNT},
 };
 use std::ops::Range;
 
@@ -87,7 +87,7 @@ pub struct VMStateChange {
 }
 
 /// VM state change set resulting from a single host function execution.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct HostCallVMStateChange {
     pub gas_charge: UnsignedGas,
     pub r7_write: Option<RegValue>,
@@ -95,18 +95,6 @@ pub struct HostCallVMStateChange {
     pub memory_write: Option<MemWrite>,
     /// Memory pages that become writable, e.g. the RW data region grown by `grow_heap`.
     pub writable_pages: Option<Range<usize>>,
-}
-
-impl Default for HostCallVMStateChange {
-    fn default() -> Self {
-        Self {
-            gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-            r7_write: None,
-            r8_write: None,
-            memory_write: None,
-            writable_pages: None,
-        }
-    }
 }
 
 pub struct VMStateMutator;

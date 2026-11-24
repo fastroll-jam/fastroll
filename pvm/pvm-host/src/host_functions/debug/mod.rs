@@ -1,11 +1,9 @@
 use crate::{
     error::HostCallError,
-    host_functions::{HostCallResult, HostCallReturnCode},
+    host_functions::{host_unknown, HostCallResult},
 };
-use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
-use fr_pvm_types::{
-    common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, exit_reason::ExitReason,
-};
+use fr_pvm_core::state::vm_state::VMState;
+use fr_pvm_types::common::RegValue;
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -50,15 +48,8 @@ fn log_message(log: PVMHostLog) {
 pub fn host_log(vm: &VMState) -> Result<HostCallResult, HostCallError> {
     tracing::debug!("Hostcall invoked: LOG");
 
-    // Gas usage: 10, r7 write: WHAT
-    let result = HostCallResult {
-        exit_reason: ExitReason::Continue,
-        vm_change: HostCallVMStateChange {
-            gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-            r7_write: Some(HostCallReturnCode::WHAT as RegValue),
-            ..Default::default()
-        },
-    };
+    // The GP does not define `log`, so it is charged and answered as an unknown host call
+    let result = host_unknown(vm)?;
 
     let level = LogLevel::from_reg_val(vm.read_reg(7));
     let Ok(target_offset) = vm.read_reg_as_mem_address(8) else {

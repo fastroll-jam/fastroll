@@ -5,7 +5,7 @@ use crate::{
     },
     host_functions::{
         general::GeneralHostFunction,
-        host_function_gas_costs::{GROW_HEAP_BASE_GAS, GROW_HEAP_GAS_PER_PAGE},
+        host_function_gas_costs::*,
         test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
         HostCallResult, HostCallReturnCode,
     },
@@ -18,7 +18,7 @@ use fr_common::{
         ExtrinsicInfo, RefinementContext, WorkExecutionResult, WorkItem, WorkItems, WorkPackage,
     },
     AuthHash, Balance, BeefyRoot, BlockHeaderHash, ByteEncodable, CodeHash, EntropyHash, Hash32,
-    Octets, PreimagesKey, SegmentRoot, ServiceId, SignedGas, StateRoot, StorageKey,
+    Octets, PreimagesKey, SegmentRoot, ServiceId, SignedGas, StateRoot, StorageKey, UnsignedGas,
     WorkPackageHash, HASH_SIZE, SEGMENT_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
@@ -31,7 +31,7 @@ use fr_pvm_core::{
 };
 use fr_pvm_types::{
     common::{ExportDataSegment, MemAddress, RegValue, WorkPackageImportSegments},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, PAGE_SIZE},
+    constants::{INIT_ZONE_SIZE, PAGE_SIZE},
     exit_reason::ExitReason,
     invoke_args::{
         AccumulateInputs, AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer,
@@ -54,11 +54,11 @@ mod gas_tests {
         let init_gas = 100;
         let vm = VMStateBuilder::builder().with_gas_counter(init_gas).build();
         let res = GeneralHostFunction::<MockStateManager>::host_gas(&vm)?;
-        let expected_remaining_gas = init_gas as RegValue - HOSTCALL_BASE_GAS_CHARGE as RegValue;
+        let expected_remaining_gas = init_gas as RegValue - GAS_GAS;
         let expected = HostCallResult {
             exit_reason: ExitReason::Continue,
             vm_change: HostCallVMStateChange {
-                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                gas_charge: GAS_GAS,
                 r7_write: Some(expected_remaining_gas),
                 r8_write: None,
                 memory_write: None,
@@ -70,18 +70,53 @@ mod gas_tests {
     }
 
     #[test]
-    fn test_gas_oog() -> Result<(), Box<dyn Error>> {
-        let init_gas = (HOSTCALL_BASE_GAS_CHARGE - 1) as SignedGas;
+    fn test_gas_oog_consumes_remaining_gas() -> Result<(), Box<dyn Error>> {
+        let init_gas = GAS_GAS as SignedGas - 1;
         let vm = VMStateBuilder::builder().with_gas_counter(init_gas).build();
         let res = GeneralHostFunction::<MockStateManager>::host_gas(&vm)?;
         let expected = HostCallResult {
             exit_reason: ExitReason::OutOfGas,
             vm_change: HostCallVMStateChange {
-                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                gas_charge: init_gas as UnsignedGas,
                 r7_write: None,
                 r8_write: None,
                 memory_write: None,
                 writable_pages: None,
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
+    }
+}
+
+mod unknown_tests {
+    use super::*;
+    use crate::host_functions::host_unknown;
+
+    #[test]
+    fn test_unknown_host_call_returns_what() -> Result<(), Box<dyn Error>> {
+        let vm = VMStateBuilder::builder().with_gas_counter(100_000).build();
+        let res = host_unknown(&vm)?;
+        assert_eq!(
+            res,
+            HostCallResult::continue_with_return_code_and_gas(
+                HostCallReturnCode::WHAT,
+                UNKNOWN_HOST_CALL_GAS
+            )
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_unknown_host_call_oog_consumes_remaining_gas() -> Result<(), Box<dyn Error>> {
+        let init_gas = UNKNOWN_HOST_CALL_GAS as SignedGas - 1;
+        let vm = VMStateBuilder::builder().with_gas_counter(init_gas).build();
+        let res = host_unknown(&vm)?;
+        let expected = HostCallResult {
+            exit_reason: ExitReason::OutOfGas,
+            vm_change: HostCallVMStateChange {
+                gas_charge: init_gas as UnsignedGas,
+                ..Default::default()
             },
         };
         assert_eq!(res, expected);
@@ -348,6 +383,14 @@ mod fetch_tests {
     }
 
     impl FetchTestFixture {
+        /// Gas usage `g` of `fetch` for the data id `r10` and the size `r9`.
+        fn gas(&self) -> UnsignedGas {
+            fetch_gas(
+                self.regs.data_id as RegValue,
+                self.regs.fetch_length as RegValue,
+            )
+        }
+
         fn from_data_id(data_id: usize) -> Self {
             Self {
                 regs: RegParams {
@@ -361,7 +404,7 @@ mod fetch_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.regs.mem_write_offset)
                 .with_reg(8, self.regs.fetch_offset as RegValue)
                 .with_reg(9, self.regs.fetch_length as RegValue)
@@ -428,7 +471,7 @@ mod fetch_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(data.len() as RegValue),
                     r8_write: None,
                     memory_write: Some(MemWrite::new(
@@ -442,11 +485,11 @@ mod fetch_tests {
             }
         }
 
-        fn host_call_result_panic() -> HostCallResult {
+        fn host_call_result_panic(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
@@ -455,11 +498,11 @@ mod fetch_tests {
             }
         }
 
-        fn host_call_result_none() -> HostCallResult {
+        fn host_call_result_none(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,
@@ -594,7 +637,7 @@ mod fetch_tests {
 
             // Check host-call result
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-            assert_eq!(res, FetchTestFixture::host_call_result_none());
+            assert_eq!(res, fixture.host_call_result_none());
             Ok(())
         }
 
@@ -627,7 +670,7 @@ mod fetch_tests {
 
             // Check host-call result
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-            assert_eq!(res, FetchTestFixture::host_call_result_none());
+            assert_eq!(res, fixture.host_call_result_none());
             Ok(())
         }
     }
@@ -713,7 +756,7 @@ mod fetch_tests {
 
             // Check host-call result
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-            assert_eq!(res, FetchTestFixture::host_call_result_none());
+            assert_eq!(res, fixture.host_call_result_none());
             Ok(())
         }
 
@@ -771,7 +814,7 @@ mod fetch_tests {
 
             // Check host-call result
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-            assert_eq!(res, FetchTestFixture::host_call_result_none());
+            assert_eq!(res, fixture.host_call_result_none());
             Ok(())
         }
 
@@ -922,7 +965,7 @@ mod fetch_tests {
 
             // Check host-call result
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-            assert_eq!(res, FetchTestFixture::host_call_result_none());
+            assert_eq!(res, fixture.host_call_result_none());
             Ok(())
         }
     }
@@ -1004,7 +1047,7 @@ mod fetch_tests {
 
             // Check host-call result
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-            assert_eq!(res, FetchTestFixture::host_call_result_none());
+            assert_eq!(res, fixture.host_call_result_none());
             Ok(())
         }
 
@@ -1016,7 +1059,7 @@ mod fetch_tests {
 
             // Check host-call result
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-            assert_eq!(res, FetchTestFixture::host_call_result_none());
+            assert_eq!(res, fixture.host_call_result_none());
             Ok(())
         }
     }
@@ -1034,7 +1077,7 @@ mod fetch_tests {
 
         // Check host-call result
         let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
-        assert_eq!(res, FetchTestFixture::host_call_result_panic());
+        assert_eq!(res, fixture.host_call_result_panic());
         Ok(())
     }
 }
@@ -1084,10 +1127,19 @@ mod lookup_tests {
     }
 
     impl LookupTestFixture {
+        /// Gas usage `g` of `lookup` for the size `r11`.
+        fn gas(&self) -> UnsignedGas {
+            LOOKUP_BASE_GAS
+                + memory_sized_gas(
+                    LOOKUP_GAS_PER_1024_OCTETS,
+                    self.preimages_read_size as RegValue,
+                )
+        }
+
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(8, self.preimages_key_mem_offset)
                 .with_reg(9, self.mem_write_offset)
                 .with_reg(10, self.preimages_read_offset as RegValue)
@@ -1129,7 +1181,7 @@ mod lookup_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(self.preimages_data_len as RegValue),
                     r8_write: None,
                     memory_write: Some(MemWrite::new(
@@ -1143,11 +1195,11 @@ mod lookup_tests {
             }
         }
 
-        fn host_call_result_none() -> HostCallResult {
+        fn host_call_result_none(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,
@@ -1156,11 +1208,11 @@ mod lookup_tests {
             }
         }
 
-        fn host_call_result_panic() -> HostCallResult {
+        fn host_call_result_panic(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
@@ -1248,7 +1300,7 @@ mod lookup_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, LookupTestFixture::host_call_result_none());
+        assert_eq!(res, fixture.host_call_result_none());
         Ok(())
     }
 
@@ -1275,7 +1327,7 @@ mod lookup_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, LookupTestFixture::host_call_result_none());
+        assert_eq!(res, fixture.host_call_result_none());
         Ok(())
     }
 
@@ -1301,7 +1353,7 @@ mod lookup_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, LookupTestFixture::host_call_result_panic());
+        assert_eq!(res, fixture.host_call_result_panic());
         Ok(())
     }
 
@@ -1327,7 +1379,7 @@ mod lookup_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, LookupTestFixture::host_call_result_none());
+        assert_eq!(res, fixture.host_call_result_none());
         Ok(())
     }
 
@@ -1353,7 +1405,7 @@ mod lookup_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, LookupTestFixture::host_call_result_panic());
+        assert_eq!(res, fixture.host_call_result_panic());
         Ok(())
     }
 }
@@ -1406,10 +1458,23 @@ mod read_tests {
     }
 
     impl ReadTestFixture {
+        /// Gas usage `g` of `read` for the key size `r9` and the value size `r12`.
+        fn gas(&self) -> UnsignedGas {
+            READ_BASE_GAS
+                + memory_sized_gas(
+                    READ_KEY_GAS_PER_1024_OCTETS,
+                    self.storage_key_size as RegValue,
+                )
+                + memory_sized_gas(
+                    READ_VALUE_GAS_PER_1024_OCTETS,
+                    self.storage_read_size as RegValue,
+                )
+        }
+
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             Ok(VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(8, self.storage_key_mem_offset)
                 .with_reg(9, self.storage_key_size as RegValue)
                 .with_reg(10, self.mem_write_offset)
@@ -1451,7 +1516,7 @@ mod read_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(self.storage_data_len as RegValue),
                     r8_write: None,
                     memory_write: Some(MemWrite::new(
@@ -1465,11 +1530,11 @@ mod read_tests {
             }
         }
 
-        fn host_call_result_none() -> HostCallResult {
+        fn host_call_result_none(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,
@@ -1478,11 +1543,11 @@ mod read_tests {
             }
         }
 
-        fn host_call_result_panic() -> HostCallResult {
+        fn host_call_result_panic(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
@@ -1582,7 +1647,7 @@ mod read_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ReadTestFixture::host_call_result_none());
+        assert_eq!(res, fixture.host_call_result_none());
         Ok(())
     }
 
@@ -1613,7 +1678,7 @@ mod read_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ReadTestFixture::host_call_result_none());
+        assert_eq!(res, fixture.host_call_result_none());
         Ok(())
     }
 
@@ -1643,7 +1708,7 @@ mod read_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ReadTestFixture::host_call_result_panic());
+        assert_eq!(res, fixture.host_call_result_panic());
         Ok(())
     }
 
@@ -1673,7 +1738,7 @@ mod read_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ReadTestFixture::host_call_result_panic());
+        assert_eq!(res, fixture.host_call_result_panic());
         Ok(())
     }
 
@@ -1703,7 +1768,7 @@ mod read_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ReadTestFixture::host_call_result_none());
+        assert_eq!(res, fixture.host_call_result_none());
         Ok(())
     }
 }
@@ -1757,10 +1822,23 @@ mod write_tests {
     }
 
     impl WriteTestFixture {
+        /// Gas usage `g` of `write` for the key size `r8` and the value size `r10`.
+        fn gas(&self) -> UnsignedGas {
+            WRITE_BASE_GAS
+                + memory_sized_gas(
+                    WRITE_KEY_GAS_PER_1024_OCTETS,
+                    self.storage_key_size as RegValue,
+                )
+                + memory_sized_gas(
+                    WRITE_VALUE_GAS_PER_1024_OCTETS,
+                    self.storage_data_size as RegValue,
+                )
+        }
+
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.storage_key_mem_offset)
                 .with_reg(8, self.storage_key_size as RegValue)
                 .with_reg(9, self.storage_data_mem_offset)
@@ -1801,7 +1879,7 @@ mod write_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(self.prev_storage_data_size as RegValue),
                     r8_write: None,
                     memory_write: None,
@@ -1810,11 +1888,11 @@ mod write_tests {
             }
         }
 
-        fn host_call_result_successful_no_prev_entry() -> HostCallResult {
+        fn host_call_result_successful_no_prev_entry(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,
@@ -1823,11 +1901,11 @@ mod write_tests {
             }
         }
 
-        fn host_call_result_panic() -> HostCallResult {
+        fn host_call_result_panic(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
@@ -1836,11 +1914,11 @@ mod write_tests {
             }
         }
 
-        fn host_call_result_full() -> HostCallResult {
+        fn host_call_result_full(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(HostCallReturnCode::FULL as RegValue),
                     r8_write: None,
                     memory_write: None,
@@ -1925,10 +2003,7 @@ mod write_tests {
         )
         .await?;
         // Check host-call result
-        assert_eq!(
-            res,
-            WriteTestFixture::host_call_result_successful_no_prev_entry()
-        );
+        assert_eq!(res, fixture.host_call_result_successful_no_prev_entry());
 
         // Check partial state after host-call
         let storage_entry_added = fixture
@@ -1996,7 +2071,7 @@ mod write_tests {
         )
         .await?;
         // Check host-call result
-        assert_eq!(res, WriteTestFixture::host_call_result_panic());
+        assert_eq!(res, fixture.host_call_result_panic());
 
         // Check partial state after host-call
         let storage_entry_added = fixture
@@ -2028,7 +2103,7 @@ mod write_tests {
         )
         .await?;
         // Check host-call result
-        assert_eq!(res, WriteTestFixture::host_call_result_panic());
+        assert_eq!(res, fixture.host_call_result_panic());
 
         // Check partial state after host-call
         let storage_entry_added = fixture
@@ -2064,7 +2139,7 @@ mod write_tests {
         )
         .await?;
         // Check host-call result
-        assert_eq!(res, WriteTestFixture::host_call_result_full());
+        assert_eq!(res, fixture.host_call_result_full());
 
         // Check partial state after host-call
         let storage_entry_added = fixture
@@ -2130,7 +2205,7 @@ mod info_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.info_service_id)
                 .with_reg(8, self.mem_write_offset)
                 .with_reg(9, self.info_offset as RegValue)
@@ -2171,7 +2246,7 @@ mod info_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: INFO_GAS,
                     r7_write: Some(account_info.len() as RegValue),
                     r8_write: None,
                     memory_write: Some(MemWrite::new(
@@ -2192,7 +2267,7 @@ mod info_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: INFO_GAS,
                     r7_write: Some(account_info.len() as RegValue),
                     r8_write: None,
                     memory_write: Some(MemWrite::new(
@@ -2209,7 +2284,7 @@ mod info_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: INFO_GAS,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
@@ -2222,7 +2297,7 @@ mod info_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: INFO_GAS,
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,

@@ -36,6 +36,7 @@ Notable changes to FastRoll, per release. The format is based on [Keep a Changel
 - [GP v0.8.0] Add the gas cost model, which simulates each basic block once when a program loads
 - [GP v0.8.0] Charge gas per basic block with a gas-charged flag instead of per instruction
 - [GP v0.8.0] Renumber the host calls and add `grow_heap`, which grows the RW data region of the standard program
+- [GP v0.8.0] Charge each host call by the host-function gas costs, with `invoke` paying for the gas it gives the inner VM and `log` charged as an unknown host call
 - [GP v0.8.1] Bound work reports by the work-package limits ([gavofyork/graypaper#563](https://github.com/gavofyork/graypaper/pull/563))
 - [GP v0.8.1] Let privilege holders hand over their role via `bless` ([gavofyork/graypaper#558](https://github.com/gavofyork/graypaper/pull/558), [#375](https://github.com/fastroll-jam/fastroll/pull/375))
 - [GP v0.8.1] Limit the instruction data size and jump table entries in `deblob` ([gavofyork/graypaper#559](https://github.com/gavofyork/graypaper/pull/559))
