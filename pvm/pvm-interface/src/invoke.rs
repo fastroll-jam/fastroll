@@ -222,7 +222,10 @@ impl PVMInterface {
         match result.exit_reason {
             ExitReason::OutOfGas => Ok(PVMInvocationResult::out_of_gas(gas_used)),
             ExitReason::RegularHalt => {
-                let start_address = pvm.state.read_reg_as_mem_address(7)?;
+                // An output range from `r7` of `2^32` or more is not readable either
+                let Ok(start_address) = pvm.state.read_reg_as_mem_address(7) else {
+                    return Ok(PVMInvocationResult::no_output(gas_used));
+                };
                 let data_len = pvm.state.read_reg(8) as usize;
                 if !pvm
                     .state
@@ -560,6 +563,18 @@ mod tests {
         Ok(program)
     }
 
+    /// Encodes a code blob of `load_imm_64 r7, 2^32` and `jump_ind r0, 0`, which halts with `r7 = 2^32`.
+    fn halt_with_output_at_2_pow_32_code_blob() -> Vec<u8> {
+        let mut code = vec![Opcode::LOAD_IMM_64 as u8, 7];
+        code.extend((1u64 << 32).to_le_bytes());
+        code.extend([Opcode::JUMP_IND as u8, 0]);
+        let mut code_blob = vec![0, 0, code.len() as u8];
+        code_blob.extend(code);
+        // Instructions start at 0 and 10
+        code_blob.extend([0b1, 0b100]);
+        code_blob
+    }
+
     /// Standard program whose code blob has an octet after `k`, so `deblob` fails.
     fn program_failing_deblob() -> Result<Vec<u8>, Box<dyn Error>> {
         let mut code_blob = single_trap_code_blob();
@@ -627,6 +642,37 @@ mod tests {
         assert!(matches!(
             result.output,
             PVMInvocationOutput::Panic(ExitReason::Panic)
+        ));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_invoke_with_args_halts_without_output_at_address_2_pow_32(
+    ) -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempfile::tempdir()?;
+        let (_header_db, state_manager) = init_db_and_manager(temp_dir.path().join("db"));
+        let mut context =
+            InvocationContext::X_I(IsAuthorizedHostContext::new(IsAuthorizedInvokeArgs {
+                package: WorkPackage::default(),
+                core_idx: 0,
+            }));
+
+        let result = PVMInterface::invoke_with_args(
+            Arc::new(state_manager),
+            0,
+            &standard_program(&halt_with_output_at_2_pow_32_code_blob())?,
+            &InvocationType::IsAuthorized,
+            0,
+            1_000,
+            &[],
+            &mut context,
+            None,
+        )
+        .await?;
+
+        assert!(matches!(
+            result.output,
+            PVMInvocationOutput::OutputUnavailable
         ));
         Ok(())
     }
