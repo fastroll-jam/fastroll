@@ -1,7 +1,8 @@
 use crate::{
-    constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, AuthHash,
-    CodeHash, CoreIndex, ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId, UnsignedGas,
-    WorkPackageHash,
+    constants::{MAX_WORK_ITEMS_PER_PACKAGE, SEGMENT_SIZE},
+    workloads::common::RefinementContext,
+    AuthHash, CodeHash, CoreIndex, ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId,
+    UnsignedGas, WorkPackageHash,
 };
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
@@ -25,6 +26,16 @@ pub struct AvailSpecs {
     pub segment_root: SegmentRoot,
     /// `n`: Number of export segments
     pub segment_count: u16,
+}
+
+impl AvailSpecs {
+    /// Computes the DA load of the work package for the core statistics, `l + W_G * ceil(65n/64)`.
+    ///
+    /// The export segments take `65/64` of their size with their paged proofs (e.g. 4 segments take 5 segments of space).
+    pub fn da_load(&self) -> u32 {
+        self.work_bundle_length
+            + SEGMENT_SIZE as u32 * (65 * self.segment_count as u32).div_ceil(64)
+    }
 }
 
 impl Display for AvailSpecs {
@@ -518,5 +529,23 @@ impl WorkReport {
             work_package_hash: self.specs.work_package_hash.clone(),
             segment_root: self.specs.segment_root.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_da_load_rounds_up_segments_with_paged_proofs() {
+        let specs = |segment_count| AvailSpecs {
+            work_bundle_length: 1000,
+            segment_count,
+            ..Default::default()
+        };
+        assert_eq!(specs(0).da_load(), 1000);
+        // `⌈65·4/64⌉ = 5`, not `65·⌈4/64⌉ = 65`
+        assert_eq!(specs(4).da_load(), 1000 + 5 * SEGMENT_SIZE as u32);
+        assert_eq!(specs(64).da_load(), 1000 + 65 * SEGMENT_SIZE as u32);
     }
 }
