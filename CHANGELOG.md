@@ -50,6 +50,7 @@ Notable changes to FastRoll, per release. The format is based on [Keep a Changel
 - Mark the block after a terminating instruction at index 0 as a basic block start, and never the end of the code
 - Decode instruction arguments from `ζ`, which reads past the next opcode, instead of crashing on an instruction shorter than its arguments
 - Check jump and branch targets in full 64 bits against the basic block starts, not only their low 32 bits
+- Take the host-call id from the full `ecalli` immediate, not its low 8 bits, so an unknown id is not run as another host call and `invoke` reports it unchanged
 - Panic in `Ψ_M` instead of rejecting the block when the program fails to load ([#374](https://github.com/fastroll-jam/fastroll/pull/374))
 - Check culprits and faults against the posterior good and bad sets ([`f3ed7039`](https://github.com/fastroll-jam/fastroll/commit/f3ed7039))
 - Remove duplicate offender keys from `ψ'_O` ([`e255e745`](https://github.com/fastroll-jam/fastroll/commit/e255e745))

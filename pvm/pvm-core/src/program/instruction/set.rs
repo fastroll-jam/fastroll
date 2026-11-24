@@ -17,7 +17,6 @@ use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::JUMP_ALIGNMENT,
     exit_reason::ExitReason,
-    hostcall::HostCallType,
 };
 
 // Convert RegValue to smaller int types by taking the lower bits
@@ -196,10 +195,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let imm_host_call_type = reg_to_u8(ins.imm1()?);
-        let exit_reason = ExitReason::HostCall(
-            HostCallType::from_u8(imm_host_call_type).ok_or(VMCoreError::InvalidHostCallType)?,
-        );
+        let exit_reason = ExitReason::HostCall(ins.imm1()?);
 
         Ok(SingleStepResult {
             exit_reason,

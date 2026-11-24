@@ -303,7 +303,7 @@ impl PVMInterface {
                 Interpreter::invoke_general(&mut pvm.state, &pvm.program_state)?.exit_reason;
 
             let host_call_result = match exit_reason {
-                ExitReason::HostCall(h) => {
+                ExitReason::HostCall(host_call_id) => {
                     Self::execute_host_function(
                         pvm,
                         state_manager.clone(),
@@ -311,7 +311,7 @@ impl PVMInterface {
                         invocation_type,
                         context,
                         curr_timeslot_index,
-                        &h,
+                        &HostCallType::from(host_call_id),
                     )
                     .await?
                 }
