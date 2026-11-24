@@ -53,6 +53,7 @@ Notable changes to FastRoll, per release. The format is based on [Keep a Changel
 - Take the host-call id from the full `ecalli` immediate, not its low 8 bits, so an unknown id is not run as another host call and `invoke` reports it unchanged
 - Encode the always-accumulate services of `χ` as fixed-length `E_4(s) ⌢ E_8(g)` pairs, as every number in the state is fixed-length
 - Give no output instead of rejecting the block when `Ψ_M` halts with an output address of `2^32` or more
+- Replace an account ejected in an earlier accumulation round when the registrar creates its id again, instead of rejecting the block
 - Panic in `Ψ_M` instead of rejecting the block when the program fails to load ([#374](https://github.com/fastroll-jam/fastroll/pull/374))
 - Check culprits and faults against the posterior good and bad sets ([`f3ed7039`](https://github.com/fastroll-jam/fastroll/commit/f3ed7039))
 - Remove duplicate offender keys from `ψ'_O` ([`e255e745`](https://github.com/fastroll-jam/fastroll/commit/e255e745))

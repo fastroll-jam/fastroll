@@ -305,7 +305,8 @@ async fn merge_partial_state_change(
         };
 
         match sandbox.metadata.status() {
-            SandboxEntryStatus::Added => {
+            // `Updated` is an ID ejected in an earlier round and created again, which replaces the ejected account
+            SandboxEntryStatus::Added | SandboxEntryStatus::Updated => {
                 // Not a new ID for this round
                 if base_exists {
                     continue;

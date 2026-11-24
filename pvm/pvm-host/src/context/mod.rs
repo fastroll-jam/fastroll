@@ -412,24 +412,45 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         new_service_id: ServiceId,
     ) -> Result<ServiceId, HostCallError> {
         let code_length = new_account_fields.code_lookups_key.clone().1;
-        let new_account = AccountSandbox {
-            metadata: SandboxEntryVersioned::new_added(AccountMetadata {
-                version: SERVICE_ACCOUNT_VERSION,
-                code_hash: new_account_fields.code_hash,
-                balance: new_account_fields.balance,
-                gas_limit_accumulate: new_account_fields.gas_limit_accumulate,
-                gas_limit_on_transfer: new_account_fields.gas_limit_on_transfer,
-                octets_footprint: 81 + code_length as u64,
-                gratis_storage_offset: new_account_fields.gratis_storage_offset,
-                items_footprint: 2,
-                created_at: new_account_fields.created_at,
-                last_accumulate_at: new_account_fields.last_accumulate_at,
-                parent_service_id: new_account_fields.parent_service_id,
-            }),
-            storage: HashMap::new(),
-            preimages: HashMap::new(),
-            lookups: HashMap::new(),
-            _phantom: PhantomData,
+        let new_metadata = AccountMetadata {
+            version: SERVICE_ACCOUNT_VERSION,
+            code_hash: new_account_fields.code_hash,
+            balance: new_account_fields.balance,
+            gas_limit_accumulate: new_account_fields.gas_limit_accumulate,
+            gas_limit_on_transfer: new_account_fields.gas_limit_on_transfer,
+            octets_footprint: 81 + code_length as u64,
+            gratis_storage_offset: new_account_fields.gratis_storage_offset,
+            items_footprint: 2,
+            created_at: new_account_fields.created_at,
+            last_accumulate_at: new_account_fields.last_accumulate_at,
+            parent_service_id: new_account_fields.parent_service_id,
+        };
+        // An id ejected in an earlier round of this block is still in the prior state.
+        // The new account replaces it there and keeps the removals of the ejected account's items.
+        let ejected_account = match self.partial_state.accounts_sandbox.remove(&new_service_id) {
+            Some(account) if account.is_ejected().await => Some(account),
+            _ => None,
+        };
+        let new_account = match ejected_account {
+            Some(ejected_account) => AccountSandbox {
+                metadata: match ejected_account.metadata.clean_snapshot {
+                    Some(ejected_metadata) => {
+                        SandboxEntryVersioned::new_updated(new_metadata, ejected_metadata)
+                    }
+                    None => SandboxEntryVersioned::new_added(new_metadata),
+                },
+                storage: ejected_account.storage,
+                preimages: ejected_account.preimages,
+                lookups: ejected_account.lookups,
+                _phantom: PhantomData,
+            },
+            None => AccountSandbox {
+                metadata: SandboxEntryVersioned::new_added(new_metadata),
+                storage: HashMap::new(),
+                preimages: HashMap::new(),
+                lookups: HashMap::new(),
+                _phantom: PhantomData,
+            },
         };
 
         self.partial_state
