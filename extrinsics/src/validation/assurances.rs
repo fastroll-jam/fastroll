@@ -14,6 +14,10 @@ use std::{collections::HashSet, sync::Arc};
 ///
 /// # Validation Rules
 ///
+/// ## Assurer Index
+/// - Each entry's `validator_index` must be below `|κ|`.
+/// - It is checked before the other rules, since the extrinsic type bounds it.
+///
 /// ## Ordering
 /// - Extrinsic entries must be ordered by `validator_index`.
 ///
@@ -47,6 +51,15 @@ impl AssurancesXtValidator {
     ) -> Result<(), XtError> {
         if extrinsic.is_empty() {
             return Ok(());
+        }
+
+        // Check the assurer indices before the ordering
+        let validator_count = self.state_manager.get_active_set_clean().await?.len(); // |κ|
+        if extrinsic
+            .iter()
+            .any(|entry| entry.validator_index as usize >= validator_count)
+        {
+            return Err(XtError::InvalidValidatorIndex);
         }
 
         // Check if the entries are sorted

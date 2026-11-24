@@ -158,10 +158,9 @@ generate_typed_tests! {
     // One assurance has a bad signature.
     assurances_with_bad_signature_1: "assurances_with_bad_signature-1.json",
 
-    // TODO: Test: - this test vector also returns err(not_sorted_or_unique_assurers)
     // Fail
     // One assurance has a bad validator index.
-    #[ignore = "the vector also hits not_sorted_or_unique_assurers, see the TODO above"]
+    // The assurers are also not sorted, so the assurer indices are checked before the ordering.
     assurances_with_bad_validator_index_1: "assurances_with_bad_validator_index-1.json",
 
     // Fail
