@@ -116,13 +116,17 @@ impl InvocationType {
             InvocationType::IsAuthorized => {
                 matches!(
                     h,
-                    HostCallType::GAS | HostCallType::FETCH | HostCallType::LOG
+                    HostCallType::GAS
+                        | HostCallType::GROW_HEAP
+                        | HostCallType::FETCH
+                        | HostCallType::LOG
                 )
             }
             InvocationType::Accumulate => {
                 matches!(
                     h,
                     HostCallType::GAS
+                        | HostCallType::GROW_HEAP
                         | HostCallType::FETCH
                         | HostCallType::READ
                         | HostCallType::WRITE
@@ -148,6 +152,7 @@ impl InvocationType {
                 matches!(
                     h,
                     HostCallType::GAS
+                        | HostCallType::GROW_HEAP
                         | HostCallType::FETCH
                         | HostCallType::HISTORICAL_LOOKUP
                         | HostCallType::EXPORT
@@ -197,7 +202,7 @@ impl PVMInterface {
 
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
         let Ok(mut pvm) = PVM::new_with_formatted_program(
-            &cached_program.formatted_program,
+            cached_program.formatted_program.clone(),
             cached_program.program_state.clone(),
             args,
         ) else {
@@ -372,6 +377,10 @@ impl PVMInterface {
         let result = match h_validated {
             // --- General Functions
             HostCallType::GAS => GeneralHostFunction::<StateManager>::host_gas(&pvm.state)?,
+            HostCallType::GROW_HEAP => GeneralHostFunction::<StateManager>::host_grow_heap(
+                &pvm.state,
+                &pvm.formatted_program,
+            )?,
             HostCallType::FETCH => {
                 GeneralHostFunction::<StateManager>::host_fetch(&pvm.state, context)?
             }

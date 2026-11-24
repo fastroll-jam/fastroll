@@ -2,7 +2,7 @@ use crate::{
     error::VMCoreError,
     gas::GasCharger,
     state::{
-        memory::MemoryError,
+        memory::{AccessType, MemoryError},
         vm_state::{RegIndex, VMState},
     },
     utils::VMUtils,
@@ -12,6 +12,7 @@ use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, REGISTERS_COUNT},
 };
+use std::ops::Range;
 
 /// Stores small writes inline to avoid heap allocations for <=8 bytes.
 #[derive(Clone, Debug, PartialEq)]
@@ -92,6 +93,8 @@ pub struct HostCallVMStateChange {
     pub r7_write: Option<RegValue>,
     pub r8_write: Option<RegValue>,
     pub memory_write: Option<MemWrite>,
+    /// Memory pages that become writable, e.g. the RW data region grown by `grow_heap`.
+    pub writable_pages: Option<Range<usize>>,
 }
 
 impl Default for HostCallVMStateChange {
@@ -101,6 +104,7 @@ impl Default for HostCallVMStateChange {
             r7_write: None,
             r8_write: None,
             memory_write: None,
+            writable_pages: None,
         }
     }
 }
@@ -168,7 +172,12 @@ impl VMStateMutator {
             vm_state.regs[8] = r8;
         }
 
-        // Apply memory change
+        // Apply memory changes
+        if let Some(writable_pages) = change.writable_pages.clone() {
+            vm_state
+                .memory
+                .set_page_range_access(writable_pages, AccessType::ReadWrite)?;
+        }
         if let Some(mem_write) = change.memory_write.as_ref() {
             vm_state
                 .memory

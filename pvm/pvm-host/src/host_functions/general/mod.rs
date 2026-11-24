@@ -4,7 +4,10 @@ mod tests;
 use crate::{
     context::InvocationContext,
     error::HostCallError,
-    host_functions::{HostCallResult, HostCallReturnCode},
+    host_functions::{
+        host_function_gas_costs::{GROW_HEAP_BASE_GAS, GROW_HEAP_GAS_PER_PAGE},
+        HostCallResult, HostCallReturnCode,
+    },
     macros::*,
 };
 use fr_codec::prelude::*;
@@ -12,7 +15,10 @@ use fr_common::{
     constants::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
     Hash32, Octets, ServiceId, SignedGas, UnsignedGas,
 };
-use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
+use fr_pvm_core::{
+    program::types::formatted_program::FormattedProgram,
+    state::{state_change::HostCallVMStateChange, vm_state::VMState},
+};
 use fr_pvm_types::{
     common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, invoke_args::RefineInvokeArgs,
 };
@@ -38,6 +44,45 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             (vm.gas_counter as UnsignedGas).saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
         tracing::debug!("GAS gas={gas_remaining}");
         continue_with_vm_change!(r7: gas_remaining)
+    }
+
+    /// Grows the RW data region of the memory up to the page index `r7` and returns the index after its last page.
+    ///
+    /// A request at or below the current end, or past the limit `b` below the stack, leaves the region as it is.
+    pub fn host_grow_heap(
+        vm: &VMState,
+        program: &FormattedProgram,
+    ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: GROW_HEAP");
+        let rw_data_first_page = program.rw_data_first_page(); // a
+        let rw_data_page_limit = program.rw_data_page_limit(); // b
+        let rw_data_end_page = rw_data_first_page
+            + vm.memory
+                .count_writable_pages(rw_data_first_page..rw_data_page_limit); // h
+        let requested_end_page = vm.read_reg(7);
+
+        if requested_end_page <= rw_data_end_page as RegValue
+            || requested_end_page > rw_data_page_limit as RegValue
+        {
+            return continue_with_vm_change!(gas: GROW_HEAP_BASE_GAS, r7: rw_data_end_page);
+        }
+
+        let gas = GROW_HEAP_BASE_GAS
+            + (requested_end_page - rw_data_end_page as RegValue) * GROW_HEAP_GAS_PER_PAGE;
+        if vm.gas_counter < gas as SignedGas {
+            // Keeps the gas counter
+            out_of_gas!(0)
+        }
+
+        tracing::debug!("GROW_HEAP pages={rw_data_end_page}..{requested_end_page}");
+        Ok(HostCallResult::continue_with_vm_change(
+            HostCallVMStateChange {
+                gas_charge: gas,
+                r7_write: Some(requested_end_page),
+                writable_pages: Some(rw_data_first_page..requested_end_page as usize),
+                ..Default::default()
+            },
+        ))
     }
 
     /// Fetches various data types introduced as arguments of PVM entry-point invocations.

@@ -15,24 +15,26 @@ use fr_pvm_types::{
 use std::sync::Arc;
 
 /// Main stateful PVM struct.
-#[derive(Default)]
 pub struct PVM {
     /// The mutable VM state
     pub state: VMState,
     /// The static program state initialized in the `Ψ_M` invocation.
     pub program_state: Arc<ProgramState>,
+    /// The standard program `p` of the `Ψ_M` invocation, from which `grow_heap` reads the RW data region bounds.
+    pub formatted_program: Arc<FormattedProgram>,
 }
 
 impl PVM {
     /// Initialize memory and registers of PVM with provided program and arguments.
     pub(crate) fn new_with_formatted_program(
-        formatted_program: &FormattedProgram,
+        formatted_program: Arc<FormattedProgram>,
         program_state: Arc<ProgramState>,
         args: &[u8],
     ) -> Result<Self, PVMError> {
         let mut pvm = Self {
             state: VMState::default(),
             program_state,
+            formatted_program: formatted_program.clone(),
         };
 
         // Check argument data size limit
@@ -44,7 +46,7 @@ impl PVM {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }
 
-        pvm.setup_memory_layout(formatted_program, args)?;
+        pvm.setup_memory_layout(&formatted_program, args)?;
         tracing::info!("PVM memory setup.");
         pvm.initialize_registers(args.len());
         tracing::info!("PVM registers setup.");
@@ -64,15 +66,12 @@ impl PVM {
         memory.set_address_range_access(o_start..o_padding_end, AccessType::ReadOnly)?;
 
         // Read-write heap data (w)
-        let w_start =
-            (2 * INIT_ZONE_SIZE + VMUtils::zone_align(fp.static_size as usize)) as MemAddress;
+        let w_start = (fp.rw_data_first_page() * PAGE_SIZE) as MemAddress;
         let w_padding_end = w_start
             + VMUtils::page_align(fp.heap_size as usize) as MemAddress
             + fp.extra_heap_pages as MemAddress * PAGE_SIZE as MemAddress;
         memory.set_address_range_access(w_start..w_padding_end, AccessType::ReadWrite)?;
         memory.write_bytes(w_start, &fp.heap_data)?;
-        memory.heap_start = w_start;
-        memory.heap_end = w_padding_end;
 
         // Stack (s)
         let s_start = ((1 << 32)
@@ -81,7 +80,6 @@ impl PVM {
             - VMUtils::page_align(fp.stack_size as usize)) as MemAddress;
         let s_end = ((1 << 32) - 2 * INIT_ZONE_SIZE - INIT_INPUT_SIZE) as MemAddress;
         memory.set_address_range_access(s_start..s_end, AccessType::ReadWrite)?;
-        memory.stack_start = s_start;
 
         // Arguments (a)
         let a_start = ((1 << 32) - INIT_ZONE_SIZE - INIT_INPUT_SIZE) as MemAddress;

@@ -746,6 +746,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: Some(0),
                     memory_write: None,
+                    writable_pages: None,
                 },
             ));
         };

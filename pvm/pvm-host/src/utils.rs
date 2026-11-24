@@ -87,6 +87,7 @@ macro_rules! continue_with_vm_change {
                 r7_write: Some($r7 as RegValue),
                 r8_write: None,
                 memory_write: None,
+                writable_pages: None,
             },
         ))
     }};
@@ -98,6 +99,7 @@ macro_rules! continue_with_vm_change {
                 r7_write: Some($r7 as RegValue),
                 r8_write: Some($r8 as RegValue),
                 memory_write: None,
+                writable_pages: None,
             },
         ))
     }};
@@ -109,6 +111,7 @@ macro_rules! continue_with_vm_change {
                 r7_write: Some($r7 as RegValue),
                 r8_write: None,
                 memory_write: Some($crate::MemWrite::new($mem_offset, $mem_data)),
+                writable_pages: None,
             },
         ))
     }};
@@ -120,6 +123,7 @@ macro_rules! continue_with_vm_change {
                 r7_write: Some($r7 as RegValue),
                 r8_write: Some($r8 as RegValue),
                 memory_write: Some($crate::MemWrite::new($mem_offset, $mem_data)),
+                writable_pages: None,
             },
         ))
     }};

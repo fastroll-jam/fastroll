@@ -5,6 +5,7 @@ use crate::{
     },
     host_functions::{
         general::GeneralHostFunction,
+        host_function_gas_costs::{GROW_HEAP_BASE_GAS, GROW_HEAP_GAS_PER_PAGE},
         test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
         HostCallResult, HostCallReturnCode,
     },
@@ -21,7 +22,13 @@ use fr_common::{
     WorkPackageHash, HASH_SIZE, SEGMENT_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
-use fr_pvm_core::state::state_change::{HostCallVMStateChange, MemWrite};
+use fr_pvm_core::{
+    program::types::formatted_program::FormattedProgram,
+    state::{
+        state_change::{HostCallVMStateChange, MemWrite},
+        vm_state::VMState,
+    },
+};
 use fr_pvm_types::{
     common::{ExportDataSegment, MemAddress, RegValue, WorkPackageImportSegments},
     constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, PAGE_SIZE},
@@ -55,6 +62,7 @@ mod gas_tests {
                 r7_write: Some(expected_remaining_gas),
                 r8_write: None,
                 memory_write: None,
+                writable_pages: None,
             },
         };
         assert_eq!(res, expected);
@@ -73,6 +81,112 @@ mod gas_tests {
                 r7_write: None,
                 r8_write: None,
                 memory_write: None,
+                writable_pages: None,
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
+    }
+}
+
+mod grow_heap_tests {
+    use super::*;
+
+    /// Standard program with one page of read-only data and one page of stack.
+    fn program() -> FormattedProgram {
+        FormattedProgram {
+            static_size: PAGE_SIZE as u32,
+            heap_size: 0,
+            extra_heap_pages: 0,
+            stack_size: PAGE_SIZE as u32,
+            static_data: vec![0; PAGE_SIZE],
+            heap_data: vec![],
+            code_size: 0,
+            code: vec![],
+        }
+    }
+
+    /// VM whose RW data region holds two writable pages from `a`.
+    fn vm_with_two_rw_data_pages(
+        requested_end_page: usize,
+        gas_counter: SignedGas,
+    ) -> Result<VMState, Box<dyn Error>> {
+        let rw_data_first_page = program().rw_data_first_page();
+        let rw_data_start = (rw_data_first_page * PAGE_SIZE) as MemAddress;
+        Ok(VMStateBuilder::builder()
+            .with_empty_mem()
+            .with_mem_writable_range(rw_data_start..rw_data_start + 2 * PAGE_SIZE as MemAddress)?
+            .with_reg(7, requested_end_page as RegValue)
+            .with_gas_counter(gas_counter)
+            .build())
+    }
+
+    fn result_keeping_rw_data_region(rw_data_end_page: usize) -> HostCallResult {
+        HostCallResult {
+            exit_reason: ExitReason::Continue,
+            vm_change: HostCallVMStateChange {
+                gas_charge: GROW_HEAP_BASE_GAS,
+                r7_write: Some(rw_data_end_page as RegValue),
+                ..Default::default()
+            },
+        }
+    }
+
+    #[test]
+    fn test_grow_heap_rw_data_region_bounds() {
+        // a = (2 Z_Z + Z_Z) / Z_P and b = (2^32 - 3 Z_Z - Z_I - Z_P) / Z_P
+        assert_eq!(program().rw_data_first_page(), 48);
+        assert_eq!(program().rw_data_page_limit(), 1_044_431);
+    }
+
+    #[test]
+    fn test_grow_heap_success() -> Result<(), Box<dyn Error>> {
+        let rw_data_first_page = program().rw_data_first_page();
+        let requested_end_page = rw_data_first_page + 5;
+        let vm = vm_with_two_rw_data_pages(requested_end_page, 1_000)?;
+        let res = GeneralHostFunction::<MockStateManager>::host_grow_heap(&vm, &program())?;
+        let expected = HostCallResult {
+            exit_reason: ExitReason::Continue,
+            vm_change: HostCallVMStateChange {
+                gas_charge: GROW_HEAP_BASE_GAS + 3 * GROW_HEAP_GAS_PER_PAGE,
+                r7_write: Some(requested_end_page as RegValue),
+                writable_pages: Some(rw_data_first_page..requested_end_page),
+                ..Default::default()
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_grow_heap_keeps_region_for_request_not_above_end() -> Result<(), Box<dyn Error>> {
+        let rw_data_end_page = program().rw_data_first_page() + 2;
+        let vm = vm_with_two_rw_data_pages(rw_data_end_page, 1_000)?;
+        let res = GeneralHostFunction::<MockStateManager>::host_grow_heap(&vm, &program())?;
+        assert_eq!(res, result_keeping_rw_data_region(rw_data_end_page));
+        Ok(())
+    }
+
+    #[test]
+    fn test_grow_heap_keeps_region_for_request_above_limit() -> Result<(), Box<dyn Error>> {
+        let rw_data_end_page = program().rw_data_first_page() + 2;
+        let vm = vm_with_two_rw_data_pages(program().rw_data_page_limit() + 1, 1_000)?;
+        let res = GeneralHostFunction::<MockStateManager>::host_grow_heap(&vm, &program())?;
+        assert_eq!(res, result_keeping_rw_data_region(rw_data_end_page));
+        Ok(())
+    }
+
+    #[test]
+    fn test_grow_heap_oog_keeps_gas_counter() -> Result<(), Box<dyn Error>> {
+        let requested_end_page = program().rw_data_first_page() + 5;
+        let gas = GROW_HEAP_BASE_GAS + 3 * GROW_HEAP_GAS_PER_PAGE;
+        let vm = vm_with_two_rw_data_pages(requested_end_page, gas as SignedGas - 1)?;
+        let res = GeneralHostFunction::<MockStateManager>::host_grow_heap(&vm, &program())?;
+        let expected = HostCallResult {
+            exit_reason: ExitReason::OutOfGas,
+            vm_change: HostCallVMStateChange {
+                gas_charge: 0,
+                ..Default::default()
             },
         };
         assert_eq!(res, expected);
@@ -323,6 +437,7 @@ mod fetch_tests {
                             ..self.regs.fetch_offset + self.regs.fetch_length]
                             .to_vec(),
                     )),
+                    writable_pages: None,
                 },
             }
         }
@@ -335,6 +450,7 @@ mod fetch_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -347,6 +463,7 @@ mod fetch_tests {
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1021,6 +1138,7 @@ mod lookup_tests {
                             ..self.preimages_read_offset + self.preimages_read_size]
                             .to_vec(),
                     )),
+                    writable_pages: None,
                 },
             }
         }
@@ -1033,6 +1151,7 @@ mod lookup_tests {
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1045,6 +1164,7 @@ mod lookup_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1340,6 +1460,7 @@ mod read_tests {
                             ..self.storage_read_offset + self.storage_read_size]
                             .to_vec(),
                     )),
+                    writable_pages: None,
                 },
             }
         }
@@ -1352,6 +1473,7 @@ mod read_tests {
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1364,6 +1486,7 @@ mod read_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1682,6 +1805,7 @@ mod write_tests {
                     r7_write: Some(self.prev_storage_data_size as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1694,6 +1818,7 @@ mod write_tests {
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1706,6 +1831,7 @@ mod write_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1718,6 +1844,7 @@ mod write_tests {
                     r7_write: Some(HostCallReturnCode::FULL as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2052,6 +2179,7 @@ mod info_tests {
                         account_info[self.info_offset..self.info_offset + self.info_length]
                             .to_vec(),
                     )),
+                    writable_pages: None,
                 },
             }
         }
@@ -2072,6 +2200,7 @@ mod info_tests {
                         account_info[self.info_offset..self.info_offset + self.info_length]
                             .to_vec(),
                     )),
+                    writable_pages: None,
                 },
             }
         }
@@ -2084,6 +2213,7 @@ mod info_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2096,6 +2226,7 @@ mod info_tests {
                     r7_write: Some(HostCallReturnCode::NONE as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }

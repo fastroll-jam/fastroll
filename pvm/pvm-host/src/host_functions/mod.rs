@@ -7,6 +7,7 @@ use fr_pvm_types::{
 pub mod accumulate;
 pub mod debug;
 pub mod general;
+pub mod host_function_gas_costs;
 pub mod refine;
 #[cfg(test)]
 pub(crate) mod test_utils;

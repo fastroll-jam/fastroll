@@ -74,6 +74,7 @@ mod machine_tests {
                     r7_write: Some(inner_pvm_id as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -86,6 +87,7 @@ mod machine_tests {
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -98,6 +100,7 @@ mod machine_tests {
                     r7_write: Some(HostCallReturnCode::FULL as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }

@@ -257,6 +257,7 @@ mod bless_tests {
                     r7_write: Some(return_code as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -269,6 +270,7 @@ mod bless_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -893,6 +895,7 @@ mod assign_tests {
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -905,6 +908,7 @@ mod assign_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -917,6 +921,7 @@ mod assign_tests {
                     r7_write: Some(HostCallReturnCode::CORE as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -929,6 +934,7 @@ mod assign_tests {
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -941,6 +947,7 @@ mod assign_tests {
                     r7_write: Some(HostCallReturnCode::WHO as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1181,6 +1188,7 @@ mod designate_tests {
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1193,6 +1201,7 @@ mod designate_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1205,6 +1214,7 @@ mod designate_tests {
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1435,6 +1445,7 @@ mod checkpoint_tests {
                     r7_write: Some((self.prev_gas_remaining - gas_charge as SignedGas) as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1603,6 +1614,7 @@ mod new_tests {
                     r7_write: Some(new_service_id as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1615,6 +1627,7 @@ mod new_tests {
                     r7_write: Some(self.new_small_service_id),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1627,6 +1640,7 @@ mod new_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1639,6 +1653,7 @@ mod new_tests {
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1651,6 +1666,7 @@ mod new_tests {
                     r7_write: Some(HostCallReturnCode::CASH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1663,6 +1679,7 @@ mod new_tests {
                     r7_write: Some(HostCallReturnCode::FULL as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2088,6 +2105,7 @@ mod upgrade_tests {
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2100,6 +2118,7 @@ mod upgrade_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2267,6 +2286,7 @@ mod transfer_tests {
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2279,6 +2299,7 @@ mod transfer_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2291,6 +2312,7 @@ mod transfer_tests {
                     r7_write: Some(HostCallReturnCode::WHO as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2303,6 +2325,7 @@ mod transfer_tests {
                     r7_write: Some(HostCallReturnCode::LOW as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2315,6 +2338,7 @@ mod transfer_tests {
                     r7_write: Some(HostCallReturnCode::CASH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2715,6 +2739,7 @@ mod eject_tests {
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2727,6 +2752,7 @@ mod eject_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2739,6 +2765,7 @@ mod eject_tests {
                     r7_write: Some(HostCallReturnCode::WHO as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2751,6 +2778,7 @@ mod eject_tests {
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3197,6 +3225,7 @@ mod query_tests {
                     r7_write: Some(0),
                     r8_write: Some(0),
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3209,6 +3238,7 @@ mod query_tests {
                     r7_write: Some(1 + (1 << 32) * self.timeslot_x.slot() as RegValue),
                     r8_write: Some(0),
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3221,6 +3251,7 @@ mod query_tests {
                     r7_write: Some(2 + (1 << 32) * self.timeslot_x.slot() as RegValue),
                     r8_write: Some(self.timeslot_y.slot() as RegValue),
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3236,6 +3267,7 @@ mod query_tests {
                             + (1 << 32) * self.timeslot_z.slot() as RegValue,
                     ),
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3248,6 +3280,7 @@ mod query_tests {
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3532,6 +3565,7 @@ mod solicit_tests {
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3544,6 +3578,7 @@ mod solicit_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3556,6 +3591,7 @@ mod solicit_tests {
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3568,6 +3604,7 @@ mod solicit_tests {
                     r7_write: Some(HostCallReturnCode::FULL as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4026,6 +4063,7 @@ mod forget_tests {
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4038,6 +4076,7 @@ mod forget_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4050,6 +4089,7 @@ mod forget_tests {
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4487,6 +4527,7 @@ mod yield_tests {
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4499,6 +4540,7 @@ mod yield_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4648,6 +4690,7 @@ mod provide_tests {
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4660,6 +4703,7 @@ mod provide_tests {
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4672,6 +4716,7 @@ mod provide_tests {
                     r7_write: Some(HostCallReturnCode::WHO as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4684,6 +4729,7 @@ mod provide_tests {
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
