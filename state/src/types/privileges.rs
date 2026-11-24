@@ -54,7 +54,11 @@ impl Display for PrivilegedServices {
 
 impl JamEncode for PrivilegedServices {
     fn size_hint(&self) -> usize {
-        4 + 4 * CORE_COUNT + 4 + 4 + self.always_accumulate_services.size_hint()
+        4 + 4 * CORE_COUNT
+            + 4
+            + 4
+            + self.always_accumulate_services.len().size_hint()
+            + 12 * self.always_accumulate_services.len()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -64,7 +68,11 @@ impl JamEncode for PrivilegedServices {
         }
         self.designate_service.encode_to_fixed(dest, 4)?;
         self.registrar_service.encode_to_fixed(dest, 4)?;
-        self.always_accumulate_services.encode_to(dest)?;
+        self.always_accumulate_services.len().encode_to(dest)?;
+        for (service_id, gas_limit) in &self.always_accumulate_services {
+            service_id.encode_to_fixed(dest, 4)?;
+            gas_limit.encode_to_fixed(dest, 8)?;
+        }
         Ok(())
     }
 }
@@ -87,7 +95,13 @@ impl JamDecode for PrivilegedServices {
         })?;
         let designate_service = ServiceId::decode_fixed(input, 4)?;
         let registrar_service = ServiceId::decode_fixed(input, 4)?;
-        let always_accumulate_services = AlwaysAccumulateServices::decode(input)?;
+        let always_accumulate_services_count = usize::decode(input)?;
+        let mut always_accumulate_services = AlwaysAccumulateServices::new();
+        for _ in 0..always_accumulate_services_count {
+            let service_id = ServiceId::decode_fixed(input, 4)?;
+            let gas_limit = UnsignedGas::decode_fixed(input, 8)?;
+            always_accumulate_services.insert(service_id, gas_limit);
+        }
 
         Ok(Self {
             manager_service,
