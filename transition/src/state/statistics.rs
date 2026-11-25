@@ -2,7 +2,7 @@ use crate::error::TransitionError;
 use fr_block::types::extrinsics::{
     assurances::AssurancesXt, guarantees::GuaranteesXt, preimages::PreimagesXt, Extrinsics,
 };
-use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE};
+use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex};
 use fr_crypto::types::Ed25519PubKey;
 use fr_pvm_types::stats::AccumulateStats;
 use fr_state::{
@@ -178,8 +178,7 @@ async fn handle_per_block_transition(
     }
     for report in available_reports {
         let entry = core_stats.core_stats_entry_mut(report.core_index);
-        entry.da_items_size += report.specs.work_bundle_length
-            + SEGMENT_SIZE as u32 * 65 * (report.specs.segment_count as u32).div_ceil(64);
+        entry.da_items_size += report.specs.da_load();
     }
     for (i, count) in assurances.cores_assurances_counts().iter().enumerate() {
         let entry = core_stats.core_stats_entry_mut(i as CoreIndex);
