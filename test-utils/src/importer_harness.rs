@@ -99,9 +99,9 @@ pub fn print_state_diff(expected_post_state: &RawState, actual_state: &HashMap<S
             if actual_val.as_slice() != kv.value.as_slice() {
                 tracing::error!("State mismatch. Key: {}", kv.key);
                 println!("Actual:");
-                display_state_entry(kv.key.as_ref(), actual_val.as_slice());
+                display_state_entry(&kv.key, actual_val.as_slice());
                 println!("\nExpected:");
-                display_state_entry(kv.key.as_ref(), kv.value.as_slice());
+                display_state_entry(&kv.key, kv.value.as_slice());
                 println!("\n");
             }
         } else {

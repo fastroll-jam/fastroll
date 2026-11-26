@@ -2,7 +2,7 @@
 use async_trait::async_trait;
 use fr_asn_types::preimages::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::LookupsKey;
+use fr_common::{LookupsKey, PreimagesKey};
 use fr_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
 use fr_test_utils::{
     err_map::preimages::map_error_to_custom_code,
@@ -13,8 +13,7 @@ use fr_transition::{
     error::TransitionError,
     state::{services::transition_services_integrate_preimages, timeslot::transition_timeslot},
 };
-use futures::future::join_all;
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 struct PreimagesTest;
 
@@ -98,7 +97,7 @@ impl StateTransitionTest for PreimagesTest {
     async fn extract_post_state(
         state_manager: Arc<StateManager>,
         pre_state: &Self::State,
-        _test_case_post_state: &Self::State,
+        test_case_post_state: &Self::State,
         error_code: &Option<Self::ErrorCode>,
     ) -> Result<Self::State, StateManagerError> {
         if error_code.is_some() {
@@ -107,45 +106,58 @@ impl StateTransitionTest for PreimagesTest {
         }
 
         // Get the posterior state from the state cache.
-        let curr_accounts = join_all(pre_state.accounts.iter().map(|s| async {
-            let curr_preimages = join_all(s.data.preimage_blobs.iter().map(|e| async {
-                // Get the key from the pre-state
-                let key = e.hash.clone();
-                // Get the posterior preimage value
-                let preimage = state_manager
-                    .get_account_preimages_entry(s.id, &key)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                AsnPreimagesMapEntry::from(PreimagesMapEntry {
-                    key,
-                    data: preimage,
-                })
-            }))
-            .await;
+        // A state key holds only a hash of the item key, so the harness cannot list the entries of an account.
+        // The transition only adds or updates entries, so it reads the keys of the prior and the expected posterior account.
+        let mut curr_accounts = Vec::with_capacity(pre_state.accounts.len());
+        for prior_account in &pre_state.accounts {
+            let service_id = prior_account.id;
+            let prior_and_expected_accounts = pre_state
+                .accounts
+                .iter()
+                .chain(&test_case_post_state.accounts)
+                .filter(|account| account.id == service_id);
+            let preimage_keys: BTreeSet<PreimagesKey> = prior_and_expected_accounts
+                .clone()
+                .flat_map(|account| &account.data.preimage_blobs)
+                .map(|entry| entry.hash.clone())
+                .collect();
+            let lookups_keys: BTreeSet<LookupsKey> = prior_and_expected_accounts
+                .flat_map(|account| &account.data.preimage_requests)
+                .map(|entry| LookupsKey::from(entry.key.clone()))
+                .collect();
 
-            let curr_lookups = join_all(s.data.preimage_requests.iter().map(|e| async {
-                // Get the key from the pre-state
-                let key = LookupsKey::from(e.key.clone());
-                // Get the posterior lookups value
-                let lookups = state_manager
-                    .get_account_lookups_entry(s.id, &key)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                AsnLookupMetaMapEntry::from(LookupMetaMapEntry { key, data: lookups })
-            }))
-            .await;
+            let mut curr_preimages = Vec::with_capacity(preimage_keys.len());
+            for key in preimage_keys {
+                if let Some(data) = state_manager
+                    .get_account_preimages_entry(service_id, &key)
+                    .await?
+                {
+                    curr_preimages
+                        .push(AsnPreimagesMapEntry::from(PreimagesMapEntry { key, data }));
+                }
+            }
 
-            AsnAccountsMapEntry {
-                id: s.id,
+            let mut curr_lookups = Vec::with_capacity(lookups_keys.len());
+            for key in lookups_keys {
+                if let Some(data) = state_manager
+                    .get_account_lookups_entry(service_id, &key)
+                    .await?
+                {
+                    curr_lookups.push(AsnLookupMetaMapEntry::from(LookupMetaMapEntry {
+                        key,
+                        data,
+                    }));
+                }
+            }
+
+            curr_accounts.push(AsnAccountsMapEntry {
+                id: service_id,
                 data: AsnAccount {
                     preimage_blobs: curr_preimages,
                     preimage_requests: curr_lookups,
                 },
-            }
-        }))
-        .await;
+            });
+        }
 
         Ok(State {
             accounts: curr_accounts,
@@ -160,10 +172,8 @@ generate_typed_tests! {
     // Nothing is provided.
     preimage_needed_1: "preimage_needed-1.json",
 
-    // FIXME: Need information of all preimage keys of a service account.
     // Success
     // Provide one solicited blob.
-    #[ignore = "harness cannot list all preimage keys of a service account"]
     preimage_needed_2: "preimage_needed-2.json",
 
     // Fail
@@ -182,10 +192,8 @@ generate_typed_tests! {
     // Bad order of images for a service.
     preimages_order_check_2: "preimages_order_check-2.json",
 
-    // FIXME: Need information of all preimage keys of a service account.
     // Success
     // Order is correct.
-    #[ignore = "harness cannot list all preimage keys of a service account"]
     preimages_order_check_3: "preimages_order_check-3.json",
 
     // Fail
