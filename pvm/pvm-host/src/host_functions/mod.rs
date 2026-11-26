@@ -1,12 +1,14 @@
-use fr_common::UnsignedGas;
-use fr_pvm_core::state::state_change::HostCallVMStateChange;
-use fr_pvm_types::{
-    common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, exit_reason::ExitReason,
+use crate::{
+    error::HostCallError, host_functions::host_function_gas_costs::UNKNOWN_HOST_CALL_GAS, macros::*,
 };
+use fr_common::UnsignedGas;
+use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
+use fr_pvm_types::{common::RegValue, exit_reason::ExitReason};
 
 pub mod accumulate;
 pub mod debug;
 pub mod general;
+pub mod host_function_gas_costs;
 pub mod refine;
 #[cfg(test)]
 pub(crate) mod test_utils;
@@ -64,17 +66,6 @@ impl HostCallResult {
         }
     }
 
-    pub fn continue_with_return_code(code: HostCallReturnCode) -> Self {
-        Self {
-            exit_reason: ExitReason::Continue,
-            vm_change: HostCallVMStateChange {
-                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-                r7_write: Some(code as RegValue),
-                ..Default::default()
-            },
-        }
-    }
-
     pub fn continue_with_return_code_and_gas(
         code: HostCallReturnCode,
         gas_charge: UnsignedGas,
@@ -89,13 +80,6 @@ impl HostCallResult {
         }
     }
 
-    pub fn panic() -> Self {
-        Self {
-            exit_reason: ExitReason::Panic,
-            vm_change: Default::default(),
-        }
-    }
-
     pub fn panic_with_gas(gas_charge: UnsignedGas) -> Self {
         Self {
             exit_reason: ExitReason::Panic,
@@ -103,13 +87,6 @@ impl HostCallResult {
                 gas_charge,
                 ..Default::default()
             },
-        }
-    }
-
-    pub fn out_of_gas() -> Self {
-        Self {
-            exit_reason: ExitReason::OutOfGas,
-            vm_change: Default::default(),
         }
     }
 
@@ -122,4 +99,11 @@ impl HostCallResult {
             },
         }
     }
+}
+
+/// Charges `M_∅` and returns `WHAT` for a host call that is unknown or not available in the invocation.
+pub fn host_unknown(vm: &VMState) -> Result<HostCallResult, HostCallError> {
+    let gas = UNKNOWN_HOST_CALL_GAS;
+    check_out_of_gas!(vm.gas_counter, gas);
+    continue_what!(gas)
 }

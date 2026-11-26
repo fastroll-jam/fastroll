@@ -4,7 +4,7 @@ mod tests;
 use crate::{
     context::InvocationContext,
     error::HostCallError,
-    host_functions::{HostCallResult, HostCallReturnCode},
+    host_functions::{host_function_gas_costs::*, HostCallResult, HostCallReturnCode},
     macros::*,
 };
 use fr_codec::prelude::*;
@@ -12,10 +12,11 @@ use fr_common::{
     constants::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
     Hash32, Octets, ServiceId, SignedGas, UnsignedGas,
 };
-use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
-use fr_pvm_types::{
-    common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, invoke_args::RefineInvokeArgs,
+use fr_pvm_core::{
+    program::types::formatted_program::FormattedProgram,
+    state::{state_change::HostCallVMStateChange, vm_state::VMState},
 };
+use fr_pvm_types::{common::RegValue, invoke_args::RefineInvokeArgs};
 use fr_state::{
     provider::HostStateProvider,
     state_utils::get_account_storage_state_key,
@@ -29,15 +30,53 @@ pub struct GeneralHostFunction<S> {
     _phantom: PhantomData<S>,
 }
 impl<S: HostStateProvider> GeneralHostFunction<S> {
-    /// Retrieves the current remaining gas limit of the VM state after deducting the base gas charge
-    /// for executing this instruction.
+    /// Returns the remaining gas `ϱ'` of the VM state, after charging the gas of this host call.
     pub fn host_gas(vm: &VMState) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: GAS");
-        check_out_of_gas!(vm.gas_counter);
-        let gas_remaining =
-            (vm.gas_counter as UnsignedGas).saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
+        let gas = GAS_GAS;
+        check_out_of_gas!(vm.gas_counter, gas);
+        let gas_remaining = vm.gas_counter as UnsignedGas - gas;
         tracing::debug!("GAS gas={gas_remaining}");
-        continue_with_vm_change!(r7: gas_remaining)
+        continue_with_vm_change!(gas: gas, r7: gas_remaining)
+    }
+
+    /// Grows the RW data region of the memory up to the page index `r7` and returns the index after its last page.
+    ///
+    /// A request at or below the current end, or past the limit `b` below the stack, leaves the region as it is.
+    pub fn host_grow_heap(
+        vm: &VMState,
+        program: &FormattedProgram,
+    ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: GROW_HEAP");
+        let rw_data_first_page = program.rw_data_first_page(); // a
+        let rw_data_page_limit = program.rw_data_page_limit(); // b
+        let rw_data_end_page = rw_data_first_page
+            + vm.memory
+                .count_writable_pages(rw_data_first_page..rw_data_page_limit); // h
+        let requested_end_page = vm.read_reg(7);
+
+        if requested_end_page <= rw_data_end_page as RegValue
+            || requested_end_page > rw_data_page_limit as RegValue
+        {
+            return continue_with_vm_change!(gas: GROW_HEAP_BASE_GAS, r7: rw_data_end_page);
+        }
+
+        let gas = GROW_HEAP_BASE_GAS
+            + (requested_end_page - rw_data_end_page as RegValue) * GROW_HEAP_GAS_PER_PAGE;
+        if vm.gas_counter < gas as SignedGas {
+            // Keeps the gas counter
+            out_of_gas!(0)
+        }
+
+        tracing::debug!("GROW_HEAP pages={rw_data_end_page}..{requested_end_page}");
+        Ok(HostCallResult::continue_with_vm_change(
+            HostCallVMStateChange {
+                gas_charge: gas,
+                r7_write: Some(requested_end_page),
+                writable_pages: Some(rw_data_first_page..requested_end_page as usize),
+                ..Default::default()
+            },
+        ))
     }
 
     /// Fetches various data types introduced as arguments of PVM entry-point invocations.
@@ -46,12 +85,13 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: FETCH");
-        check_out_of_gas!(vm.gas_counter);
+        let gas = fetch_gas(vm.read_reg(10), vm.read_reg(9));
+        check_out_of_gas!(vm.gas_counter, gas);
 
         // --- Fetch Data (Err: NONE)
 
         let Ok(data_id) = vm.read_reg_as_usize(10) else {
-            continue_none!()
+            continue_none!(gas)
         };
 
         let data: &[u8] = match context {
@@ -61,10 +101,10 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                     let work_package = &ctx.invoke_args.package;
                     match Self::fetch_work_package_data(work_package, id, vm)? {
                         Some(data) => &data.clone(),
-                        None => continue_none!(),
+                        None => continue_none!(gas),
                     }
                 }
-                _ => continue_none!(),
+                _ => continue_none!(gas),
             },
             InvocationContext::X_R(ctx) => match data_id {
                 0 => &encode_constants_for_fetch_hostcall()?,
@@ -73,17 +113,17 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 id @ 3..=6 => {
                     match Self::fetch_imports_extrinsics_data(&ctx.invoke_args, id, vm)? {
                         Some(data) => &data.clone(),
-                        None => continue_none!(),
+                        None => continue_none!(gas),
                     }
                 }
                 id @ 7..=13 => {
                     let work_package = &ctx.invoke_args.package;
                     match Self::fetch_work_package_data(work_package, id, vm)? {
                         Some(data) => &data.clone(),
-                        None => continue_none!(),
+                        None => continue_none!(gas),
                     }
                 }
-                _ => continue_none!(),
+                _ => continue_none!(gas),
             },
             InvocationContext::X_A(pair) => {
                 let x = pair.get_x();
@@ -94,15 +134,15 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                     15 => {
                         let acc_inputs = x.invoke_args.inputs.inputs();
                         let Ok(acc_input_idx) = vm.read_reg_as_usize(11) else {
-                            continue_none!()
+                            continue_none!(gas)
                         };
                         if acc_input_idx < acc_inputs.len() {
                             &acc_inputs[acc_input_idx].encode()?
                         } else {
-                            continue_none!()
+                            continue_none!(gas)
                         }
                     }
-                    _ => continue_none!(),
+                    _ => continue_none!(gas),
                 }
             }
         };
@@ -110,7 +150,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         // --- Check Memory Write Access (Err: Panic)
 
         let Ok(buf_offset) = vm.read_reg_as_mem_address(7) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         let data_read_offset = vm
             .read_reg_as_usize(8)
@@ -126,13 +166,14 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .memory
             .is_address_range_writable(buf_offset, data_read_size)
         {
-            host_call_panic!()
+            host_call_panic!(gas)
         }
 
         // --- OK
 
         tracing::debug!("FETCH id={data_id} len={data_read_size}");
         continue_with_vm_change!(
+            gas: gas,
             r7: data.len(),
             mem_offset: buf_offset,
             mem_data: data[data_read_offset..data_read_offset + data_read_size].to_vec()
@@ -243,21 +284,25 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: LOOKUP");
-        check_out_of_gas!(vm.gas_counter);
+        let gas = LOOKUP_BASE_GAS.saturating_add(memory_sized_gas(
+            LOOKUP_GAS_PER_1024_OCTETS,
+            vm.read_reg(11),
+        ));
+        check_out_of_gas!(vm.gas_counter, gas);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         // --- Read from Memory (Err: Panic)
 
         let Ok(hash_offset) = vm.read_reg_as_mem_address(8) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
 
         if !vm.memory.is_address_range_readable(hash_offset, 32) {
-            host_call_panic!()
+            host_call_panic!(gas)
         }
         // Read preimage storage key (hash) from the memory
         let Ok(hash_octets) = vm.memory.read_bytes(hash_offset, 32) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         let hash = Hash32::decode(&mut hash_octets.as_slice())?;
 
@@ -268,7 +313,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             service_id
         } else {
             let Ok(service_id_reg) = vm.read_reg_as_service_id(7) else {
-                continue_none!()
+                continue_none!(gas)
             };
             service_id_reg
         };
@@ -276,7 +321,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .get_account_preimages_entry(state_provider, service_id, &hash)
             .await
         else {
-            continue_none!()
+            continue_none!(gas)
         };
 
         // --- Check Memory Write Access (Err: Panic)
@@ -293,16 +338,17 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .min(min_lookup_size);
 
         let Ok(buf_offset) = vm.read_reg_as_mem_address(9) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         if !vm.memory.is_address_range_writable(buf_offset, lookup_size) {
-            host_call_panic!()
+            host_call_panic!(gas)
         }
 
         // --- OK
 
         tracing::debug!("LOOKUP key={hash} len={lookup_size}");
         continue_with_vm_change!(
+            gas: gas,
             r7: preimage_size,
             mem_offset: buf_offset,
             mem_data: entry.value[preimage_offset..preimage_offset + lookup_size].to_vec()
@@ -318,24 +364,33 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: READ");
-        check_out_of_gas!(vm.gas_counter);
+        let gas = READ_BASE_GAS
+            .saturating_add(memory_sized_gas(
+                READ_KEY_GAS_PER_1024_OCTETS,
+                vm.read_reg(9),
+            ))
+            .saturating_add(memory_sized_gas(
+                READ_VALUE_GAS_PER_1024_OCTETS,
+                vm.read_reg(12),
+            ));
+        check_out_of_gas!(vm.gas_counter, gas);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         // --- Read from Memory (Err: Panic)
 
         let service_id_reg = vm.read_reg(7);
         let Ok(key_offset) = vm.read_reg_as_mem_address(8) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         let Ok(key_size) = vm.read_reg_as_usize(9) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
 
         if !vm.memory.is_address_range_readable(key_offset, key_size) {
-            host_call_panic!()
+            host_call_panic!(gas)
         }
         let Ok(storage_key) = vm.memory.read_bytes(key_offset, key_size) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         let storage_key = Octets::from_vec(storage_key);
 
@@ -345,7 +400,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             service_id
         } else {
             let Ok(service_id_reg) = vm.read_reg_as_service_id(7) else {
-                continue_none!()
+                continue_none!(gas)
             };
             service_id_reg
         };
@@ -353,7 +408,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .get_account_storage_entry(state_provider, service_id, &storage_key)
             .await
         else {
-            continue_none!()
+            continue_none!(gas)
         };
 
         let storage_val_size = entry.value.len();
@@ -370,16 +425,17 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         // --- Additionally Check Memory Write Access (Err: Panic)
 
         let Ok(buf_offset) = vm.read_reg_as_mem_address(10) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         if !vm.memory.is_address_range_writable(buf_offset, read_len) {
-            host_call_panic!()
+            host_call_panic!(gas)
         }
 
         // --- OK
 
         tracing::debug!("READ key={storage_key} len={read_len}");
         continue_with_vm_change!(
+            gas: gas,
             r7: storage_val_size,
             mem_offset: buf_offset,
             mem_data: entry.value[storage_val_offset..storage_val_offset + read_len].to_vec()
@@ -397,22 +453,31 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: WRITE");
-        check_out_of_gas!(vm.gas_counter);
+        let gas = WRITE_BASE_GAS
+            .saturating_add(memory_sized_gas(
+                WRITE_KEY_GAS_PER_1024_OCTETS,
+                vm.read_reg(8),
+            ))
+            .saturating_add(memory_sized_gas(
+                WRITE_VALUE_GAS_PER_1024_OCTETS,
+                vm.read_reg(10),
+            ));
+        check_out_of_gas!(vm.gas_counter, gas);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         // --- Read from Memory (Err: Panic)
 
         let Ok(key_offset) = vm.read_reg_as_mem_address(7) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         let Ok(key_size) = vm.read_reg_as_usize(8) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         let Ok(value_offset) = vm.read_reg_as_mem_address(9) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         let Ok(value_size) = vm.read_reg_as_usize(10) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
 
         if !vm.memory.is_address_range_readable(key_offset, key_size)
@@ -421,10 +486,10 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                     .memory
                     .is_address_range_readable(value_offset, value_size))
         {
-            host_call_panic!()
+            host_call_panic!(gas)
         }
         let Ok(storage_key) = vm.memory.read_bytes(key_offset, key_size) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         let storage_key = Octets::from_vec(storage_key);
 
@@ -439,7 +504,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             None
         } else {
             let Ok(write_val) = vm.memory.read_bytes(value_offset, value_size) else {
-                host_call_panic!()
+                host_call_panic!(gas)
             };
 
             Some(AccountStorageEntryExt::from_entry(
@@ -468,7 +533,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 metadata.simulate_threshold_balance_after_mutation(Some(storage_usage_delta), None);
 
             if simulated_threshold_balance > metadata.balance {
-                continue_full!()
+                continue_full!(gas)
             }
         }
 
@@ -520,7 +585,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         } else {
             HostCallReturnCode::NONE as u64
         };
-        continue_with_vm_change!(r7: prev_storage_val_size_or_return_code)
+        continue_with_vm_change!(gas: gas,r7: prev_storage_val_size_or_return_code)
     }
 
     /// Retrieves the metadata of the specified account in a serialized format.
@@ -531,7 +596,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: INFO");
-        check_out_of_gas!(vm.gas_counter);
+        let gas = INFO_GAS;
+        check_out_of_gas!(vm.gas_counter, gas);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         // --- Get Service Info (Err: NONE)
@@ -541,7 +607,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             service_id
         } else {
             let Ok(service_id_reg) = vm.read_reg_as_service_id(7) else {
-                continue_none!()
+                continue_none!(gas)
             };
             service_id_reg
         };
@@ -549,7 +615,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .get_account_metadata(state_provider, service_id)
             .await
         else {
-            continue_none!()
+            continue_none!(gas)
         };
         // Encode account metadata with JAM Codec
         let info = metadata.encode_for_info_hostcall()?;
@@ -568,19 +634,20 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         };
 
         let Ok(buf_offset) = vm.read_reg_as_mem_address(8) else {
-            host_call_panic!()
+            host_call_panic!(gas)
         };
         if !vm
             .memory
             .is_address_range_writable(buf_offset, info_write_len)
         {
-            host_call_panic!()
+            host_call_panic!(gas)
         }
 
         // --- OK
 
         tracing::debug!("INFO service_id={service_id} len={info_write_len}");
         continue_with_vm_change!(
+            gas: gas,
             r7: info.len() as RegValue,
             mem_offset: buf_offset,
             mem_data: info[info_read_offset..info_read_offset + info_write_len].to_vec()

@@ -5,6 +5,7 @@ use crate::{
     },
     host_functions::{
         accumulate::AccumulateHostFunction,
+        host_function_gas_costs::*,
         test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
         HostCallResult, HostCallReturnCode,
     },
@@ -12,8 +13,8 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     utils::tracing::setup_tracing, AuthHash, Balance, ByteArray, ByteEncodable, CodeHash,
-    CoreIndex, Hash32, Octets, ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT,
-    HASH_SIZE, MAX_VALIDATOR_COUNT, MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD,
+    CoreIndex, Hash32, Octets, ServiceId, SignedGas, TimeslotIndex, UnsignedGas, AUTH_QUEUE_SIZE,
+    CORE_COUNT, HASH_SIZE, MAX_VALIDATOR_COUNT, MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD,
     TRANSFER_MEMO_SIZE,
 };
 use fr_crypto::{
@@ -24,7 +25,7 @@ use fr_crypto::{
 use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, PAGE_SIZE},
+    constants::{INIT_ZONE_SIZE, PAGE_SIZE},
     exit_reason::ExitReason,
     invoke_args::{DeferredTransfer, TransferMemo},
 };
@@ -64,6 +65,11 @@ fn assert_account_sandbox_clean(
 
 mod bless_tests {
     use super::*;
+
+    /// Gas usage `g` of `bless` for the always-accumulate item count `r12`.
+    fn gas(vm: &VMState) -> UnsignedGas {
+        BLESS_BASE_GAS.saturating_add(BLESS_GAS_PER_ITEM.saturating_mul(vm.read_reg(12)))
+    }
     use crate::{
         context::AccumulateHostContext,
         host_functions::accumulate::{BLESS_KEEP_CURRENT, BLESS_KEEP_CURRENT_ASSIGN_SERVICE},
@@ -173,7 +179,7 @@ mod bless_tests {
 
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.manager)
                 .with_reg(8, self.assign_offset)
                 .with_reg(9, self.designate)
@@ -188,16 +194,17 @@ mod bless_tests {
         }
 
         /// Builds a VM whose `BLESS` registers all keep the current privileges, with no readable memory.
+        /// The always-accumulate item count `n` is 0, since `bless` charges gas per item.
         fn keep_current_vm_builder() -> VMStateBuilder {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, BLESS_KEEP_CURRENT)
                 .with_reg(8, BLESS_KEEP_CURRENT)
                 .with_reg(9, BLESS_KEEP_CURRENT)
                 .with_reg(10, BLESS_KEEP_CURRENT)
                 .with_reg(11, BLESS_KEEP_CURRENT)
-                .with_reg(12, BLESS_KEEP_CURRENT)
+                .with_reg(12, 0u64)
         }
 
         /// Builds a VM whose assign services and always-accumulate services are readable.
@@ -249,26 +256,31 @@ mod bless_tests {
             Ok((res, context))
         }
 
-        fn host_call_result_continue(return_code: HostCallReturnCode) -> HostCallResult {
+        fn host_call_result_continue(
+            vm: &VMState,
+            return_code: HostCallReturnCode,
+        ) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: gas(vm),
                     r7_write: Some(return_code as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
 
-        fn host_call_result_panic() -> HostCallResult {
+        fn host_call_result_panic(vm: &VMState) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: gas(vm),
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -319,7 +331,7 @@ mod bless_tests {
         let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::OK)
         );
         fixture.assert_privileges_blessed(context.get_accumulate_x().unwrap());
         Ok(())
@@ -341,7 +353,7 @@ mod bless_tests {
             let (res, context) = fixture.invoke_bless(&vm).await?;
             assert_eq!(
                 res,
-                BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+                BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::OK)
             );
             assert_eq!(
                 current_privileges(context.get_accumulate_x().unwrap()),
@@ -361,7 +373,7 @@ mod bless_tests {
         let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::OK)
         );
         let mut expected_assign_services = fixture.assign_services.clone();
         expected_assign_services[0] = fixture.prev_assign_services[0];
@@ -388,10 +400,11 @@ mod bless_tests {
             designate: new_holder as RegValue,
             ..BlessTestFixture::keeping_prev_privileges(default_fixture.prev_designate)
         };
-        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        let vm = fixture.prepare_vm()?;
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::OK)
         );
         let partial_state = &context.get_accumulate_x().unwrap().partial_state;
         assert_eq!(
@@ -406,10 +419,11 @@ mod bless_tests {
             registrar: new_holder as RegValue,
             ..BlessTestFixture::keeping_prev_privileges(default_fixture.prev_registrar)
         };
-        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        let vm = fixture.prepare_vm()?;
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::OK)
         );
         let partial_state = &context.get_accumulate_x().unwrap().partial_state;
         assert_eq!(
@@ -423,10 +437,11 @@ mod bless_tests {
         let mut fixture =
             BlessTestFixture::keeping_prev_privileges(default_fixture.prev_assign_services[0]);
         fixture.assign_services[0] = new_holder;
-        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        let vm = fixture.prepare_vm()?;
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::OK)
         );
         let partial_state = &context.get_accumulate_x().unwrap().partial_state;
         assert_eq!(
@@ -459,7 +474,7 @@ mod bless_tests {
         let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::OK)
         );
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(
@@ -490,10 +505,12 @@ mod bless_tests {
         }
         fixture.assign_services[0] = new_assign_service;
 
-        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        let vm = fixture.prepare_vm()?;
+
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::OK)
         );
         let assign_services = &context
             .get_accumulate_x()
@@ -526,7 +543,7 @@ mod bless_tests {
         }
         let designate_vm = VMStateBuilder::builder()
             .with_pc(0)
-            .with_gas_counter(100)
+            .with_gas_counter(100_000)
             .with_reg(7, validator_keys_offset)
             .with_reg(8, validator_count as RegValue)
             .with_mem_data(validator_keys_offset, validator_keys_data.as_slice())?
@@ -535,17 +552,20 @@ mod bless_tests {
                     ..validator_keys_offset + validator_keys_data.len() as MemAddress,
             )?
             .build();
-        let host_call_result_ok =
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK);
-        let host_call_result_huh =
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH);
+        let designate_gas = DESIGNATE_BASE_GAS + validator_count * DESIGNATE_GAS_PER_VALIDATOR;
 
         // The designate service designates before the hand-over
         let res = AccumulateHostFunction::<MockStateManager>::host_designate(
             &designate_vm,
             &mut context,
         )?;
-        assert_eq!(res, host_call_result_ok);
+        assert_eq!(
+            res,
+            HostCallResult::continue_with_return_code_and_gas(
+                HostCallReturnCode::OK,
+                designate_gas
+            )
+        );
 
         // The designate service hands its role over to service 50
         let hand_over_vm = BlessTestFixture::keep_current_vm_builder()
@@ -553,7 +573,10 @@ mod bless_tests {
             .build();
         let res =
             AccumulateHostFunction::<MockStateManager>::host_bless(&hand_over_vm, &mut context)?;
-        assert_eq!(res, host_call_result_ok);
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(&hand_over_vm, HostCallReturnCode::OK)
+        );
 
         // The old designate service can neither hand the role over again nor designate
         let hand_over_again_vm = BlessTestFixture::keep_current_vm_builder()
@@ -563,12 +586,24 @@ mod bless_tests {
             &hand_over_again_vm,
             &mut context,
         )?;
-        assert_eq!(res, host_call_result_huh);
+        assert_eq!(
+            res,
+            BlessTestFixture::host_call_result_continue(
+                &hand_over_again_vm,
+                HostCallReturnCode::HUH
+            )
+        );
         let res = AccumulateHostFunction::<MockStateManager>::host_designate(
             &designate_vm,
             &mut context,
         )?;
-        assert_eq!(res, host_call_result_huh);
+        assert_eq!(
+            res,
+            HostCallResult::continue_with_return_code_and_gas(
+                HostCallReturnCode::HUH,
+                designate_gas
+            )
+        );
         assert_eq!(
             context
                 .get_accumulate_x()
@@ -609,10 +644,11 @@ mod bless_tests {
             changing_always_accumulate_services,
         ];
         for fixture in fixtures {
-            let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+            let vm = fixture.prepare_vm()?;
+            let (res, context) = fixture.invoke_bless(&vm).await?;
             assert_eq!(
                 res,
-                BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH)
+                BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::HUH)
             );
             fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         }
@@ -627,10 +663,11 @@ mod bless_tests {
             accumulate_host: 1,
             ..Default::default()
         };
-        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        let vm = fixture.prepare_vm()?;
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::HUH)
         );
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
@@ -646,13 +683,11 @@ mod bless_tests {
             .await?;
 
         // The first `BLESS` hands over the manager role to `fixture.manager`
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(
-            &fixture.prepare_vm()?,
-            &mut context,
-        )?;
+        let vm = fixture.prepare_vm()?;
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::OK)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::OK)
         );
 
         // The second `BLESS` cannot take the manager role back,
@@ -661,13 +696,11 @@ mod bless_tests {
             manager: fixture.prev_manager as RegValue,
             ..Default::default()
         };
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(
-            &taking_back_manager.prepare_vm()?,
-            &mut context,
-        )?;
+        let vm = taking_back_manager.prepare_vm()?;
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::HUH)
         );
         fixture.assert_privileges_blessed(context.get_accumulate_x().unwrap());
         Ok(())
@@ -683,10 +716,11 @@ mod bless_tests {
             manager: INVALID_SERVICE_ID,
             ..Default::default()
         };
-        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        let vm = fixture.prepare_vm()?;
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::HUH)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::HUH)
         );
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
@@ -699,10 +733,11 @@ mod bless_tests {
             manager: INVALID_SERVICE_ID,
             ..Default::default()
         };
-        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        let vm = fixture.prepare_vm()?;
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::WHO)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::WHO)
         );
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
@@ -724,10 +759,11 @@ mod bless_tests {
             },
         ];
         for fixture in fixtures {
-            let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+            let vm = fixture.prepare_vm()?;
+            let (res, context) = fixture.invoke_bless(&vm).await?;
             assert_eq!(
                 res,
-                BlessTestFixture::host_call_result_continue(HostCallReturnCode::WHO)
+                BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::WHO)
             );
             fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         }
@@ -741,10 +777,11 @@ mod bless_tests {
             registrar: INVALID_SERVICE_ID,
             ..Default::default()
         };
-        let (res, context) = fixture.invoke_bless(&fixture.prepare_vm()?).await?;
+        let vm = fixture.prepare_vm()?;
+        let (res, context) = fixture.invoke_bless(&vm).await?;
         assert_eq!(
             res,
-            BlessTestFixture::host_call_result_continue(HostCallReturnCode::WHO)
+            BlessTestFixture::host_call_result_continue(&vm, HostCallReturnCode::WHO)
         );
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
@@ -764,7 +801,7 @@ mod bless_tests {
             .build();
 
         let (res, context) = fixture.invoke_bless(&vm).await?;
-        assert_eq!(res, BlessTestFixture::host_call_result_panic());
+        assert_eq!(res, BlessTestFixture::host_call_result_panic(&vm));
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
@@ -784,7 +821,7 @@ mod bless_tests {
             .build();
 
         let (res, context) = fixture.invoke_bless(&vm).await?;
-        assert_eq!(res, BlessTestFixture::host_call_result_panic());
+        assert_eq!(res, BlessTestFixture::host_call_result_panic(&vm));
         fixture.assert_privileges_unchanged(context.get_accumulate_x().unwrap());
         Ok(())
     }
@@ -853,7 +890,7 @@ mod assign_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.core_index)
                 .with_reg(8, self.auth_offset)
                 .with_reg(9, self.new_assign_service)
@@ -889,10 +926,11 @@ mod assign_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: ASSIGN_GAS,
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -901,10 +939,11 @@ mod assign_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: ASSIGN_GAS,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -913,10 +952,11 @@ mod assign_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: ASSIGN_GAS,
                     r7_write: Some(HostCallReturnCode::CORE as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -925,10 +965,11 @@ mod assign_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: ASSIGN_GAS,
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -937,10 +978,11 @@ mod assign_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: ASSIGN_GAS,
                     r7_write: Some(HostCallReturnCode::WHO as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1098,6 +1140,12 @@ mod assign_tests {
 mod designate_tests {
     use super::*;
 
+    /// Gas usage `g` of `designate` for the validator count `r8`.
+    fn gas(vm: &VMState) -> UnsignedGas {
+        DESIGNATE_BASE_GAS
+            .saturating_add(DESIGNATE_GAS_PER_VALIDATOR.saturating_mul(vm.read_reg(8)))
+    }
+
     struct DesignateTestFixture {
         accumulate_host: ServiceId,
         prev_designator: ServiceId,
@@ -1141,7 +1189,8 @@ mod designate_tests {
             }
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                // Covers the gas per validator of `MAX_VALIDATOR_COUNT` keys
+                .with_gas_counter(1_000_000)
                 .with_reg(7, self.validator_keys_offset)
                 .with_reg(8, self.validator_count as RegValue)
                 .with_mem_data(self.validator_keys_offset, validator_keys_data.as_slice())
@@ -1173,38 +1222,41 @@ mod designate_tests {
             Ok((res, x.partial_state.new_staging_set.clone()))
         }
 
-        fn host_call_result_successful() -> HostCallResult {
+        fn host_call_result_successful(vm: &VMState) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: gas(vm),
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
 
-        fn host_call_result_panic() -> HostCallResult {
+        fn host_call_result_panic(vm: &VMState) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: gas(vm),
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
 
-        fn host_call_result_huh() -> HostCallResult {
+        fn host_call_result_huh(vm: &VMState) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: gas(vm),
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1215,7 +1267,7 @@ mod designate_tests {
     ) -> Result<(), Box<dyn Error>> {
         let vm = fixture.prepare_readable_vm()?;
         let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
-        assert_eq!(res, DesignateTestFixture::host_call_result_successful());
+        assert_eq!(res, DesignateTestFixture::host_call_result_successful(&vm));
         let expected_staging_set = StagingSet(ValidatorKeySet(ValidatorKeys::try_from(
             fixture.validator_keys(),
         )?));
@@ -1226,7 +1278,7 @@ mod designate_tests {
     async fn assert_designate_huh(fixture: DesignateTestFixture) -> Result<(), Box<dyn Error>> {
         let vm = fixture.prepare_readable_vm()?;
         let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
-        assert_eq!(res, DesignateTestFixture::host_call_result_huh());
+        assert_eq!(res, DesignateTestFixture::host_call_result_huh(&vm));
         assert_eq!(new_staging_set, None);
         Ok(())
     }
@@ -1291,7 +1343,7 @@ mod designate_tests {
             .with_reg(7, 1u64 << 32)
             .build();
         let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
-        assert_eq!(res, DesignateTestFixture::host_call_result_huh());
+        assert_eq!(res, DesignateTestFixture::host_call_result_huh(&vm));
         assert_eq!(new_staging_set, None);
         Ok(())
     }
@@ -1320,7 +1372,7 @@ mod designate_tests {
             .with_mem_readable_range(fixture.validator_keys_range().start..page_end)?
             .build();
         let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
-        assert_eq!(res, DesignateTestFixture::host_call_result_panic());
+        assert_eq!(res, DesignateTestFixture::host_call_result_panic(&vm));
         assert_eq!(new_staging_set, None);
         Ok(())
     }
@@ -1336,15 +1388,16 @@ mod designate_tests {
         };
         let vm = fixture.prepare_vm_builder()?.build();
         let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
-        assert_eq!(res, DesignateTestFixture::host_call_result_panic());
+        assert_eq!(res, DesignateTestFixture::host_call_result_panic(&vm));
         assert_eq!(new_staging_set, None);
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_designate_validator_keys_size_overflow() -> Result<(), Box<dyn Error>> {
+    async fn test_designate_validator_count_overflow_runs_out_of_gas() -> Result<(), Box<dyn Error>>
+    {
         setup_tracing();
-        // `336z` overflows the 64-bit range. A wrapping product would be 0, an empty readable range.
+        // The gas per validator of `z = 2^60` and `336z` both overflow the 64-bit range, so no gas counter covers the call
         let fixture = DesignateTestFixture {
             validator_count: 0,
             ..Default::default()
@@ -1354,7 +1407,14 @@ mod designate_tests {
             .with_reg(8, 1u64 << 60)
             .build();
         let (res, new_staging_set) = fixture.invoke_designate(&vm).await?;
-        assert_eq!(res, DesignateTestFixture::host_call_result_panic());
+        let expected = HostCallResult {
+            exit_reason: ExitReason::OutOfGas,
+            vm_change: HostCallVMStateChange {
+                gas_charge: vm.gas_counter as UnsignedGas,
+                ..Default::default()
+            },
+        };
+        assert_eq!(res, expected);
         assert_eq!(new_staging_set, None);
         Ok(())
     }
@@ -1386,7 +1446,7 @@ mod checkpoint_tests {
                         (101, 2000),
                     ]),
                 },
-                prev_gas_remaining: 100,
+                prev_gas_remaining: 100_000,
             }
         }
     }
@@ -1427,7 +1487,7 @@ mod checkpoint_tests {
         }
 
         fn host_call_result_successful(self) -> HostCallResult {
-            let gas_charge = HOSTCALL_BASE_GAS_CHARGE;
+            let gas_charge = CHECKPOINT_GAS;
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
@@ -1435,6 +1495,7 @@ mod checkpoint_tests {
                     r7_write: Some((self.prev_gas_remaining - gas_charge as SignedGas) as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1562,7 +1623,7 @@ mod new_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.code_hash_offset)
                 .with_reg(8, self.code_length)
                 .with_reg(9, self.gas_limit_accumulate)
@@ -1599,10 +1660,11 @@ mod new_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: NEW_GAS,
                     r7_write: Some(new_service_id as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1611,10 +1673,11 @@ mod new_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: NEW_GAS,
                     r7_write: Some(self.new_small_service_id),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1623,10 +1686,11 @@ mod new_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: NEW_GAS,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1635,10 +1699,11 @@ mod new_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: NEW_GAS,
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1647,10 +1712,11 @@ mod new_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: NEW_GAS,
                     r7_write: Some(HostCallReturnCode::CASH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -1659,10 +1725,11 @@ mod new_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: NEW_GAS,
                     r7_write: Some(HostCallReturnCode::FULL as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2047,7 +2114,7 @@ mod upgrade_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.code_hash_offset)
                 .with_reg(8, self.gas_limit_accumulate)
                 .with_reg(9, self.gas_limit_on_transfer)
@@ -2084,10 +2151,11 @@ mod upgrade_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: UPGRADE_GAS,
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2096,10 +2164,11 @@ mod upgrade_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: UPGRADE_GAS,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2224,7 +2293,7 @@ mod transfer_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(150)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.transfer_destination)
                 .with_reg(8, self.transfer_amount)
                 .with_reg(9, self.transfer_gas_limit)
@@ -2263,10 +2332,11 @@ mod transfer_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    gas_charge: TRANSFER_BASE_GAS + self.transfer_gas_limit,
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2275,10 +2345,11 @@ mod transfer_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: TRANSFER_BASE_GAS,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2287,10 +2358,11 @@ mod transfer_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: TRANSFER_BASE_GAS,
                     r7_write: Some(HostCallReturnCode::WHO as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2299,10 +2371,11 @@ mod transfer_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: TRANSFER_BASE_GAS,
                     r7_write: Some(HostCallReturnCode::LOW as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2311,10 +2384,11 @@ mod transfer_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: TRANSFER_BASE_GAS,
                     r7_write: Some(HostCallReturnCode::CASH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2601,7 +2675,7 @@ mod eject_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.eject_service)
                 .with_reg(8, self.hash_offset)
                 .with_mem_data(self.hash_offset, self.last_preimage_hash.as_slice())
@@ -2711,10 +2785,11 @@ mod eject_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: EJECT_GAS,
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2723,10 +2798,11 @@ mod eject_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: EJECT_GAS,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2735,10 +2811,11 @@ mod eject_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: EJECT_GAS,
                     r7_write: Some(HostCallReturnCode::WHO as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -2747,10 +2824,11 @@ mod eject_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: EJECT_GAS,
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3111,7 +3189,7 @@ mod query_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.hash_offset)
                 .with_reg(8, self.preimage_size)
                 .with_mem_data(self.hash_offset, self.preimage_hash.as_slice())
@@ -3193,10 +3271,11 @@ mod query_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: QUERY_GAS,
                     r7_write: Some(0),
                     r8_write: Some(0),
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3205,10 +3284,11 @@ mod query_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: QUERY_GAS,
                     r7_write: Some(1 + (1 << 32) * self.timeslot_x.slot() as RegValue),
                     r8_write: Some(0),
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3217,10 +3297,11 @@ mod query_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: QUERY_GAS,
                     r7_write: Some(2 + (1 << 32) * self.timeslot_x.slot() as RegValue),
                     r8_write: Some(self.timeslot_y.slot() as RegValue),
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3229,13 +3310,14 @@ mod query_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: QUERY_GAS,
                     r7_write: Some(3 + (1 << 32) * self.timeslot_x.slot() as RegValue),
                     r8_write: Some(
                         self.timeslot_y.slot() as RegValue
                             + (1 << 32) * self.timeslot_z.slot() as RegValue,
                     ),
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3244,10 +3326,11 @@ mod query_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: QUERY_GAS,
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3467,7 +3550,7 @@ mod solicit_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.hash_offset)
                 .with_reg(8, self.preimage_size)
                 .with_mem_data(self.hash_offset, self.preimage_hash.as_slice())
@@ -3528,10 +3611,11 @@ mod solicit_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: SOLICIT_GAS,
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3540,10 +3624,11 @@ mod solicit_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: SOLICIT_GAS,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3552,10 +3637,11 @@ mod solicit_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: SOLICIT_GAS,
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3564,10 +3650,11 @@ mod solicit_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: SOLICIT_GAS,
                     r7_write: Some(HostCallReturnCode::FULL as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -3908,7 +3995,7 @@ mod forget_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.hash_offset)
                 .with_reg(8, self.preimage_size)
                 .with_mem_data(self.hash_offset, self.preimage_hash.as_slice())
@@ -4022,10 +4109,11 @@ mod forget_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: FORGET_GAS,
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4034,10 +4122,11 @@ mod forget_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: FORGET_GAS,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4046,10 +4135,11 @@ mod forget_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: FORGET_GAS,
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4456,7 +4546,7 @@ mod yield_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.hash_offset)
                 .with_mem_data(self.hash_offset, self.accumulate_result_hash.as_slice())
         }
@@ -4483,10 +4573,11 @@ mod yield_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: YIELD_GAS,
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4495,10 +4586,11 @@ mod yield_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: YIELD_GAS,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4548,6 +4640,14 @@ mod yield_tests {
 mod provide_tests {
     use super::*;
 
+    /// Gas usage `g` of `provide` for the preimage size `r9`.
+    fn gas(vm: &VMState) -> UnsignedGas {
+        PROVIDE_BASE_GAS.saturating_add(memory_sized_gas(
+            PROVIDE_GAS_PER_1024_OCTETS,
+            vm.read_reg(9),
+        ))
+    }
+
     struct ProvideTestFixture {
         accumulate_host: ServiceId,
         provide_service: ServiceId,
@@ -4581,7 +4681,7 @@ mod provide_tests {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.provide_service)
                 .with_reg(8, self.preimage_offset)
                 .with_reg(9, self.preimage_size)
@@ -4640,50 +4740,54 @@ mod provide_tests {
             )
         }
 
-        fn host_call_result_successful() -> HostCallResult {
+        fn host_call_result_successful(vm: &VMState) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: gas(vm),
                     r7_write: Some(HostCallReturnCode::OK as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
 
-        fn host_call_result_panic() -> HostCallResult {
+        fn host_call_result_panic(vm: &VMState) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: gas(vm),
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
 
-        fn host_call_result_who() -> HostCallResult {
+        fn host_call_result_who(vm: &VMState) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: gas(vm),
                     r7_write: Some(HostCallReturnCode::WHO as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
 
-        fn host_call_result_huh() -> HostCallResult {
+        fn host_call_result_huh(vm: &VMState) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: gas(vm),
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -4709,7 +4813,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_successful());
+        assert_eq!(res, ProvideTestFixture::host_call_result_successful(&vm));
 
         // Check partial state after host-call
         let x = context.get_mut_accumulate_x().unwrap();
@@ -4742,7 +4846,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_successful());
+        assert_eq!(res, ProvideTestFixture::host_call_result_successful(&vm));
 
         // Check partial state after host-call
         let x = context.get_mut_accumulate_x().unwrap();
@@ -4770,7 +4874,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_panic());
+        assert_eq!(res, ProvideTestFixture::host_call_result_panic(&vm));
 
         // Check partial state after host-call (should remain unchanged)
         let x = context.get_mut_accumulate_x().unwrap();
@@ -4801,7 +4905,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_who());
+        assert_eq!(res, ProvideTestFixture::host_call_result_who(&vm));
 
         // Check partial state after host-call (should remain unchanged)
         let x = context.get_mut_accumulate_x().unwrap();
@@ -4834,7 +4938,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_who());
+        assert_eq!(res, ProvideTestFixture::host_call_result_who(&vm));
 
         // Check partial state after host-call (should remain unchanged)
         let x = context.get_mut_accumulate_x().unwrap();
@@ -4879,7 +4983,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_who());
+        assert_eq!(res, ProvideTestFixture::host_call_result_who(&vm));
 
         // Check partial state after host-call (should remain unchanged)
         let x = context.get_mut_accumulate_x().unwrap();
@@ -4910,7 +5014,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_huh());
+        assert_eq!(res, ProvideTestFixture::host_call_result_huh(&vm));
 
         // Check partial state after host-call (should remain unchanged)
         let x = context.get_mut_accumulate_x().unwrap();
@@ -4941,7 +5045,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_huh());
+        assert_eq!(res, ProvideTestFixture::host_call_result_huh(&vm));
         Ok(())
     }
 
@@ -4950,6 +5054,8 @@ mod provide_tests {
         let fixture = ProvideTestFixture::default();
         let vm = fixture
             .prepare_vm_builder()?
+            // Covers the gas per 1024 octets of the size
+            .with_gas_counter(1 << 40)
             .with_reg(9, OUT_OF_RANGE_PREIMAGE_SIZE)
             .with_mem_readable_range(fixture.mem_readable_range.clone())?
             .build();
@@ -4966,7 +5072,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_huh());
+        assert_eq!(res, ProvideTestFixture::host_call_result_huh(&vm));
 
         // Check partial state after host-call (should remain unchanged)
         let x = context.get_mut_accumulate_x().unwrap();
@@ -4980,6 +5086,8 @@ mod provide_tests {
         let fixture = ProvideTestFixture::default();
         let vm = fixture
             .prepare_vm_builder()?
+            // Covers the gas per 1024 octets of the size
+            .with_gas_counter(1 << 40)
             .with_reg(9, OUT_OF_RANGE_PREIMAGE_SIZE)
             .build();
         let state_provider = Arc::new(fixture.prepare_state_provider());
@@ -4995,7 +5103,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_huh());
+        assert_eq!(res, ProvideTestFixture::host_call_result_huh(&vm));
         Ok(())
     }
 
@@ -5005,6 +5113,8 @@ mod provide_tests {
         let fixture = ProvideTestFixture::default();
         let vm = fixture
             .prepare_vm_builder()?
+            // Covers the gas per 1024 octets of the size
+            .with_gas_counter(1 << 40)
             .with_reg(9, u32::MAX)
             .with_mem_readable_range(fixture.mem_readable_range.clone())?
             .build();
@@ -5021,7 +5131,7 @@ mod provide_tests {
             &mut context,
         )
         .await?;
-        assert_eq!(res, ProvideTestFixture::host_call_result_panic());
+        assert_eq!(res, ProvideTestFixture::host_call_result_panic(&vm));
         Ok(())
     }
 }

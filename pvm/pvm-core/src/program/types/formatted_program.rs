@@ -61,6 +61,20 @@ impl FormattedProgram {
         Ok(formatted_program)
     }
 
+    /// Returns `a` of `grow_heap`, the index of the first page of the RW data region.
+    pub fn rw_data_first_page(&self) -> usize {
+        (2 * INIT_ZONE_SIZE + VMUtils::zone_align(self.static_size as usize)) / PAGE_SIZE
+    }
+
+    /// Returns `b` of `grow_heap`, the page index plus one of the last page the RW data region can grow to.
+    pub fn rw_data_page_limit(&self) -> usize {
+        ((1 << 32)
+            - 3 * INIT_ZONE_SIZE
+            - INIT_INPUT_SIZE
+            - VMUtils::page_align(self.stack_size as usize))
+            / PAGE_SIZE
+    }
+
     pub fn is_program_size_valid(&self) -> bool {
         5 * INIT_ZONE_SIZE
             + VMUtils::zone_align(self.static_size as usize)

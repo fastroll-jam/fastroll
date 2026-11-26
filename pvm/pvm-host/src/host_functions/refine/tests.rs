@@ -1,17 +1,18 @@
 use crate::{
     context::InvocationContext,
     host_functions::{
+        host_function_gas_costs::*,
         refine::RefineHostFunction,
         test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
         HostCallResult, HostCallReturnCode,
     },
     inner_vm::InnerPVM,
 };
-use fr_common::utils::tracing::setup_tracing;
+use fr_common::{utils::tracing::setup_tracing, SignedGas, UnsignedGas};
 use fr_pvm_core::state::state_change::HostCallVMStateChange;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, MAX_INNER_PVM_INSTANCES, PAGE_SIZE},
+    constants::{INIT_ZONE_SIZE, MAX_INNER_PVM_INSTANCES, PAGE_SIZE},
     exit_reason::ExitReason,
 };
 use std::{error::Error, ops::Range};
@@ -34,6 +35,12 @@ mod machine_tests {
     }
 
     impl MachineTestFixture {
+        /// Gas usage `g` of `machine` for the program size `r8`.
+        fn gas(&self) -> UnsignedGas {
+            MACHINE_BASE_GAS
+                + memory_sized_gas(MACHINE_GAS_PER_1024_OCTETS, self.program.len() as RegValue)
+        }
+
         fn new(program: Vec<u8>, initial_pc: RegValue) -> Self {
             let program_offset = (INIT_ZONE_SIZE + PAGE_SIZE) as MemAddress;
             let mem_readable_range = program_offset..program_offset + program.len() as MemAddress;
@@ -47,7 +54,7 @@ mod machine_tests {
 
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, self.program_offset)
                 .with_reg(8, self.program.len() as RegValue)
                 .with_reg(9, self.initial_pc)
@@ -66,38 +73,41 @@ mod machine_tests {
                 .build())
         }
 
-        fn host_call_result_successful(inner_pvm_id: usize) -> HostCallResult {
+        fn host_call_result_successful(&self, inner_pvm_id: usize) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(inner_pvm_id as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
 
-        fn host_call_result_huh() -> HostCallResult {
+        fn host_call_result_huh(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(HostCallReturnCode::HUH as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
 
-        fn host_call_result_full() -> HostCallResult {
+        fn host_call_result_full(&self) -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    gas_charge: self.gas(),
                     r7_write: Some(HostCallReturnCode::FULL as RegValue),
                     r8_write: None,
                     memory_write: None,
+                    writable_pages: None,
                 },
             }
         }
@@ -116,10 +126,7 @@ mod machine_tests {
         // Check host-call result
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
         let new_inner_pvm_id = MAX_INNER_PVM_INSTANCES - 1;
-        assert_eq!(
-            res,
-            MachineTestFixture::host_call_result_successful(new_inner_pvm_id)
-        );
+        assert_eq!(res, fixture.host_call_result_successful(new_inner_pvm_id));
 
         // Check inner VMs after host-call
         let x = context.get_refine_x().unwrap();
@@ -145,7 +152,7 @@ mod machine_tests {
         // Free ids 2 and 0, in that order
         for expunged_inner_pvm_id in [2, 0] {
             let expunge_vm = VMStateBuilder::builder()
-                .with_gas_counter(100)
+                .with_gas_counter(100_000)
                 .with_reg(7, expunged_inner_pvm_id as RegValue)
                 .build();
             RefineHostFunction::<MockStateManager>::host_expunge(&expunge_vm, &mut context)?;
@@ -155,10 +162,7 @@ mod machine_tests {
         for new_inner_pvm_id in [0, 2, 4] {
             let res =
                 RefineHostFunction::<MockStateManager>::host_machine(&machine_vm, &mut context)?;
-            assert_eq!(
-                res,
-                MachineTestFixture::host_call_result_successful(new_inner_pvm_id)
-            );
+            assert_eq!(res, fixture.host_call_result_successful(new_inner_pvm_id));
         }
         Ok(())
     }
@@ -175,7 +179,7 @@ mod machine_tests {
 
         // Check host-call result
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
-        assert_eq!(res, MachineTestFixture::host_call_result_full());
+        assert_eq!(res, fixture.host_call_result_full());
 
         // Check inner VMs after host-call
         let x = context.get_refine_x().unwrap();
@@ -192,7 +196,7 @@ mod machine_tests {
 
         // Check host-call result
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
-        assert_eq!(res, MachineTestFixture::host_call_result_full());
+        assert_eq!(res, fixture.host_call_result_full());
 
         // Check inner VMs after host-call
         let x = context.get_refine_x().unwrap();
@@ -212,7 +216,7 @@ mod machine_tests {
         let mut context = fixture.prepare_invocation_context(0)?;
 
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
-        assert_eq!(res, MachineTestFixture::host_call_result_huh());
+        assert_eq!(res, fixture.host_call_result_huh());
         assert!(context.get_refine_x().unwrap().pvm_instances.is_empty());
         Ok(())
     }
@@ -229,7 +233,7 @@ mod machine_tests {
         let mut context = fixture.prepare_invocation_context(0)?;
 
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
-        assert_eq!(res, MachineTestFixture::host_call_result_huh());
+        assert_eq!(res, fixture.host_call_result_huh());
         assert!(context.get_refine_x().unwrap().pvm_instances.is_empty());
         Ok(())
     }
@@ -246,7 +250,7 @@ mod machine_tests {
         let mut context = fixture.prepare_invocation_context(0)?;
 
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
-        assert_eq!(res, MachineTestFixture::host_call_result_huh());
+        assert_eq!(res, fixture.host_call_result_huh());
         Ok(())
     }
 
@@ -261,7 +265,7 @@ mod machine_tests {
         let mut context = fixture.prepare_invocation_context(MAX_INNER_PVM_INSTANCES)?;
 
         let res = RefineHostFunction::<MockStateManager>::host_machine(&vm, &mut context)?;
-        assert_eq!(res, MachineTestFixture::host_call_result_full());
+        assert_eq!(res, fixture.host_call_result_full());
         Ok(())
     }
 }
@@ -269,7 +273,6 @@ mod machine_tests {
 mod invoke_tests {
     use super::*;
     use crate::host_functions::InnerPVMResultConstant;
-    use fr_common::UnsignedGas;
     use fr_pvm_core::state::memory::{AccessType, Memory};
 
     /// Offset of the 112-octet `invoke` argument, holding the encoded gas limit and registers
@@ -324,21 +327,32 @@ mod invoke_tests {
             .unwrap()
     }
 
-    /// Runs `invoke` on inner VM 0 with `gas_limit` and zero registers, and returns the result code in `r7` and the gas left in the inner VM.
-    fn invoke(
+    /// Runs `invoke` on inner VM 0 from a host VM with `gas_counter`, giving the inner VM `gas_limit` and zero registers.
+    fn invoke_from_host_gas(
         context: &mut InvocationContext<MockStateManager>,
         gas_limit: UnsignedGas,
-    ) -> Result<(RegValue, UnsignedGas), Box<dyn Error>> {
+        gas_counter: SignedGas,
+    ) -> Result<HostCallResult, Box<dyn Error>> {
         let mut invoke_argument = gas_limit.to_le_bytes().to_vec();
         invoke_argument.resize(112, 0);
         let vm = VMStateBuilder::builder()
-            .with_gas_counter(100)
+            .with_gas_counter(gas_counter)
             .with_reg(7, 0u64)
             .with_reg(8, INVOKE_ARGUMENT_OFFSET)
             .with_mem_data(INVOKE_ARGUMENT_OFFSET, &invoke_argument)?
             .with_mem_writable_range(INVOKE_ARGUMENT_OFFSET..INVOKE_ARGUMENT_OFFSET + 112)?
             .build();
-        let res = RefineHostFunction::<MockStateManager>::host_invoke(&vm, context)?;
+        Ok(RefineHostFunction::<MockStateManager>::host_invoke(
+            &vm, context,
+        )?)
+    }
+
+    /// Runs `invoke` on inner VM 0 with `gas_limit` and zero registers, and returns the result code in `r7` and the gas left in the inner VM.
+    fn invoke(
+        context: &mut InvocationContext<MockStateManager>,
+        gas_limit: UnsignedGas,
+    ) -> Result<(RegValue, UnsignedGas), Box<dyn Error>> {
+        let res = invoke_from_host_gas(context, gas_limit, 100_000)?;
         let result_code = res
             .vm_change
             .r7_write
@@ -421,6 +435,33 @@ mod invoke_tests {
         let (result_code, gas_limit) = invoke(&mut context, block_gas_cost)?;
         assert_eq!(result_code, InnerPVMResultConstant::HOST as RegValue);
         assert_eq!(gas_limit, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_invoke_charges_base_gas_and_inner_gas_used() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let block_gas_cost = first_block_gas_cost(&ECALLI_THEN_TRAP)?;
+        let mut context = context_with_inner_pvm(&ECALLI_THEN_TRAP)?;
+
+        // `g = M_K + g_R` is charged and the inner VM's remaining gas `g_R'` is given back
+        let res = invoke_from_host_gas(&mut context, 1000, 100_000)?;
+        assert_eq!(res.exit_reason, ExitReason::Continue);
+        assert_eq!(res.vm_change.gas_charge, INVOKE_BASE_GAS + block_gas_cost);
+        Ok(())
+    }
+
+    #[test]
+    fn test_invoke_oog_when_gas_counter_cannot_cover_inner_gas_limit() -> Result<(), Box<dyn Error>>
+    {
+        setup_tracing();
+        let mut context = context_with_inner_pvm(&ECALLI_THEN_TRAP)?;
+
+        let gas_counter = (INVOKE_BASE_GAS + 1000) as SignedGas - 1;
+        let res = invoke_from_host_gas(&mut context, 1000, gas_counter)?;
+        assert_eq!(res.exit_reason, ExitReason::OutOfGas);
+        assert_eq!(res.vm_change.gas_charge, gas_counter as UnsignedGas);
+        assert_eq!(inner_pvm_0(&mut context).pc, 0, "the inner VM does not run");
         Ok(())
     }
 }

@@ -36,9 +36,6 @@ pub struct Memory {
     page_accesses: Vec<AccessType>,
     page_size: usize,
     total_pages: usize,
-    pub heap_start: MemAddress,
-    pub heap_end: MemAddress,
-    pub stack_start: MemAddress,
 }
 
 impl Memory {
@@ -49,9 +46,6 @@ impl Memory {
             page_accesses: vec![AccessType::Inaccessible; total_pages],
             page_size,
             total_pages,
-            heap_start: 0,
-            heap_end: 0,
-            stack_start: 0,
         }
     }
 
@@ -203,6 +197,13 @@ impl Memory {
         page_range
             .clone()
             .all(|page_index| self.is_page_writable(page_index))
+    }
+
+    /// Counts the writable pages in a range of memory pages.
+    pub fn count_writable_pages(&self, page_range: Range<usize>) -> usize {
+        page_range
+            .filter(|&page_index| self.is_page_writable(page_index))
+            .count()
     }
 
     /// Check if a range of memory cells is writable.

@@ -1,6 +1,5 @@
 //! PVM-specific constants
 use crate::common::RegValue;
-use fr_common::UnsignedGas;
 
 /// Maximum skip distance.
 pub const MAX_SKIP_DISTANCE: usize = 24;
@@ -10,9 +9,6 @@ pub const MAX_INST_BLOB_LENGTH: usize = 16;
 
 /// Maximum size `z` of a dynamic jump table entry in a PVM program blob, in octets.
 pub const MAX_JUMP_TABLE_ENTRY_SIZE: usize = 4;
-
-/// Base gas charge for host function execution.
-pub const HOSTCALL_BASE_GAS_CHARGE: UnsignedGas = 10;
 
 /// The number of PVM registers.
 pub const REGISTERS_COUNT: usize = 13;
