@@ -349,7 +349,7 @@ async fn merge_partial_state_change(
     Ok(())
 }
 
-/// Integrates all provided preimages by a single-service accumulation into the partial state accounts sandbox.
+/// Integrates the preimages provided by the services of a `Δ*` round into the partial state accounts sandbox.
 async fn add_provided_preimages(
     state_manager: Arc<StateManager>,
     partial_state_union: &mut AccumulatePartialState<StateManager>,
@@ -477,6 +477,7 @@ async fn accumulate_parallel(
     let mut service_gas_pairs = Vec::new();
     let mut service_output_pairs = BTreeSet::new();
     let mut new_deferred_transfers = Vec::new();
+    let mut provided_preimages = HashSet::new();
 
     // Concurrent accumulate invocations grouped by service ids.
     let mut handles = Vec::with_capacity(all_service_ids.len());
@@ -540,17 +541,21 @@ async fn accumulate_parallel(
                 // Add deferred transfers
                 new_deferred_transfers.extend(accumulate_result.deferred_transfers);
 
-                // Add provided preimages
-                add_provided_preimages(
-                    state_manager.clone(),
-                    partial_state_union,
-                    accumulate_result.provided_preimages,
-                    curr_timeslot_index,
-                )
-                .await?;
+                // Collect provided preimages
+                provided_preimages.extend(accumulate_result.provided_preimages);
             }
         }
     }
+
+    // Integrate the provided preimages after all services are merged, as a later merge replaces the
+    // sandbox of its accumulate host, which may be the service a preimage is provided to
+    add_provided_preimages(
+        state_manager.clone(),
+        partial_state_union,
+        provided_preimages,
+        curr_timeslot_index,
+    )
+    .await?;
 
     // Multiple services that are accumulated in the same `Δ*` round can produce conflicting
     // changes to the assign, designate and registrar services. So at this point, `partial_state_union`
